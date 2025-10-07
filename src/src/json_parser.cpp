@@ -151,13 +151,13 @@ namespace {
 
         Value parse_null() {
             if (s.compare(i, 4, "null") == 0) { i += 4; col += 4; return Value(); }
-            throw JsonParseError("invalid literal", line, col);
+            throw JsonParseError(format_error("invalid literal", line, col), line, col);
         }
 
         Value parse_bool() {
             if (s.compare(i, 4, "true") == 0) { i += 4; col += 4; return Value(true); }
             if (s.compare(i, 5, "false") == 0) { i += 5; col += 5; return Value(false); }
-            throw JsonParseError("invalid literal", line, col);
+            throw JsonParseError(format_error("invalid literal", line, col), line, col);
         }
 
         // helper: parse hex digit
@@ -232,7 +232,7 @@ namespace {
             size_t start = i;
             if (peek() == '-') { get(); }
             if (!std::isdigit(static_cast<unsigned char>(peek())))
-                throw JsonParseError("invalid number", line, col);
+                throw JsonParseError(format_error("invalid number", line, col), line, col);
             while (std::isdigit(static_cast<unsigned char>(peek()))) get();
             bool is_float = false;
             if (peek() == '.') {
@@ -243,7 +243,7 @@ namespace {
             if (peek() == 'e' || peek() == 'E') {
                 is_float = true; get();
                 if (peek() == '+' || peek() == '-') get();
-                if (!std::isdigit(static_cast<unsigned char>(peek()))) throw JsonParseError("invalid number", line, col);
+                if (!std::isdigit(static_cast<unsigned char>(peek()))) throw JsonParseError(format_error("invalid number", line, col), line, col);
                 while (std::isdigit(static_cast<unsigned char>(peek()))) get();
             }
             std::string token = s.substr(start, i - start);
