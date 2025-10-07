@@ -7,8 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(PARSEC_BUILD_TESTS "Build parsec unit tests" ON)
 
-add_subdirectory(parsec)
+add_subdirectory(src)
 
 if(PARSEC_BUILD_TESTS)
   enable_testing()
+  add_subdirectory(test)
 endif()
