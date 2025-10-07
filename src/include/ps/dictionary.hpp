@@ -109,10 +109,9 @@ struct Value {
     size_t size() const noexcept;
 
     std::string to_string() const;
-    std::string dump() const; // fallback dump
     // compatibility: return an int corresponding to Dictionary::TYPE for tests that call .type() on parse_json result
     int type() const;
-    std::string dump(int indent) const;
+    std::string dump(int indent = 4, bool compact = true) const;
     // forward map-like helpers when Value holds a dict
     std::vector<std::string> keys() const;
     bool has(const key_type &k) const;
@@ -266,8 +265,7 @@ struct Dictionary {
     bool isMappedObject() const { return !data.empty(); }
     bool isArrayObject() const { return scalar.has_value() && scalar->isList(); }
 
-    std::string dump() const;
-    std::string dump(int indent) const;
+    std::string dump(int indent = 4, bool compact = true) const;
 
     Dictionary overrideEntries(const Dictionary& config) const;
     Dictionary merge(const Dictionary& config) const;
@@ -372,7 +370,7 @@ inline size_t Value::size() const noexcept {
     if (isDict()) { const auto &p = asDict(); return p ? p->size() : 0; }
     return 0;
 }
-inline std::string Value::dump() const { if (isDict()) { const auto &p = asDict(); return p ? p->dump() : std::string("null"); } return to_string(); }
+
 
 inline std::vector<int> Dictionary::asInts() const { if (scalar && scalar->isList()) { std::vector<int> out; for (auto const &e: scalar->asList()) out.push_back(e.isInt()?static_cast<int>(e.asInt()):0); return out; } throw std::runtime_error("not an int list"); }
 inline std::vector<double> Dictionary::asDoubles() const { if (scalar && scalar->isList()) { std::vector<double> out; for (auto const &e: scalar->asList()) out.push_back(e.isDouble()?e.asDouble(): (e.isInt()?static_cast<double>(e.asInt()):0.0)); return out; } throw std::runtime_error("not a double list"); }
@@ -380,29 +378,88 @@ inline std::vector<std::string> Dictionary::asStrings() const { if (scalar && sc
 inline std::vector<bool> Dictionary::asBools() const { if (scalar && scalar->isList()) { std::vector<bool> out; for (auto const &e: scalar->asList()) out.push_back(e.isBool()?e.asBool():false); return out; } throw std::runtime_error("not a bool list"); }
 inline std::vector<Dictionary> Dictionary::asObjects() const { if (scalar && scalar->isList()) { std::vector<Dictionary> out; for (auto const &e: scalar->asList()) if (e.isDict()) out.push_back(*e.asDict()); return out; } throw std::runtime_error("not an object list"); }
 
-inline std::string Dictionary::dump() const {
+inline std::string Dictionary::dump(int indent, bool compact) const {
     // If this Dictionary is a scalar-only wrapper, print the scalar raw
     if (data.empty() && scalar) {
-        return scalar->dump();
+        return scalar->dump(indent, compact);
     }
 
-    std::ostringstream ss;
-    ss << '{';
-    bool first = true;
-    for (auto const &p: data) {
-        if (!first) ss << ',';
-        first = false;
-        ss << '"' << p.first << '"' << ':' << p.second.dump();
+    // compact == true and indent == 0 produces a single-line compact JSON
+    if (indent == 0) {
+        std::ostringstream ss;
+        ss << '{';
+        bool first = true;
+        for (auto const &p: data) {
+            if (!first) ss << ',';
+            first = false;
+            ss << '"' << p.first << '"' << ':' << p.second.dump(0, compact);
+        }
+        ss << '}';
+        return ss.str();
     }
-    ss << '}';
-    return ss.str();
-}
 
-inline std::string Dictionary::dump(int indent) const {
     std::ostringstream out;
     std::function<void(const Dictionary&, int)> printObj;
     std::function<void(const Value&, int)> printVal;
 
+    // Helper: produce a one-line pretty-compact representation (spaces after colons and commas)
+    std::function<std::string(const Dictionary&)> make_pretty_compact;
+    make_pretty_compact = [&](const Dictionary &d) -> std::string {
+        std::ostringstream ss;
+        ss << "{ ";
+        bool first = true;
+        for (auto const &p: d.items()) {
+            if (!first) ss << ", ";
+            first = false;
+            ss << '"' << p.first << '"' << ": ";
+            const Value &val = p.second;
+            if (val.isDict()) {
+                ss << make_pretty_compact(*val.asDict());
+            } else if (val.isList()) {
+                const auto &L = val.asList();
+                ss << '[';
+                for (size_t i = 0; i < L.size(); ++i) {
+                    if (i) ss << ", ";
+                    if (L[i].isDict()) ss << make_pretty_compact(*L[i].asDict());
+                    else if (L[i].isList()) ss << L[i].dump(0, compact);
+                    else ss << L[i].to_string();
+                }
+                ss << ']';
+            } else {
+                ss << val.to_string();
+            }
+        }
+        ss << " }";
+        return ss.str();
+    };
+
+    bool force_expand = false;
+    bool deep_indent = false;
+    // If compact is requested, compute the one-line pretty-compact for this object
+    // and force expansion for all nested structures if it would exceed the threshold.
+    if (compact) {
+        std::string one = make_pretty_compact(*this);
+        if (one.size() > 80) {
+            force_expand = true;
+            // compute max nesting depth; if deeply nested, enable doubled indentation
+            std::function<int(const Dictionary&)> max_depth = [&](const Dictionary &d) -> int {
+                int best = 0;
+                for (auto const &p: d.items()) {
+                    const Value &val = p.second;
+                    if (val.isDict()) {
+                        best = std::max(best, 1 + max_depth(*val.asDict()));
+                    } else if (val.isList()) {
+                        for (auto const &e: val.asList()) if (e.isDict()) best = std::max(best, 1 + max_depth(*e.asDict()));
+                    }
+                }
+                return best;
+            };
+            int depth = max_depth(*this);
+            if (depth >= 5) deep_indent = true;
+        }
+    }
+
+    int effIndent = deep_indent ? indent*2 : indent;
     printVal = [&](const Value &val, int level) {
         if (val.isNull()) { out << "null"; return; }
         if (val.isInt()) { out << val.asInt(); return; }
@@ -412,10 +469,22 @@ inline std::string Dictionary::dump(int indent) const {
         if (val.isList()) {
             const auto &L = val.asList();
             if (L.empty()) { out << "[]"; return; }
+            // If compact printing requested, print arrays inline with a space after commas
+            if (compact) {
+                out << '[';
+                for (size_t i = 0; i < L.size(); ++i) {
+                    // print elements in compact form
+                    out << L[i].dump(0, compact);
+                    if (i + 1 < L.size()) out << ", ";
+                }
+                out << ']';
+                return;
+            }
+            // otherwise pretty-print arrays across multiple lines
             out << "[\n";
             for (size_t i=0;i<L.size();++i) {
-                out << std::string(level+indent, ' ');
-                printVal(L[i], level+indent);
+                out << std::string(level+effIndent, ' ');
+                printVal(L[i], level+effIndent);
                 if (i+1 < L.size()) out << ",\n";
                 else out << "\n";
             }
@@ -429,18 +498,27 @@ inline std::string Dictionary::dump(int indent) const {
     printObj = [&](const Dictionary &d, int level) {
         auto items = d.items();
         if (items.empty()) { out << "{}"; return; }
+        // If compact mode is enabled, try to emit a one-line pretty-compact form
+        if (compact && !force_expand) {
+            std::string one = make_pretty_compact(d);
+            if (one.size() <= 80) {
+                out << one;
+                return;
+            }
+            // otherwise fall through to pretty multiline form
+        }
         out << "{\n";
         for (size_t i=0;i<items.size();++i) {
-            out << std::string(level+indent, ' ') << '"' << items[i].first << '"' << ": ";
-            printVal(items[i].second, level+indent);
+            out << std::string(level+effIndent, ' ') << '"' << items[i].first << '"' << ": ";
+            printVal(items[i].second, level+effIndent);
             if (i+1 < items.size()) out << ",\n"; else out << "\n";
         }
         out << std::string(level, ' ') << "}";
     };
-
     printObj(*this, 0);
     return out.str();
 }
+
 
 inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
     Dictionary out = *this;
@@ -517,7 +595,7 @@ inline int Value::type() const {
     return static_cast<int>(Dictionary::Null);
 }
 
-inline std::string Value::dump(int indent) const { if (isDict()) { const auto &p = asDict(); return p ? p->dump(indent) : std::string("null"); } return dump(); }
+inline std::string Value::dump(int indent, bool compact) const { if (isDict()) { const auto &p = asDict(); return p ? p->dump(indent, compact) : std::string("null"); } return to_string(); }
 
 inline std::vector<std::string> Value::keys() const { if (isDict()) { const auto &p = asDict(); return p ? p->keys() : std::vector<std::string>{}; } throw std::runtime_error("not an object"); }
 inline bool Value::has(const key_type &k) const { if (isDict()) { const auto &p = asDict(); return p ? p->has(k) : false; } return false; }

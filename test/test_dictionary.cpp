@@ -41,7 +41,7 @@ TEST_CASE("empty dict object") {
     REQUIRE_THROWS(dict.asString());
     REQUIRE_THROWS(dict.asInt());
     REQUIRE_THROWS(dict.asDouble());
-    REQUIRE("{}" == dict.dump());
+    REQUIRE("{}" == dict.dump(0));
 }
 
 TEST_CASE("add boolean") {
@@ -51,7 +51,7 @@ TEST_CASE("add boolean") {
     REQUIRE(Dictionary::Boolean == dict["is available"].type());
     REQUIRE_FALSE(dict["is available"].asBool());
     REQUIRE(dict["truth"].asBool());
-    REQUIRE("{\"is available\":false,\"truth\":true}" == dict.dump());
+    REQUIRE("{\"is available\":false,\"truth\":true}" == dict.dump(0));
 }
 
 TEST_CASE("add a string") {
@@ -62,7 +62,7 @@ TEST_CASE("add a string") {
     REQUIRE(1 == dict.size());
     REQUIRE(Dictionary::String == dict["name"].type());
     REQUIRE("pikachu" == dict.at("name").asString());
-    REQUIRE("{\"name\":\"pikachu\"}" == dict.dump());
+    REQUIRE("{\"name\":\"pikachu\"}" == dict.dump(0));
 }
 
 TEST_CASE("add a number") {
@@ -72,7 +72,7 @@ TEST_CASE("add a number") {
     REQUIRE(Dictionary::Integer == dict["shoe size"].type());
     REQUIRE("7" == dict.at("shoe size").asString());
     REQUIRE(7 == dict.at("shoe size").asInt());
-    REQUIRE("{\"shoe size\":7}" == dict.dump());
+    REQUIRE("{\"shoe size\":7}" == dict.dump(0));
 
     dict["power"] = 3.14;
     REQUIRE(2 == dict.size());
@@ -97,7 +97,7 @@ TEST_CASE("empty array") {
     dict["empty array"] = std::vector<int>();
     REQUIRE(1 == dict.size());
     REQUIRE(0 == dict["empty array"].size());
-    REQUIRE("{\"empty array\":[]}" == dict.dump());
+    REQUIRE("{\"empty array\":[]}" == dict.dump(0));
 }
 
 TEST_CASE("add a vector") {
@@ -112,7 +112,7 @@ TEST_CASE("add a vector") {
 
     auto v2 = dict.at("some integers").asInts();
     REQUIRE(v == v2);
-    REQUIRE("{\"some integers\":[0,1,2]}" == dict.dump());
+    REQUIRE("{\"some integers\":[0,1,2]}" == dict.dump(0));
 
     std::vector<double> my_doubles{3.14, 3.14};
     dict["my doubles"] = my_doubles;
@@ -144,7 +144,7 @@ TEST_CASE("Add nested elements") {
     REQUIRE(1 == dict.size());
     REQUIRE("pikachu" == dict.at("pokemon").at("name").asString());
     REQUIRE(toes == dict.at("pokemon").at("toes per leg").asInts());
-    REQUIRE("{\"pokemon\":{\"name\":\"pikachu\",\"toes per leg\":[3,3,4,4]}}" == dict.dump());
+    REQUIRE("{\"pokemon\":{\"name\":\"pikachu\",\"toes per leg\":[3,3,4,4]}}" == dict.dump(0));
 }
 
 TEST_CASE("add arrays via [] operators") {
@@ -154,7 +154,7 @@ TEST_CASE("add arrays via [] operators") {
     REQUIRE(2 == dict["some array"].size());
     REQUIRE(5 == dict["some array"][0].asInt());
     REQUIRE(6 == dict["some array"][1].asInt());
-    REQUIRE("{\"some array\":[5,6]}" == dict.dump());
+    REQUIRE("{\"some array\":[5,6]}" == dict.dump(0));
 
     std::vector<int> expected = {5, 6};
     std::vector<int> actual = dict["some array"].asInts();
@@ -238,10 +238,7 @@ TEST_CASE("Pretty print Json") {
     std::string expected = R"({
     "empty array": [],
     "empty object": {},
-    "some array": [
-        5,
-        6
-    ],
+    "some array": [5, 6],
     "some value": 1e+200
 })";
     REQUIRE(expected == dict.dump(4));
@@ -386,7 +383,7 @@ TEST_CASE("Can print dictionary via ostream") {
     Dictionary dict;
     dict["color"] = "brown";
     std::stringstream ss;
-    ss << dict;
+    ss << dict.dump(0);
     REQUIRE("{\"color\":\"brown\"}" == ss.str());
 }
 
