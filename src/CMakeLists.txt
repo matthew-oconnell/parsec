@@ -16,6 +16,7 @@ target_sources(parsec
   PRIVATE
     src/parsec.cpp
     src/json_parser.cpp
+    src/ron_parser.cpp
 )
 
 target_compile_options(parsec PRIVATE -Wall -Wextra -Wpedantic)
