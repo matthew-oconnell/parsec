@@ -14,7 +14,28 @@ namespace {
         Parser(const std::string& str) : s(str) {}
 
         void skip_ws() {
-            while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+            while (i < s.size()) {
+                unsigned char c = static_cast<unsigned char>(s[i]);
+                if (std::isspace(c)) { ++i; continue; }
+                // line comment //...
+                if (c == '/' && i + 1 < s.size() && s[i+1] == '/') {
+                    i += 2;
+                    while (i < s.size() && s[i] != '\n') ++i;
+                    continue;
+                }
+                // block comment /* ... */
+                if (c == '/' && i + 1 < s.size() && s[i+1] == '*') {
+                    i += 2;
+                    bool closed = false;
+                    while (i + 1 < s.size()) {
+                        if (s[i] == '*' && s[i+1] == '/') { i += 2; closed = true; break; }
+                        ++i;
+                    }
+                    if (!closed) throw std::runtime_error("unterminated comment");
+                    continue;
+                }
+                break;
+            }
         }
 
         char peek() const { return i < s.size() ? s[i] : '\0'; }
