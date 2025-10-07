@@ -1,4 +1,3 @@
-// moved json parser implementation
 #include <ps/simple_json.hpp>
 #include <cctype>
 #include <stdexcept>

@@ -1,5 +1,3 @@
-// Minimal RON parser implementation (not full spec). Implements a small,
-// forgiving parser for examples and tests.
 #include <ps/ron.hpp>
 #include <cctype>
 #include <sstream>

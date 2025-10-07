@@ -1,4 +1,3 @@
-// Simple CLI for parsing a JSON file using parsec
 #include <iostream>
 #include <fstream>
 #include <string>

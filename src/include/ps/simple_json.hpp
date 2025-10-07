@@ -1,4 +1,3 @@
-// Simple in-repo JSON parser API (moved under src/include)
 #pragma once
 
 #include <ps/dictionary.hpp>

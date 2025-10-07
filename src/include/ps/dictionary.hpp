@@ -277,7 +277,7 @@ struct Dictionary {
       : data(init) {}
 };
 
-// implementations that depend on types above
+ 
 
 inline Value::Value(const Dictionary& d) : v(std::make_shared<Dictionary>(d)) {}
 inline Value::Value(Dictionary&& d) : v(std::make_shared<Dictionary>(std::move(d))) {}
@@ -303,7 +303,7 @@ inline std::string Value::to_string() const {
     return "<unknown>";
 }
 
-// Value array/object helpers
+ 
 inline std::vector<int> Value::asInts() const {
     if (isList()) { std::vector<int> out; for (auto const &e: asList()) out.push_back(e.isInt()?static_cast<int>(e.asInt()):0); return out; }
     if (isInt()) return std::vector<int>{static_cast<int>(asInt())};
@@ -562,7 +562,7 @@ inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
 
 } // namespace ps
 
-// Implement Value forwarding methods now that Dictionary is complete
+ 
 namespace ps {
 
 inline int Value::type() const {
