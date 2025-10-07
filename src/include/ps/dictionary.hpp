@@ -52,19 +52,7 @@ struct Value {
     bool operator==(const Value& o) const noexcept {
         return v == o.v;
     }
-
-    std::string to_string() const {
-        if (is_null()) return "null";
-        if (is_int()) return std::to_string(as_int());
-        if (is_double()) {
-            std::ostringstream ss; ss << as_double(); return ss.str();
-        }
-        if (is_bool()) return as_bool() ? "true" : "false";
-        if (is_string()) return as_string();
-        if (is_list()) return "[list]";
-        if (is_dict()) return "{dict}";
-        return "<unknown>";
-    }
+    std::string to_string() const;
 };
 
 struct Dictionary {
@@ -123,4 +111,18 @@ struct Dictionary {
 inline Value::Value(const Dictionary& d) : v(std::make_shared<Dictionary>(d)) {}
 inline Value::Value(Dictionary&& d) : v(std::make_shared<Dictionary>(std::move(d))) {}
 
+} // namespace ps
+
+// Implement to_string after Dictionary is defined
+namespace ps {
+inline std::string Value::to_string() const {
+    if (is_null()) return "null";
+    if (is_int()) return std::to_string(as_int());
+    if (is_double()) { std::ostringstream ss; ss << as_double(); return ss.str(); }
+    if (is_bool()) return as_bool() ? "true" : "false";
+    if (is_string()) { std::ostringstream ss; ss << '"' << as_string() << '"'; return ss.str(); }
+    if (is_list()) { const auto &L = as_list(); std::ostringstream ss; ss << "[array, " << L.size() << " items]"; return ss.str(); }
+    if (is_dict()) { const auto &D = as_dict(); size_t n = D ? D->size() : 0; std::ostringstream ss; ss << "{object, " << n << " keys}"; return ss.str(); }
+    return "<unknown>";
+}
 } // namespace ps
