@@ -1,0 +1,20 @@
+# Build artefacts
+/build/
+/CMakeFiles/
+/CMakeCache.txt
+/*.cmake
+/*.o
+/*.obj
+/*.a
+/*.so
+/*.dll
+
+# VSCode
+.vscode/
+
+# Mac
+.DS_Store
+
+# Other
+*.swp
+*.swo
