@@ -1,0 +1,22 @@
+
+"visualization":[
+    {
+        "type":"volume",
+        "fields":"auto"
+        "filename":["dog.vtk","cat.vtk"]
+    }
+    {
+        "type":"plane",
+        "center":[0,0,0],
+        "normal":[1,0,0],
+        "fields":"auto"
+        "filename":["dog.vtk","cat.vtk"]
+    }
+    {
+        "type":"line",
+        "a":[0,0,0],
+        "b":[1,1,1],
+        "fields":"auto"
+        "filename":["dog.csv"]
+    }
+]

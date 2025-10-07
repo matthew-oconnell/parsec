@@ -197,16 +197,19 @@ namespace {
             while (true) {
                 out.emplace_back(parse_value());
                 skip_ws();
-                char c = get();
-                if (c == ']') { pop_opener(']'); break; }
-                if (c != ',') {
-                    std::ostringstream ss; ss << "expected ',' or ']' at " << line << ":" << col;
-                    if (!opener_stack.empty()) {
-                        auto o = opener_stack.back(); ss << " (opened at " << o.line << ":" << o.col << ")";
-                    }
-                    throw JsonParseError(ss.str(), line, col);
+                char c = peek();
+                if (c == ']') { get(); pop_opener(']'); break; }
+                if (c == ',') { get(); skip_ws(); continue; }
+                // Allow implicit separator: if the next token looks like the start of a value, accept it
+                if (c == '{' || c == '[' || c == '"' || c == 'n' || c == 't' || c == 'f' || c == '-' || std::isdigit(static_cast<unsigned char>(c))) {
+                    // treat as implicit separator (missing comma)
+                    continue;
                 }
-                skip_ws();
+                std::ostringstream ss; ss << "expected ',' or ']' at " << line << ":" << col;
+                if (!opener_stack.empty()) {
+                    auto o = opener_stack.back(); ss << " (opened at " << o.line << ":" << o.col << ")";
+                }
+                throw JsonParseError(ss.str(), line, col);
             }
             return Value(std::move(out));
         }
@@ -227,16 +230,19 @@ namespace {
                 Value v = parse_value();
                 d[k.as_string()] = v;
                 skip_ws();
-                char c = get();
-                if (c == '}') { pop_opener('}'); break; }
-                if (c != ',') {
-                    std::ostringstream ss; ss << "expected ',' or '}' at " << line << ":" << col;
-                    if (!opener_stack.empty()) {
-                        auto o = opener_stack.back(); ss << " (opened at " << o.line << ":" << o.col << ")";
-                    }
-                    throw JsonParseError(ss.str(), line, col);
+                char c = peek();
+                if (c == '}') { get(); pop_opener('}'); break; }
+                if (c == ',') { get(); skip_ws(); continue; }
+                // Allow implicit separator between object members: next token is a string key
+                if (c == '"') {
+                    // treat as implicit separator (missing comma)
+                    continue;
                 }
-                skip_ws();
+                std::ostringstream ss; ss << "expected ',' or '}' at " << line << ":" << col;
+                if (!opener_stack.empty()) {
+                    auto o = opener_stack.back(); ss << " (opened at " << o.line << ":" << o.col << ")";
+                }
+                throw JsonParseError(ss.str(), line, col);
             }
             return Value(std::move(d));
         }
@@ -247,7 +253,43 @@ Value parse_json(const std::string& text) {
     Parser p(text);
     auto val = p.parse_value();
     p.skip_ws();
-    if (p.peek() != '\0') throw JsonParseError("extra data after JSON value", p.line, p.col);
+    if (p.peek() != '\0') {
+        // Tolerate a top-level sequence of object members without surrounding braces
+        // e.g. "key": value  "key2": value2
+        // If the input starts with a string followed by ':', treat as an implicit root object
+        size_t save_i = p.i;
+        char first_nonws = '\0';
+        for (size_t k = 0; k < text.size(); ++k) {
+            if (!std::isspace(static_cast<unsigned char>(text[k]))) { first_nonws = text[k]; break; }
+        }
+        if (first_nonws == '"') {
+            // parse remaining as object members
+            // build a Dictionary with the already-parsed value if it was a dict, else include it if appropriate
+            p.i = 0;
+            p.line = 1; p.col = 1;
+            Dictionary root;
+            p.skip_ws();
+            while (p.peek() != '\0') {
+                p.skip_ws();
+                if (p.peek() != '"') throw JsonParseError("expected string key in top-level implicit object", p.line, p.col);
+                Value k = p.parse_string();
+                p.skip_ws();
+                if (p.get() != ':') throw JsonParseError("expected ':' after object key", p.line, p.col);
+                p.skip_ws();
+                Value v = p.parse_value();
+                root[k.as_string()] = v;
+                p.skip_ws();
+                char c = p.peek();
+                if (c == ',') { p.get(); p.skip_ws(); continue; }
+                if (c == '\0') break;
+                // allow implicit separator, otherwise error
+                if (c == '"') continue;
+                throw JsonParseError("extra data after JSON value", p.line, p.col);
+            }
+            return Value(std::move(root));
+        }
+        throw JsonParseError("extra data after JSON value", p.line, p.col);
+    }
     return val;
 }
 
