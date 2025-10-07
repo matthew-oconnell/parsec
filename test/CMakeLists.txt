@@ -9,8 +9,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(catch2)
 
-file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
-add_executable(parsec_tests ${TEST_SOURCES})
+add_executable(parsec_tests
+  test_parsec.cpp
+  test_dictionary.cpp
+  test_parse_examples.cpp
+)
 target_link_libraries(parsec_tests PRIVATE parsec Catch2::Catch2WithMain)
 target_include_directories(parsec_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/include)
 target_compile_definitions(parsec_tests PRIVATE EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples")
