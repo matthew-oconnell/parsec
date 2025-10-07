@@ -70,6 +70,45 @@ namespace {
             return ss.str();
         }
 
+        // compute line/col from absolute index
+        std::pair<size_t,size_t> line_col_from_index(size_t idx) const {
+            size_t pos = 0; size_t cur = 1; size_t col = 1;
+            while (pos < idx && pos < s.size()) {
+                if (s[pos] == '\n') { ++cur; col = 1; }
+                else ++col;
+                ++pos;
+            }
+            return {cur, col};
+        }
+
+        // find an unclosed '"' that starts before current parser index; return start index or npos
+        size_t find_unclosed_string_before() const {
+            if (i == 0) return std::string::npos;
+            // scan backwards to find the nearest non-escaped '"'
+            for (size_t k = i; k-- > 0; ) {
+                if (s[k] != '"') continue;
+                // is this quote escaped?
+                size_t back = k;
+                bool escaped = false;
+                while (back > 0 && s[back-1] == '\\') { escaped = !escaped; --back; }
+                if (escaped) continue;
+                // found an opening quote at k; check if there's a closing quote before i
+                bool closed = false;
+                for (size_t j = k + 1; j < i && j < s.size(); ++j) {
+                    if (s[j] == '"') {
+                        // check if this quote is escaped
+                        size_t back2 = j;
+                        bool esc2 = false;
+                        while (back2 > 0 && s[back2-1] == '\\') { esc2 = !esc2; --back2; }
+                        if (!esc2) { closed = true; break; }
+                    }
+                }
+                if (!closed) return k;
+                // otherwise continue searching further back
+            }
+            return std::string::npos;
+        }
+
         void skip_ws() {
             while (i < s.size()) {
                 unsigned char c = static_cast<unsigned char>(s[i]);
@@ -281,6 +320,70 @@ namespace {
                 }
                 {
                     std::string base = "expected ',' or '}'";
+                    // if there's an unclosed string earlier, suggest a missing quote
+                    size_t us = find_unclosed_string_before();
+                    if (us != std::string::npos) {
+                        // extract the partial string content between the opening quote and current parse index
+                        size_t content_start = us + 1;
+                        // find a closing quote before current index if any
+                        size_t closeq = std::string::npos;
+                        for (size_t k = content_start; k < i && k < s.size(); ++k) {
+                            if (s[k] == '"') {
+                                // ensure it's not escaped
+                                size_t back = k; bool esc = false; while (back > content_start && s[back-1] == '\\') { esc = !esc; --back; }
+                                if (!esc) { closeq = k; break; }
+                            }
+                        }
+                        size_t content_end = (closeq != std::string::npos) ? closeq : (i < s.size() ? i : s.size());
+                        if (content_end < content_start) content_end = content_start;
+                        std::string snippet = s.substr(content_start, content_end - content_start);
+                        // trim whitespace and trailing comma
+                        auto trim = [&](std::string &t){ size_t a=0; while (a<t.size() && std::isspace(static_cast<unsigned char>(t[a]))) ++a; size_t b=t.size(); while (b>a && std::isspace(static_cast<unsigned char>(t[b-1]))) --b; t = t.substr(a,b-a); if (!t.empty() && t.back()==',') t.pop_back(); };
+                        trim(snippet);
+                        if (snippet.size() > 80) snippet = snippet.substr(0, 77) + "...";
+                        if (snippet.empty() || (snippet.find(":")!=std::string::npos)) {
+                            // fallback: extract the whole line where the unclosed quote started
+                            size_t line_s = us;
+                            while (line_s > 0 && s[line_s-1] != '\n') --line_s;
+                            size_t line_e = us;
+                            while (line_e < s.size() && s[line_e] != '\n') ++line_e;
+                            std::string line_text = s.substr(line_s, line_e - line_s);
+                            // remove leading up to the opening quote
+                            size_t qpos = line_text.find('"');
+                            if (qpos != std::string::npos) {
+                                std::string after = line_text.substr(qpos + 1);
+                                // trim
+                                size_t aa = 0; while (aa < after.size() && std::isspace(static_cast<unsigned char>(after[aa]))) ++aa;
+                                size_t bb = after.size(); while (bb > aa && std::isspace(static_cast<unsigned char>(after[bb-1]))) --bb;
+                                snippet = after.substr(aa, bb - aa);
+                                if (snippet.size() > 80) snippet = snippet.substr(0, 77) + "...";
+                            }
+                            // If that still looks structural (e.g. 'notes": ['), try to find the nearest "description" key earlier
+                            if (snippet.empty() || snippet.find(":")!=std::string::npos) {
+                                size_t desc_pos = s.rfind("\"description\"", us);
+                                if (desc_pos != std::string::npos) {
+                                    // find colon after desc_pos
+                                    size_t colon = s.find(':', desc_pos + 13);
+                                    if (colon != std::string::npos) {
+                                        // find opening quote after colon
+                                        size_t q = s.find('"', colon+1);
+                                        if (q != std::string::npos && q < i) {
+                                            size_t qend = i;
+                                            if (qend > q+1) {
+                                                std::string val = s.substr(q+1, qend - (q+1));
+                                                // trim
+                                                size_t ta=0; while (ta<val.size() && std::isspace(static_cast<unsigned char>(val[ta]))) ++ta;
+                                                size_t tb=val.size(); while (tb>ta && std::isspace(static_cast<unsigned char>(val[tb-1]))) --tb;
+                                                snippet = val.substr(ta, tb-ta);
+                                                if (snippet.size() > 80) snippet = snippet.substr(0,77)+"...";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        base += std::string(" — is there a missing closing quote on '") + snippet + "'?";
+                    }
                     std::string msg = format_error(base, line, col);
                     throw JsonParseError(msg, line, col);
                 }
