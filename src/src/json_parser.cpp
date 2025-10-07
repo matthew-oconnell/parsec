@@ -107,7 +107,7 @@ namespace {
             if (c == '[') return parse_array();
             if (c == '{') return parse_object();
             if (c == '-' || std::isdigit(static_cast<unsigned char>(c))) return parse_number();
-            throw JsonParseError("unexpected token while parsing value", line, col);
+            throw JsonParseError(format_error("unexpected token while parsing value", line, col), line, col);
         }
 
         Value parse_null() {
@@ -252,10 +252,21 @@ namespace {
             if (peek() == '}') { get(); pop_opener('}'); return Value(std::move(d)); }
             while (true) {
                 skip_ws();
-                if (peek() != '"') throw JsonParseError("expected string key", line, col);
+                if (peek() != '"') {
+                    // attempt to read an identifier to provide a helpful suggestion
+                    size_t start = i;
+                    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) ++start;
+                    size_t j = start;
+                    while (j < s.size() && (std::isalnum(static_cast<unsigned char>(s[j])) || s[j] == '_')) ++j;
+                    std::string ident;
+                    if (j > start) ident = s.substr(start, j - start);
+                    std::string base = "expected string key";
+                    if (!ident.empty()) base += std::string(" — are you missing quotes around '") + ident + "'?";
+                    throw JsonParseError(format_error(base, line, col), line, col);
+                }
                 Value k = parse_string();
                 skip_ws();
-                if (get() != ':') throw JsonParseError("expected ':' after object key", line, col);
+                if (get() != ':') throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
                 skip_ws();
                 Value v = parse_value();
                 d[k.as_string()] = v;
