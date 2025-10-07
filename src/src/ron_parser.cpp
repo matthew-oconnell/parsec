@@ -66,7 +66,7 @@ namespace {
             while (true) {
                 out.emplace_back(parse_value());
                 skip_ws();
-                if (peek() == ',') { get(); skip_ws(); continue; }
+                if (peek() == ',') { get(); skip_ws(); if (peek() == ']') { get(); break; } continue; }
                 if (peek() == ']') { get(); break; }
                 // allow implicit separator
                 continue;
@@ -119,7 +119,17 @@ namespace {
             if (c == '[') return parse_array();
             if (c == '"') return parse_string();
             if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-' || std::isdigit(static_cast<unsigned char>(c))) return parse_number_or_ident();
-            throw std::runtime_error("unexpected token in RON");
+            {
+                size_t ctx_s = (i >= 20) ? i - 20 : 0;
+                size_t ctx_e = i + 20;
+                if (ctx_e > s.size()) ctx_e = s.size();
+                std::string snippet = s.substr(ctx_s, ctx_e - ctx_s);
+                std::ostringstream msg;
+                char pc = peek();
+                if (pc == '\0') msg << "unexpected end of input in RON";
+                else msg << "unexpected token in RON at index " << i << " ('" << pc << "') near '" << snippet << "'";
+                throw std::runtime_error(msg.str());
+            }
         }
     };
 }
