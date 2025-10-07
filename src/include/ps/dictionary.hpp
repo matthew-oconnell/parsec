@@ -183,38 +183,7 @@ struct Dictionary {
     bool erase(const key_type& k) { return data.erase(k) > 0; }
     void clear() noexcept { data.clear(); scalar.reset(); }
 
-    TYPE type() const {
-        // A Dictionary created as {} should be considered an Object (mapping)
-        if (!data.empty()) return TYPE::Object;
-        if (scalar.has_value()) {
-            if (scalar->isList()) {
-                const auto &L = scalar->asList();
-                if (L.empty()) return TYPE::ObjectArray;
-                bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
-                for (auto const &e: L) {
-                    allInt = allInt and e.isInt();
-                    allDouble = allDouble and (e.isDouble() or e.isInt());
-                    allString = allString and e.isString();
-                    allBool = allBool and e.isBool();
-                    allObject = allObject and e.isDict();
-                }
-                if (allInt) return TYPE::IntArray;
-                if (allDouble) return TYPE::DoubleArray;
-                if (allString) return TYPE::StringArray;
-                if (allBool) return TYPE::BoolArray;
-                if (allObject) return TYPE::ObjectArray;
-                return TYPE::ObjectArray;
-            }
-            if (scalar->isDict()) return TYPE::Object;
-            if (scalar->isString()) return TYPE::String;
-            if (scalar->isInt()) return TYPE::Integer;
-            if (scalar->isDouble()) return TYPE::Double;
-            if (scalar->isBool()) return TYPE::Boolean;
-            return TYPE::Null;
-        }
-        // empty mapping defaults to Object
-        return TYPE::Object;
-    }
+    TYPE type() const;
 
     value_type& operator[](const key_type& k) { return data[k]; }
     const value_type& at(const key_type& k) const {
@@ -398,11 +367,9 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         return ss.str();
     }
 
-    std::ostringstream out;
-    std::function<void(const Dictionary&, int)> printObj;
-    std::function<void(const Value&, int)> printVal;
+    // (list-type detection moved to a shared helper)
 
-    // Helper: produce a one-line pretty-compact representation (spaces after colons and commas)
+    // produce a one-line pretty-compact representation (spaces after colons and commas)
     std::function<std::string(const Dictionary&)> make_pretty_compact;
     make_pretty_compact = [&](const Dictionary &d) -> std::string {
         std::ostringstream ss;
@@ -434,18 +401,18 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
     };
 
     bool force_expand = false;
-    // If compact is requested, compute the one-line pretty-compact for this object
-    // and force expansion for all nested structures if it would exceed the threshold.
     if (compact) {
         std::string one = make_pretty_compact(*this);
-        if (one.size() > 80) {
-            force_expand = true;
-        }
+        if (one.size() > 80) force_expand = true;
     }
 
-    // Use the requested indent consistently for nested levels
-    int effIndent = indent;
-    printVal = [&](const Value &val, int level) {
+    std::ostringstream out;
+
+    // Forward declarations of small helpers used by the pretty printer
+    std::function<void(const Value&, int)> dumpValue;
+    std::function<void(const Dictionary&, int)> dumpObject;
+
+    dumpValue = [&](const Value &val, int level) {
         if (val.isNull()) { out << "null"; return; }
         if (val.isInt()) { out << val.asInt(); return; }
         if (val.isDouble()) { std::ostringstream ss; ss << val.asDouble(); out << ss.str(); return; }
@@ -454,53 +421,45 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         if (val.isList()) {
             const auto &L = val.asList();
             if (L.empty()) { out << "[]"; return; }
-            // If compact printing requested, print arrays inline with a space after commas
             if (compact) {
                 out << '[';
                 for (size_t i = 0; i < L.size(); ++i) {
-                    // print elements in compact form
                     out << L[i].dump(0, compact);
                     if (i + 1 < L.size()) out << ", ";
                 }
                 out << ']';
                 return;
             }
-            // otherwise pretty-print arrays across multiple lines
             out << "[\n";
             for (size_t i=0;i<L.size();++i) {
-                out << std::string(level+effIndent, ' ');
-                printVal(L[i], level+effIndent);
-                if (i+1 < L.size()) out << ",\n";
-                else out << "\n";
+                out << std::string(level+indent, ' ');
+                dumpValue(L[i], level+indent);
+                if (i+1 < L.size()) out << ",\n"; else out << "\n";
             }
             out << std::string(level, ' ') << "]";
             return;
         }
-        if (val.isDict()) { printObj(*val.asDict(), level); return; }
+        if (val.isDict()) { dumpObject(*val.asDict(), level); return; }
         out << "null";
     };
 
-    printObj = [&](const Dictionary &d, int level) {
+    dumpObject = [&](const Dictionary &d, int level) {
         auto items = d.items();
         if (items.empty()) { out << "{}"; return; }
-        // If compact mode is enabled, try to emit a one-line pretty-compact form
         if (compact && !force_expand) {
             std::string one = make_pretty_compact(d);
-            if (one.size() <= 80) {
-                out << one;
-                return;
-            }
-            // otherwise fall through to pretty multiline form
+            if (one.size() <= 80) { out << one; return; }
         }
         out << "{\n";
         for (size_t i=0;i<items.size();++i) {
-            out << std::string(level+effIndent, ' ') << '"' << items[i].first << '"' << ": ";
-            printVal(items[i].second, level+effIndent);
+            out << std::string(level+indent, ' ') << '"' << items[i].first << '"' << ": ";
+            dumpValue(items[i].second, level+indent);
             if (i+1 < items.size()) out << ",\n"; else out << "\n";
         }
         out << std::string(level, ' ') << "}";
     };
-    printObj(*this, 0);
+
+    dumpObject(*this, 0);
     return out.str();
 }
 
@@ -550,6 +509,25 @@ inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
  
 namespace ps {
 
+// Helper: detect homogeneous list type - used by Dictionary::type and Value::type
+inline Dictionary::TYPE detect_list_type(const Value::list_t &L) {
+    if (L.empty()) return Dictionary::ObjectArray;
+    bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+    for (auto const &e: L) {
+        allInt = allInt and e.isInt();
+        allDouble = allDouble and (e.isDouble() or e.isInt());
+        allString = allString and e.isString();
+        allBool = allBool and e.isBool();
+        allObject = allObject and e.isDict();
+    }
+    if (allInt) return Dictionary::IntArray;
+    if (allDouble) return Dictionary::DoubleArray;
+    if (allString) return Dictionary::StringArray;
+    if (allBool) return Dictionary::BoolArray;
+    if (allObject) return Dictionary::ObjectArray;
+    return Dictionary::ObjectArray;
+}
+
 inline int Value::type() const {
     if (isDict()) {
         const auto &p = asDict();
@@ -558,26 +536,32 @@ inline int Value::type() const {
     if (isList()) {
         const auto &L = asList();
         if (L.empty()) return static_cast<int>(Dictionary::ObjectArray);
-                bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
-                for (auto const &e: L) {
-                    allInt = allInt and e.isInt();
-                    allDouble = allDouble and (e.isDouble() or e.isInt());
-                    allString = allString and e.isString();
-                    allBool = allBool and e.isBool();
-                    allObject = allObject and e.isDict();
-                }
-        if (allInt) return static_cast<int>(Dictionary::IntArray);
-        if (allDouble) return static_cast<int>(Dictionary::DoubleArray);
-        if (allString) return static_cast<int>(Dictionary::StringArray);
-        if (allBool) return static_cast<int>(Dictionary::BoolArray);
-        if (allObject) return static_cast<int>(Dictionary::ObjectArray);
-        return static_cast<int>(Dictionary::ObjectArray);
+        // defer to Dictionary::type logic for list typing
+        Dictionary::TYPE t = detect_list_type(L);
+        return static_cast<int>(t);
     }
     if (isString()) return static_cast<int>(Dictionary::String);
     if (isInt()) return static_cast<int>(Dictionary::Integer);
     if (isDouble()) return static_cast<int>(Dictionary::Double);
     if (isBool()) return static_cast<int>(Dictionary::Boolean);
     return static_cast<int>(Dictionary::Null);
+}
+
+inline Dictionary::TYPE Dictionary::type() const {
+    if (!data.empty()) return TYPE::Object;
+    if (scalar.has_value()) {
+        if (scalar->isList()) {
+            const auto &L = scalar->asList();
+            return detect_list_type(L);
+        }
+        if (scalar->isDict()) return TYPE::Object;
+        if (scalar->isString()) return TYPE::String;
+        if (scalar->isInt()) return TYPE::Integer;
+        if (scalar->isDouble()) return TYPE::Double;
+        if (scalar->isBool()) return TYPE::Boolean;
+        return TYPE::Null;
+    }
+    return TYPE::Object;
 }
 
 inline std::string Value::dump(int indent, bool compact) const { if (isDict()) { const auto &p = asDict(); return p ? p->dump(indent, compact) : std::string("null"); } return to_string(); }
