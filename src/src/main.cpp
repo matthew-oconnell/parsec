@@ -6,7 +6,7 @@
 #include <algorithm>
 
 int main(int argc, char** argv) {
-    if (argc < 2 || argc > 3) {
+    if (argc < 2 or argc > 3) {
         std::cerr << "usage: parsec [--auto|--json|--ron] <file>\n";
         return 2;
     }
@@ -33,12 +33,12 @@ int main(int argc, char** argv) {
         bool parsed = false;
         std::string used;
 
-        if (mode == "--json" || mode == "json") {
+    if (mode == "--json" or mode == "json") {
             auto r = parse_with("json");
             if (!r.first) throw std::runtime_error(std::string("JSON parse error: ") + r.second);
             parsed = true; used = "JSON";
             v = ps::parse_json(content);
-        } else if (mode == "--ron" || mode == "ron") {
+    } else if (mode == "--ron" or mode == "ron") {
             auto r = parse_with("ron");
             if (!r.first) throw std::runtime_error(std::string("RON parse error: ") + r.second);
             parsed = true; used = "RON";

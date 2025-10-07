@@ -78,7 +78,7 @@ struct Value {
         if (isInt()) return asInt() != 0;
         if (isDouble()) return asDouble() != 0.0;
         if (isString()) {
-            auto s = asString(); if (s == "true" || s == "1") return true; if (s == "false" || s == "0") return false; return !s.empty();
+            auto s = asString(); if (s == "true" or s == "1") return true; if (s == "false" or s == "0") return false; return not s.empty();
         }
         throw std::runtime_error("not a bool");
     }
@@ -160,7 +160,7 @@ struct Dictionary {
     Dictionary& operator=(const Value& obj) { Value tmp = obj; data.clear(); scalar = std::move(tmp); return *this; }
 
     bool operator==(const Dictionary& rhs) const { return data == rhs.data && scalar == rhs.scalar; }
-    bool operator!=(const Dictionary& rhs) const { return !(*this == rhs); }
+    bool operator!=(const Dictionary& rhs) const { return not (*this == rhs); }
 
     bool isTrue(const key_type& key) const {
         auto it = data.find(key);
@@ -175,7 +175,7 @@ struct Dictionary {
     bool has(const key_type& key) const noexcept { return count(key) == 1; }
     bool contains(const key_type& k) const noexcept { return has(k); }
     size_t size() const noexcept {
-        if (!data.empty()) return data.size();
+        if (not data.empty()) return data.size();
         if (scalar && scalar->isDict()) return scalar->asDict()->size();
         return 0;
     }
@@ -192,11 +192,11 @@ struct Dictionary {
                 if (L.empty()) return TYPE::ObjectArray;
                 bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
                 for (auto const &e: L) {
-                    allInt = allInt && e.isInt();
-                    allDouble = allDouble && (e.isDouble() || e.isInt());
-                    allString = allString && e.isString();
-                    allBool = allBool && e.isBool();
-                    allObject = allObject && e.isDict();
+                    allInt = allInt and e.isInt();
+                    allDouble = allDouble and (e.isDouble() or e.isInt());
+                    allString = allString and e.isString();
+                    allBool = allBool and e.isBool();
+                    allObject = allObject and e.isDict();
                 }
                 if (allInt) return TYPE::IntArray;
                 if (allDouble) return TYPE::DoubleArray;
@@ -261,7 +261,7 @@ struct Dictionary {
     std::vector<bool> asBools() const;
     std::vector<Dictionary> asObjects() const;
 
-    bool isValueObject() const { return scalar.has_value() && !scalar->isList() && !scalar->isDict(); }
+    bool isValueObject() const { return scalar.has_value() and not scalar->isList() and not scalar->isDict(); }
     bool isMappedObject() const { return !data.empty(); }
     bool isArrayObject() const { return scalar.has_value() && scalar->isList(); }
 
@@ -558,14 +558,14 @@ inline int Value::type() const {
     if (isList()) {
         const auto &L = asList();
         if (L.empty()) return static_cast<int>(Dictionary::ObjectArray);
-        bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
-        for (auto const &e: L) {
-            allInt = allInt && e.isInt();
-            allDouble = allDouble && (e.isDouble() || e.isInt());
-            allString = allString && e.isString();
-            allBool = allBool && e.isBool();
-            allObject = allObject && e.isDict();
-        }
+                bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+                for (auto const &e: L) {
+                    allInt = allInt and e.isInt();
+                    allDouble = allDouble and (e.isDouble() or e.isInt());
+                    allString = allString and e.isString();
+                    allBool = allBool and e.isBool();
+                    allObject = allObject and e.isDict();
+                }
         if (allInt) return static_cast<int>(Dictionary::IntArray);
         if (allDouble) return static_cast<int>(Dictionary::DoubleArray);
         if (allString) return static_cast<int>(Dictionary::StringArray);

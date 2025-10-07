@@ -18,11 +18,11 @@ namespace {
             while (i < s.size()) {
                 unsigned char c = static_cast<unsigned char>(s[i]);
                 if (std::isspace(c)) { ++i; continue; }
-                if (c == '/' && i + 1 < s.size() && s[i+1] == '/') {
-                    i += 2; while (i < s.size() && s[i] != '\n') ++i; continue;
+                if (c == '/' and i + 1 < s.size() and s[i+1] == '/') {
+                    i += 2; while (i < s.size() and s[i] != '\n') ++i; continue;
                 }
-                if (c == '/' && i + 1 < s.size() && s[i+1] == '*') {
-                    i += 2; while (i + 1 < s.size() && !(s[i] == '*' && s[i+1] == '/')) ++i; if (i + 1 < s.size()) i += 2; continue;
+                if (c == '/' and i + 1 < s.size() and s[i+1] == '*') {
+                    i += 2; while (i + 1 < s.size() and !(s[i] == '*' and s[i+1] == '/')) ++i; if (i + 1 < s.size()) i += 2; continue;
                 }
                 break;
             }
@@ -44,7 +44,7 @@ namespace {
 
         Value parse_number_or_ident() {
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '.' || peek() == '_' || peek() == '-') get();
+            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '.' or peek() == '_' or peek() == '-') get();
             std::string tok = s.substr(start, i - start);
             if (tok == "null") return Value();
             if (tok == "true") return Value(true);
@@ -77,7 +77,7 @@ namespace {
             if (peek() == '"') { auto v = parse_string(); return v.asString(); }
             // identifier key
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '_' ) get();
+            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_' ) get();
             return s.substr(start, i - start);
         }
 
@@ -89,7 +89,7 @@ namespace {
             while (true) {
                 std::string key = parse_key();
                 skip_ws();
-                    if (peek() == ':' || peek() == '=') get(); else {
+                    if (peek() == ':' or peek() == '=') get(); else {
                         size_t ctx_s = (i >= 20) ? i - 20 : 0;
                         size_t ctx_e = i + 20;
                         if (ctx_e > s.size()) ctx_e = s.size();
@@ -116,7 +116,7 @@ namespace {
             if (c == '{') return parse_object();
             if (c == '[') return parse_array();
             if (c == '"') return parse_string();
-            if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-' || std::isdigit(static_cast<unsigned char>(c))) return parse_number_or_ident();
+            if (std::isalpha(static_cast<unsigned char>(c)) or c == '_' or c == '-' or std::isdigit(static_cast<unsigned char>(c))) return parse_number_or_ident();
             {
                 size_t ctx_s = (i >= 20) ? i - 20 : 0;
                 size_t ctx_e = i + 20;

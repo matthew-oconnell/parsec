@@ -30,7 +30,7 @@ TEST_CASE("Dictionary basic operations") {
     REQUIRE(items.size() == 3);
 
     d.erase("one");
-    REQUIRE(!d.contains("one"));
+    REQUIRE(not d.contains("one"));
     REQUIRE(d.size() == 2);
 }
 
