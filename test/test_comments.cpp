@@ -9,10 +9,10 @@ TEST_CASE("parser supports // line comments and /* block comments */") {
         // this is a comment
         {"a": 1} // trailing comment
         )";
-        auto v = parse_json(s);
-        REQUIRE(v.is_dict());
-        REQUIRE(v.as_dict()->data.at("a").is_int());
-        REQUIRE(v.as_dict()->data.at("a").as_int() == 1);
+    auto v = parse_json(s);
+    REQUIRE(v.isDict());
+    REQUIRE(v.asDict()->data.at("a").isInt());
+    REQUIRE(v.asDict()->data.at("a").asInt() == 1);
     }
 
     SECTION("block comment") {
@@ -21,16 +21,16 @@ TEST_CASE("parser supports // line comments and /* block comments */") {
            still comment */
         {"b": 2}
         )";
-        auto v = parse_json(s);
-        REQUIRE(v.is_dict());
-        REQUIRE(v.as_dict()->data.at("b").is_int());
-        REQUIRE(v.as_dict()->data.at("b").as_int() == 2);
+    auto v = parse_json(s);
+    REQUIRE(v.isDict());
+    REQUIRE(v.asDict()->data.at("b").isInt());
+    REQUIRE(v.asDict()->data.at("b").asInt() == 2);
     }
 
     SECTION("inline block comment") {
         std::string s = R"({/*c*/"c":3})";
-        auto v = parse_json(s);
-        REQUIRE(v.is_dict());
-        REQUIRE(v.as_dict()->data.at("c").as_int() == 3);
+    auto v = parse_json(s);
+    REQUIRE(v.isDict());
+    REQUIRE(v.asDict()->data.at("c").asInt() == 3);
     }
 }

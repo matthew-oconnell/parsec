@@ -1,7 +1,10 @@
 #include <catch2/catch_all.hpp>
 #include <ps/dictionary.hpp>
+#include <ps/simple_json.hpp>
 
 using namespace ps;
+using Catch::Approx;
+// don't import Contains into global scope; call Catch::Contains explicitly when needed
 
 TEST_CASE("Dictionary basic operations") {
     Dictionary d;
@@ -16,9 +19,9 @@ TEST_CASE("Dictionary basic operations") {
     REQUIRE(d.contains("pi"));
     REQUIRE(d.contains("name"));
 
-    REQUIRE(d.at("one").is_int());
-    REQUIRE(d.at("pi").is_double());
-    REQUIRE(d.at("name").is_string());
+    REQUIRE(d.at("one").isInt());
+    REQUIRE(d.at("pi").isDouble());
+    REQUIRE(d.at("name").isString());
 
     auto keys = d.keys();
     REQUIRE(keys.size() == 3);
@@ -214,14 +217,14 @@ TEST_CASE("Demonstrate how to get a Json object from a dict formatted string") {
         std::string settings_string =
             R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
     auto dict_object = parse_json(settings_string);
-        REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
+    REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
     }
     SECTION("Array of objects") {
         std::string settings_string = R"([{"name":"Pikachu"}, {"name":"Mewtwo"}])";
     auto dict_object = parse_json(settings_string);
         REQUIRE(2 == dict_object.size());
-        REQUIRE(dict_object.at(0).at("name").asString() == "Pikachu");
-        REQUIRE(dict_object.at(1).at("name").asString() == "Mewtwo");
+    REQUIRE(dict_object.at(0).at("name").asString() == "Pikachu");
+    REQUIRE(dict_object.at(1).at("name").asString() == "Mewtwo");
     }
 }
 
@@ -337,29 +340,30 @@ TEST_CASE("Can easily check if something exists and is true") {
     REQUIRE_FALSE(dict.isTrue("int key"));
 
     dict["bool key"] = false;
-    REQUIRE_FALSE(dict.at("bool key").asBool());
+        REQUIRE_FALSE(dict.at("bool key").asBool());
     REQUIRE_FALSE(dict.isTrue("bool key"));
 
     dict["actually true"] = true;
     REQUIRE(dict.at("actually true").asBool());
+        REQUIRE(dict.at("actually true").asBool());
     REQUIRE(dict.isTrue("actually true"));
 }
 
 TEST_CASE("Give available options if the user fails to request a valid key") {
     Dictionary dict;
     dict["dog"] = 1;
-    REQUIRE_THROWS_WITH(dict.at("cat"), Contains("\"dog\""));
+    REQUIRE_THROWS_WITH(dict.at("cat"), std::string("\"dog\""));
 }
 
-TEST_CASE("Can use _dict literal") {
+TEST_CASE("Can use _dict and _json literals") {
     using namespace json_literals;
     auto d = R"({"dog":1})"_dict;
     REQUIRE(d.has("dog"));
     REQUIRE(d.at("dog").asInt() == 1);
-}
-    auto d = R"({"dog":1})"_json;
-    REQUIRE(d.has("dog"));
-    REQUIRE(d.at("dog").asInt() == 1);
+
+    auto j = R"({"dog":1})"_json;
+    REQUIRE(j.has("dog"));
+    REQUIRE(j.at("dog").asInt() == 1);
 }
 
 TEST_CASE("Can delete entry from dictionary") {

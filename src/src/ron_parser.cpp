@@ -76,7 +76,7 @@ namespace {
 
         std::string parse_key() {
             skip_ws();
-            if (peek() == '"') { auto v = parse_string(); return v.as_string(); }
+            if (peek() == '"') { auto v = parse_string(); return v.asString(); }
             // identifier key
             size_t start = i;
             while (std::isalnum(static_cast<unsigned char>(peek())) || peek() == '_' ) get();

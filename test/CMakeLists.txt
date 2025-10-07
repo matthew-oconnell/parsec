@@ -18,7 +18,7 @@ add_executable(parsec_tests
   test_ron.cpp
   test_cli_parser_selection.cpp
 )
-target_link_libraries(parsec_tests PRIVATE parsec Catch2::Catch2WithMain)
+target_link_libraries(parsec_tests PRIVATE parsec_lib Catch2::Catch2WithMain)
 target_include_directories(parsec_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/include)
 target_compile_definitions(parsec_tests PRIVATE EXAMPLES_DIR="${CMAKE_SOURCE_DIR}/examples")
 

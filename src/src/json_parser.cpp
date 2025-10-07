@@ -323,7 +323,7 @@ namespace {
                 if (get() != ':') throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
                 skip_ws();
                 Value v = parse_value();
-                d[k.as_string()] = v;
+                d[k.asString()] = v;
                 skip_ws();
                 char c = peek();
                 if (c == '}') { get(); pop_opener('}'); break; }
@@ -436,7 +436,7 @@ Value parse_json(const std::string& text) {
                 if (p.get() != ':') throw JsonParseError(p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
                 p.skip_ws();
                 Value v = p.parse_value();
-                root[k.as_string()] = v;
+                root[k.asString()] = v;
                 p.skip_ws();
                 char c = p.peek();
                 if (c == ',') { p.get(); p.skip_ws(); continue; }

@@ -8,7 +8,7 @@
 
 int main(int argc, char** argv) {
     if (argc < 2 || argc > 3) {
-        std::cerr << "usage: parsec_cli [--auto|--json|--ron] <file>\n";
+        std::cerr << "usage: parsec [--auto|--json|--ron] <file>\n";
         return 2;
     }
     std::string mode = "auto";
@@ -67,8 +67,8 @@ int main(int argc, char** argv) {
         auto shorten = [](const std::string &s, size_t n = 40){ if (s.size() <= n) return s; return s.substr(0,n-3) + "..."; };
 
         auto preview = [&](const ps::Value &val)->std::string {
-            if (val.is_dict()) {
-                const auto &dptr = val.as_dict();
+            if (val.isDict()) {
+                const auto &dptr = val.asDict();
                 if (!dptr) return "{object, 0 keys}";
                 size_t n = dptr->size();
                 std::ostringstream ss; ss << "{object, " << n << " keys}";
@@ -80,8 +80,8 @@ int main(int argc, char** argv) {
                 if (n > 3) ss << ", ...";
                 return ss.str();
             }
-            if (val.is_list()) {
-                const auto &L = val.as_list();
+            if (val.isList()) {
+                const auto &L = val.asList();
                 std::ostringstream ss; ss << "[array, " << L.size() << " items]";
                 size_t shown = 0;
                 for (auto const &e : L) {
