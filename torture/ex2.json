@@ -1,0 +1,44 @@
+{
+  "simulation": {
+    "case_name": "Mach5_Wedge_Test",
+    "solver": "VulcanCFD",
+    "parameters": {
+      "mach": 5.0,
+      "aoa": 12.5,
+      "reynolds": 2.1e6,
+      "gas_model": "air",
+      "turbulence_model": "SST"
+      "iterations": 800,
+      "residual_tolerance": 1e-6,
+      "time_step": 0.0005
+    },
+    "mesh": {
+      "file": "mesh/wedge.cgns",
+      "zones": [
+        {"name": "inlet", "type": "bc", "bc_type": "supersonic_inflow"},
+        {"name": "wall" "type": "bc", "bc_type": "adiabatic"},
+        {"name": "outlet", "type": "bc", "bc_type": "pressure_outlet"}
+      ],
+      "refinement_levels": [0, 1, 2, 3, 5]
+    }
+  },
+  "runtime": {
+    "mpi_ranks": 64,
+    "gpu_enabled": true,
+    "profiling": {
+      "enabled": false,
+      "interval": 50,
+      "output": "results/profile.json"
+    }
+  },
+  "postprocess": {
+    "variables": ["Mach", "Pressure", "Temperature", "TurbKE"],
+    "scripts": [
+      {"path": "scripts/extract_slices.py"},
+      {"path": "scripts/plot_surface.py"},
+      {"path": "scripts/export_data.py" "enabled": true}
+    ]
+  },
+  "notes": "Check wall y+ before running adaptation.",
+  "owner": "drvoxel.phd"
+}
