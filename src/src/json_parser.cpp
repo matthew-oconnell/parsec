@@ -146,6 +146,21 @@ namespace {
             if (c == '[') return parse_array();
             if (c == '{') return parse_object();
             if (c == '-' || std::isdigit(static_cast<unsigned char>(c))) return parse_number();
+            // Provide friendly suggestions for common mistakes: Python-style True/False or unquoted paths/identifiers
+            if (std::isalpha(static_cast<unsigned char>(c))) {
+                // capture a short token to inspect
+                size_t j = i;
+                while (j < s.size() && (std::isalnum(static_cast<unsigned char>(s[j])) || s[j] == '_' || s[j] == '/' || s[j] == '.' || s[j] == '-' )) ++j;
+                std::string token = s.substr(i, j - i);
+                if (token == "True" || token == "False") {
+                    std::string sug = (token == "True") ? "true" : "false";
+                    throw JsonParseError(format_error(std::string("unexpected token while parsing value — did you mean '") + sug + "' (lowercase)?", line, col), line, col);
+                }
+                // path-like or dotted identifiers that should probably be quoted
+                if (token.find('/') != std::string::npos || token.find('.') != std::string::npos) {
+                    throw JsonParseError(format_error(std::string("unexpected token while parsing value — unquoted path/identifier '") + token + "'; did you mean to quote it?", line, col), line, col);
+                }
+            }
             throw JsonParseError(format_error("unexpected token while parsing value", line, col), line, col);
         }
 
