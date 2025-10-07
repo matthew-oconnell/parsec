@@ -15,6 +15,7 @@ target_include_directories(parsec
 target_sources(parsec
 	PRIVATE
 		src/parsec.cpp
+		src/json_parser.cpp
 )
 
 target_compile_options(parsec PRIVATE -Wall -Wextra -Wpedantic)
