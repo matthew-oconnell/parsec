@@ -16,5 +16,5 @@ TEST_CASE("parse simple RON example") {
     REQUIRE(in.good());
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     auto v = ps::parse_ron(content);
-    REQUIRE(v.is_dict());
+    REQUIRE(v.isDict());
 }
