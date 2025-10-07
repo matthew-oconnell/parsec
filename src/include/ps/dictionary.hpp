@@ -434,32 +434,17 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
     };
 
     bool force_expand = false;
-    bool deep_indent = false;
     // If compact is requested, compute the one-line pretty-compact for this object
     // and force expansion for all nested structures if it would exceed the threshold.
     if (compact) {
         std::string one = make_pretty_compact(*this);
         if (one.size() > 80) {
             force_expand = true;
-            // compute max nesting depth; if deeply nested, enable doubled indentation
-            std::function<int(const Dictionary&)> max_depth = [&](const Dictionary &d) -> int {
-                int best = 0;
-                for (auto const &p: d.items()) {
-                    const Value &val = p.second;
-                    if (val.isDict()) {
-                        best = std::max(best, 1 + max_depth(*val.asDict()));
-                    } else if (val.isList()) {
-                        for (auto const &e: val.asList()) if (e.isDict()) best = std::max(best, 1 + max_depth(*e.asDict()));
-                    }
-                }
-                return best;
-            };
-            int depth = max_depth(*this);
-            if (depth >= 5) deep_indent = true;
         }
     }
 
-    int effIndent = deep_indent ? indent*2 : indent;
+    // Use the requested indent consistently for nested levels
+    int effIndent = indent;
     printVal = [&](const Value &val, int level) {
         if (val.isNull()) { out << "null"; return; }
         if (val.isInt()) { out << val.asInt(); return; }
