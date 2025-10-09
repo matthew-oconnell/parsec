@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/placeholder-config.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "version", "build", "settings", "paths", "mesh", "runtime", "postprocess", "metadata"],
+  "properties": {
+    "project": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "build": { "type": "string", "enum": ["debug", "release"] },
+
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enable_cache", "max_threads", "gpu"],
+      "properties": {
+        "enable_cache": { "type": "boolean" },
+        "max_threads": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "vendor", "min_cc"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "vendor": { "type": "string", "enum": ["nvidia", "amd", "intel"] },
+            "min_cc": { "type": "number", "minimum": 5.0 }
+          }
+        }
+      }
+    },
+
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_dir", "output_dir", "log_file"],
+      "properties": {
+        "input_dir":  { "type": "string", "pattern": "^/.*" },
+        "output_dir": { "type": "string", "pattern": "^/.*" },
+        "log_file":   { "type": "string", "pattern": "^/.+\\.log$" }
+      }
+    },
+
+    "mesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "refinement_levels", "zones"],
+      "properties": {
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "path"],
+          "properties": {
+            "type": { "type": "string", "enum": ["file", "generated"] },
+            "path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "refinement_levels": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 8
+        },
+        "zones": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "kind", "bc_type"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "kind": { "type": "string", "const": "bc" },
+              "bc_type": {
+                "type": "string",
+                "enum": ["supersonic_inflow", "adiabatic", "pressure_outlet"]
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mpi_ranks", "profiling"],
+      "properties": {
+        "mpi_ranks": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "profiling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "interval"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "integer", "minimum": 1, "maximum": 100000 }
+          }
+        }
+      }
+    },
+
+    "postprocess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variables", "scripts"],
+      "properties": {
+        "variables": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "scripts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "enabled"],
+            "properties": {
+              "path": { "type": "string", "pattern": "^[^\\n]+\\.py$" },
+              "enabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["author", "created_at", "tags"],
+      "properties": {
+        "author": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "tags": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

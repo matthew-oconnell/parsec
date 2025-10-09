@@ -1,0 +1,46 @@
+{
+  "project": "Nox",
+  "version": "1.0.3",
+  "build": "release",
+
+  "settings": {
+    "enable_cache": true,
+    "max_threads": 12,
+    "gpu": { "enabled": true, "vendor": "nvidia", "min_cc": 8.0 }
+  },
+
+  "paths": {
+    "input_dir": "/data/input",
+    "output_dir": "/data/output",
+    "log_file": "/var/log/nox.log"
+  },
+
+  "mesh": {
+    "source": { "type": "file", "path": "meshes/model.cgns" },
+    "refinement_levels": [0, 1, 2, 3],
+    "zones": [
+      { "name": "inlet",  "kind": "bc", "bc_type": "supersonic_inflow" },
+      { "name": "wall",   "kind": "bc", "bc_type": "adiabatic" },
+      { "name": "outlet", "kind": "bc", "bc_type": "pressure_outlet" }
+    ]
+  },
+
+  "runtime": {
+    "mpi_ranks": 32,
+    "profiling": { "enabled": true, "interval": 50 }
+  },
+
+  "postprocess": {
+    "variables": ["Mach", "Pressure", "Temperature"],
+    "scripts": [
+      { "path": "scripts/slice.py",  "enabled": true  },
+      { "path": "scripts/export.py", "enabled": false }
+    ]
+  },
+
+  "metadata": {
+    "author": "REDACTED",
+    "created_at": "YYYY-MM-DDThh:mm:ssZ",
+    "tags": ["cfd", "mesh", "voronoi"]
+  }
+}
