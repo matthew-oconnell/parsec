@@ -164,25 +164,26 @@ Public headers are located at `src/include/ps` and provide `ps::Value` and `ps::
 
 Brace-init (raw brace syntax) in C++
 
-For convenience the library supports building `ps::Dictionary` and `ps::Value` using C++ brace-initializers. This is handy for small examples, tests, or embedding configuration directly in code.
+The library supports concise initializer-list construction that relies on implicit conversions to `ps::Value` and `ps::Dictionary`. This is the same style used in the tests and is convenient for small inline configs.
 
-Examples:
+Example (exact form used in `test/test_initializer.cpp`):
 
 ```cpp
 #include <ps/parsec.hpp>
 
-// Create a dictionary with mixed values
-ps::Dictionary cfg = {
-	{ "name", ps::Value(std::string("example")) },
-	{ "port", ps::Value(int64_t(8080)) },
-	{ "features", ps::Value(ps::Value::list_t{ ps::Value("a"), ps::Value("b") }) }
+using namespace ps;
+
+Dictionary dict = {
+	{"key", "value"},
+	{"key2", {"my", "array", "is", "cool"}},
+	{"key3", {{"obj key", true}}}
 };
 
-// Nested shorthand using Dictionary temporaries
-ps::Dictionary nested = { { "child", ps::Value(ps::Dictionary{{ "x", ps::Value(int64_t(7)) }}) } };
-
-// You can pass these directly into validate/setDefaults as shown above.
+// Access like a normal Dictionary/Value
+REQUIRE(dict.at("key").asString() == "value");
 ```
+
+This concise form is equivalent to the more verbose explicit `ps::Value` constructions and is recommended for readability in tests and short examples.
 
 Schema validation and defaults (developer)
 
