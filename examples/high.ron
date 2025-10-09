@@ -1,0 +1,168 @@
+// High-complexity RON configuration (data-only, no type helpers)
+
+{
+    // --- Project & build ---
+    "project name": "Vulcan GPU Ultra",
+    version: "3.1.0",
+    build: Release,
+    "feature flags": ["cuda", "mpi", "checkpointing", "postprocess-advanced"],
+
+    // --- Environment / system setup ---
+    environment: {
+        os: "linux",
+        arch: "x86_64",
+        "cuda toolkit": Some("12.4"),
+        "rocm version": None,
+        modules: ["gcc/13.2.0", "openmpi/4.1.6", "hdf5/1.14.3", "kokkos/4.2.00"],
+        max_open_files: 1_048_576,
+        "env overrides": {
+            "OMP_NUM_THREADS": "1",
+            "CUDA_VISIBLE_DEVICES": "0,1",
+        },
+    },
+
+    // --- Solver selection and precision ---
+    solver: {
+        backend: Cuda { capability: 8.0, sm_count: 108 },
+        precision: F64,
+        turbulence: SST { limiter: Some(Menter), realizability: Some(Durbin) },
+        chemistry: None,
+    },
+
+    // --- Spatial discretization and mesh ---
+    discretization: {
+        scheme: MUSCL { kappa: 0.5, limiter: Some(Venkatakrishnan { eps: 1e-3 }) },
+        "spatial order": 2,
+        reconstruction: Characteristic,
+        gradient: GreenGauss,
+    },
+
+    mesh: {
+        source: File("meshes/waverider.cgns"),
+        "refinement levels": [0, 1, 2, 3, 4],
+        partitioning: ParMETIS { imbalance_tol: 1.03 },
+        bounds_min: Vec3(-0.5, -0.5, -0.5),
+        bounds_max: Vec3( 1.5,  0.8,  0.5),
+        include_zones: Some(["fluid", "inlet", "outlet", "wall"]),
+        exclude_zones: None,
+    },
+
+    // --- Flow conditions ---
+    "flow condition": {
+        gas_model: Air,
+        mach: 7.50,
+        aoa_deg: 10.0,
+        reynolds: 2.4e6,
+        total_temperature_K: 900.0,
+        total_pressure_Pa: 1.20e6,
+        "freestream vector": Vec3(1.0, 0.0, 0.0),
+    },
+
+    // --- Time integration ---
+    time_integration: Dual {
+        cfl: Adaptive { min: 0.1, max: 5.0, target: 3.0 },
+        pseudo: Implicit {
+            max_iters: 40,
+            schedule: Geometric( start_dt: 1e-5, growth: 1.2 ),
+        },
+        physical: Explicit {
+            max_steps: 20_000,
+            end_time: 0.050,
+        },
+    },
+
+    // --- Boundary conditions ---
+    boundaries: [
+        Inlet  { name: "inlet",  type_: Supersonic, total_T: Some(900.0), total_P: Some(1.20e6) },
+        Outlet { name: "outlet", type_: Pressure( static_P: 8.0e4 ) },
+        Wall   { name: "wall",   model: AdiabaticNoSlip },
+        Symmetry("symmetry"),
+    ],
+
+    // --- Linear algebra / solver controls ---
+    linalg: {
+        preconditioner: ILU0 { fill: 0 },
+        krylov: GMRES { restart: 80, max_iters: 400, atol: 1e-10, rtol: 1e-6 },
+        jacobian: JFNK { coloring: Some(Greedy), fd_eps: 1e-6 },
+        smoothers: [ Chebyshev { degree: 3 }, Jacobi { omega: 0.75 } ],
+    },
+
+    // --- Runtime / resources ---
+    runtime: {
+        "mpi ranks": 128,
+        "gpu enabled": true,
+        device_affinity: RoundRobin,
+        thread_pool: {
+            "max threads": 16,
+            "bind policy": Scatter,
+        },
+        rng_seed: Some(42),
+    },
+
+    // --- Checkpointing & I/O ---
+    io: {
+        output_dir: "/data/results",
+        base_name: "waverider_m7p5",
+        write_every_steps: 200,
+        compression: Zstd { level: 7 },
+        checkpoint: {
+            enabled: true,
+            frequency_steps: 1_000,
+            keep_last: 3,
+            custom_hook: (),  // unit value
+        },
+        variables: [
+            Scalar("Pressure"),
+            Scalar("Temperature"),
+            Vector("Velocity"),
+            Derived(Mach),
+            Derived(VorticityMagnitude),
+        ],
+    },
+
+    // --- Post-processing pipeline ---
+    postprocess: {
+        steps: [
+            Slice {
+                planes: [
+                    XY { z: 0.0 },
+                    XZ { y: 0.0 },
+                    YZ { x: 0.25 },
+                ],
+                interpolate: Cubic,
+            },
+            SampleLine { start: Vec3(-0.2, 0.0, 0.0), end: Vec3(1.2, 0.0, 0.0), n: 500 },
+            IsoSurface { field: "Mach", value: 1.0 },
+            Export { format: VTK, path: "post/iso_mach1", with_time: true },
+        ],
+        reports: [
+            ForceBalance { zones: ["wall"], axes: Body },
+            MassFlow { inlet: "inlet", outlet: "outlet" },
+            ResidualHistory { window: Some(200) },
+        ],
+    },
+
+    // --- Diagnostics and logging ---
+    diagnostics: {
+        profiling: Enabled { interval_steps: 50, sink: File("results/profile.json") },
+        logging: {
+            level: Info,
+            sinks: [ Stdout, File { path: "results/run.log", rotate_mb: Some(64) } ],
+        },
+        assertions: true,
+        "nan guard": Action(Abort),
+    },
+
+    // --- Metadata & provenance ---
+    metadata: {
+    author: "<author-placeholder>",
+        "creation date": "2025-10-07T12:00:00Z",
+        tags: ["cfd", "gpu", "hypersonics", "waverider"],
+        contributors: [
+            { name: "Alice", role: "solver",      hours: [6, 7, 5, 6] },
+            { name: "Bob",   role: "postprocess", hours: [4, 4, 6, 3] },
+            { name: "Eve",   role: "QA",          hours: [7, 8, 6, 7] },
+        ],
+        revision: Some({ commit: "a1b2c3d4", dirty: false }),
+    },
+}

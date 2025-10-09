@@ -2,6 +2,10 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <regex>
+#include <set>
+#include <cstdlib>
+#include <iostream>
 
 namespace ps {
 
@@ -87,6 +91,10 @@ static std::optional<std::string> check_enum(const Value& data, const Dictionary
 }
 
 static std::optional<std::string> validate_node(const Value& data, const Dictionary& schema_root, const Dictionary& schema_node, const std::string& path) {
+    if (std::getenv("PS_VALIDATE_DEBUG")) {
+        std::cerr << "validate_node enter: path='" << path << "' data=" << data.dump() << " schema_keys={";
+        bool firstk=true; for (auto const &p: schema_node.items()) { if (!firstk) std::cerr << ","; firstk=false; std::cerr << p.first; } std::cerr << "}\n";
+    }
     // resolve $ref if present
     auto itref = schema_node.data.find("$ref");
     if (itref != schema_node.data.end() && itref->second.isString()) {
@@ -136,6 +144,48 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
         if (auto e = check_enum(data, schema_node, path)) return e;
     }
 
+    // Composition keywords (Phase 2): allOf, anyOf, oneOf
+    auto it_allOf = schema_node.data.find("allOf");
+    if (it_allOf != schema_node.data.end() && it_allOf->second.isList()) {
+        for (auto const &sub : it_allOf->second.asList()) {
+            const Dictionary* subSchema = schema_from_value(schema_root, sub);
+            if (!subSchema) continue;
+            if (auto err = validate_node(data, schema_root, *subSchema, path)) {
+                if (std::getenv("PS_VALIDATE_DEBUG")) {
+                    std::cerr << "allOf subschema failed: data=" << data.dump() << " subschema=" << Value(*subSchema).dump() << " err=" << *err << "\n";
+                }
+                return err;
+            }
+        }
+        // all passed
+    }
+    auto it_anyOf = schema_node.data.find("anyOf");
+    if (it_anyOf != schema_node.data.end() && it_anyOf->second.isList()) {
+        bool ok = false;
+        std::vector<std::string> errs;
+        for (auto const &sub : it_anyOf->second.asList()) {
+            const Dictionary* subSchema = schema_from_value(schema_root, sub);
+            if (!subSchema) continue;
+            auto err = validate_node(data, schema_root, *subSchema, path);
+            if (!err.has_value()) { ok = true; break; }
+            errs.push_back(*err);
+        }
+        if (!ok) return std::optional<std::string>("anyOf: no alternative matched for '" + path + "'");
+    }
+    auto it_oneOf = schema_node.data.find("oneOf");
+    if (it_oneOf != schema_node.data.end() && it_oneOf->second.isList()) {
+        int matched = 0;
+        std::vector<std::string> lastErrs;
+        for (auto const &sub : it_oneOf->second.asList()) {
+            const Dictionary* subSchema = schema_from_value(schema_root, sub);
+            if (!subSchema) continue;
+            auto err = validate_node(data, schema_root, *subSchema, path);
+            if (!err.has_value()) matched++;
+            else lastErrs.push_back(*err);
+        }
+        if (matched != 1) return std::optional<std::string>("oneOf: expected exactly one matching alternative for '" + path + "', got " + std::to_string(matched));
+    }
+
     // type check
     auto it_type = schema_node.data.find("type");
     if (it_type != schema_node.data.end() && it_type->second.isString()) {
@@ -174,6 +224,26 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                 }
             }
 
+            // patternProperties (regex keyed property schemas)
+            auto it_pattern = schema_node.data.find("patternProperties");
+            if (it_pattern != schema_node.data.end() && it_pattern->second.isDict()) {
+                const Dictionary &pp = *it_pattern->second.asDict();
+                for (auto const &ppent : pp.items()) {
+                    std::string pattern = ppent.first;
+                    const Dictionary* patSchema = schema_from_value(schema_root, ppent.second);
+                    std::regex re;
+                    try { re = std::regex(pattern); } catch (...) { continue; }
+                    for (auto const &od : obj.items()) {
+                        if (std::regex_match(od.first, re)) {
+                            if (patSchema) {
+                                std::string childPath = path.empty() ? od.first : (path + "." + od.first);
+                                if (auto err = validate_node(od.second, schema_root, *patSchema, childPath)) return err;
+                            }
+                        }
+                    }
+                }
+            }
+
             // additionalProperties: default true
             bool allow_additional = true;
             auto it_add = schema_node.data.find("additionalProperties");
@@ -194,18 +264,60 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
         else if (t == "array") {
             if (!data.isList()) return std::optional<std::string>("property '" + path + "' expected type array");
             const auto &arr = data.asList();
-            // items (single-schema form)
+            // items can be either a single schema or an array of schemas (tuple validation)
             auto it_items = schema_node.data.find("items");
             if (it_items != schema_node.data.end()) {
                 const Value &itemsVal = it_items->second;
-                const Dictionary* itemSchema = schema_from_value(schema_root, itemsVal);
-                if (itemSchema) {
-                    for (size_t i = 0; i < arr.size(); ++i) {
-                        std::string childPath = path + "[" + std::to_string(i) + "]";
-                        if (auto err = validate_node(arr[i], schema_root, *itemSchema, childPath)) return err;
+                if (itemsVal.isList()) {
+                    // tuple-style
+                    const auto &schemas = itemsVal.asList();
+                    for (size_t i = 0; i < arr.size() && i < schemas.size(); ++i) {
+                        const Dictionary* itemSchema = schema_from_value(schema_root, schemas[i]);
+                        if (itemSchema) {
+                            std::string childPath = path + "[" + std::to_string(i) + "]";
+                            if (auto err = validate_node(arr[i], schema_root, *itemSchema, childPath)) return err;
+                        }
+                    }
+                    // handle additionalItems
+                    if (arr.size() > schemas.size()) {
+                        auto it_add = schema_node.data.find("additionalItems");
+                        if (it_add != schema_node.data.end()) {
+                            if (it_add->second.isBool()) {
+                                if (!it_add->second.asBool()) return std::optional<std::string>("array '" + path + "' has additional items but additionalItems=false");
+                            } else if (it_add->second.isDict()) {
+                                const Dictionary* addSchema = schema_from_value(schema_root, it_add->second);
+                                if (addSchema) {
+                                    for (size_t i = schemas.size(); i < arr.size(); ++i) {
+                                        std::string childPath = path + "[" + std::to_string(i) + "]";
+                                        if (auto err = validate_node(arr[i], schema_root, *addSchema, childPath)) return err;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // single-schema form
+                    const Dictionary* itemSchema = schema_from_value(schema_root, itemsVal);
+                    if (itemSchema) {
+                        for (size_t i = 0; i < arr.size(); ++i) {
+                            std::string childPath = path + "[" + std::to_string(i) + "]";
+                            if (auto err = validate_node(arr[i], schema_root, *itemSchema, childPath)) return err;
+                        }
                     }
                 }
             }
+
+            // uniqueItems
+            auto it_unique = schema_node.data.find("uniqueItems");
+            if (it_unique != schema_node.data.end() && it_unique->second.isBool() && it_unique->second.asBool()) {
+                std::set<std::string> seen;
+                for (auto const &el : arr) {
+                    std::string s = el.dump();
+                    if (seen.find(s) != seen.end()) return std::optional<std::string>("array '" + path + "' contains non-unique items");
+                    seen.insert(s);
+                }
+            }
+
             // minItems / maxItems
             auto it_min = schema_node.data.find("minItems");
             if (it_min != schema_node.data.end() && it_min->second.isInt()) {
@@ -252,8 +364,18 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     // Top-level schema is expected to be a JSON Schema-like object. We validate the
     // provided `data` (a Dictionary) against `schema`. For recursive checks we pass
     // the same `schema` as the root for $ref resolution.
-    Value vdata = Value(data);
-    return validate_node(vdata, schema, schema, "");
+    // If the caller passed a Dictionary that wraps a scalar (or an array) in
+    // its `scalar` member, prefer that Value directly so we validate the actual
+    // JSON value instead of a wrapper object. This keeps tests and callers that
+    // use Dictionary::scalar working as expected.
+    Value vdata;
+    if (data.scalar) vdata = *data.scalar;
+    else vdata = Value(data);
+    auto res = validate_node(vdata, schema, schema, "");
+    if (std::getenv("PS_VALIDATE_DEBUG")) {
+        std::cerr << "validate debug: data=" << vdata.dump() << " schema=" << Value(schema).dump() << " result=" << (res?*res:"<ok>") << "\n";
+    }
+    return res;
 }
 
 } // namespace ps

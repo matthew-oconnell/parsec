@@ -1,0 +1,81 @@
+JSON Schema features used in schemas/cfd_schema.json
+=================================================
+
+This file lists the JSON Schema (draft-07) keywords observed in
+`schemas/cfd_schema.json`.  Items are grouped and prioritized with
+short notes on implementation effort and next steps.
+
+High priority (core for validating the CFD schema):
+- $ref
+  - References to definitions (e.g., "#/definitions/State"). Needs a resolver and local reference support.
+- oneOf
+  - Widely used for variant object types and alternatives. Implement schema composition and selection logic.
+- properties
+  - Object property schemas. Required to validate object shapes.
+- required
+  - Required properties lists for objects.
+- type
+  - Basic type checking (string, number, integer, boolean, object, array).
+- items
+  - Array items (both single schema and array-of-schemas forms).
+- additionalProperties
+  - Controls whether extra object keys are allowed.
+- enum
+  - Enumerated literal values.
+- minimum / maximum
+  - Numeric range checks.
+- exclusiveMinimum
+  - Exclusive numeric bounds.
+
+Medium priority (arrays, object/array constraints, common extras):
+- minItems / maxItems
+  - Array length constraints.
+- uniqueItems
+  - Deduplicated array entries constraint.
+- additionalItems
+  - When items is an array, controls extra item allowance.
+- patternProperties
+  - Property names matched by regex -> property schemas.
+- minProperties / maxProperties
+  - Object property count constraints.
+- default
+  - Default values (useful for documentation / filling in missing fields).
+- examples
+  - Examples in schema (not required for validation, but present).
+- description
+  - Descriptive text (ignore for validation, but keep when copying schema).
+
+Low priority / advanced features (present but less frequent or complex):
+- oneOf nested combinations (complex selection logic)
+  - Cases with multiple nested oneOf alternatives will require careful error-reporting and backtracking.
+- pattern (regex on string values)
+  - I saw patternProperties but not necessarily string 'pattern' in many places; still include.
+- minLength / maxLength
+  - Present in a few spots (note: some schema entries use minLength/maxLength for arrays — check semantics).
+- uniqueItems
+  - Already listed; kept here as it may require deep-equality checks.
+
+Non-standard / project-specific fields seen in the schema:
+- hidden
+  - A custom keyword used to mark UI-hidden options. Not part of JSON Schema draft; treat as annotation.
+
+Not observed (draft-07 features not present or rare in this schema):
+- $id, allOf, anyOf, not, dependencies, const, pattern (rare), format, contentMediaType
+
+Implementation roadmap suggestions
+- Phase 1 (minimum viable):
+  - Implement: type, properties, required, $ref (local only), items(single schema), enum, minimum/maximum, minItems/maxItems, additionalProperties.
+  - This will cover the majority of straightforward checks in the CFD schema.
+
+- Phase 2 (composition & arrays):
+  - Implement: oneOf resolution and selection, items(array-of-schemas) with additionalItems, uniqueItems, patternProperties.
+
+- Phase 3 (advanced):
+  - Implement: complex nested oneOf error aggregation, pattern, minLength/maxLength semantics, defaults/apply-defaults if desired.
+
+Notes / next steps
+- I focused on exact keywords used in `schemas/cfd_schema.json` (deduplicated). If you want, I can:
+  - Generate a prioritized implementation ticket list with estimated effort (hours) per feature.
+  - Start implementing Phase 1 features in the validator and add tests (I recommend starting with $ref and type/properties/required).
+
+Generated from a scan of schemas/cfd_schema.json on commit: working workspace

@@ -1,0 +1,63 @@
+{
+    // General information
+    "project name": "Vulcan GPU",
+    "project version": "2.0.1",
+    "build type": "release",
+    "maintainer name": "Dr. Voxel",
+
+    // Execution parameters
+    settings: {
+        "enable cache": true,
+        "max threads": 16,
+        "gpu config": {
+            enabled: true,
+            "preferred vendor": "NVIDIA",
+            "compute capability": 8.0,
+        },
+        "runtime flags": ["fast mode", "vectorized loops", "double precision"],
+    },
+
+    // Simulation setup
+    simulation: {
+        "flow condition": {
+            mach: 7.5,
+            aoa: 10.0,
+            reynolds: 1.8e6,
+        },
+        "boundary conditions": [
+            { name: "inlet", type: "supersonic_inflow" },
+            { name: "wall", type: "adiabatic_no-slip" },
+            { name: "outlet", type: "pressure_outlet" },
+        ],
+        "mesh info": {
+            file: "meshes/waverider.cgns",
+            "refinement levels": [0, 1, 2, 3],
+        },
+    },
+
+    // Metadata
+    metadata: {
+    author: "<author-placeholder>",
+        "creation date": "2025-10-07T11:45:00Z",
+        contributors: [
+            { name: "Alice", "main role": "solver", hours: [5, 6, 5] },
+            { name: "Bob", "main role": "postprocessing", hours: [4, 4, 6] },
+            { name: "Eve", "main role": "QA", hours: [7, 8, 6] },
+        ],
+    },
+
+    // Output
+    results: {
+        "output directory": "/data/results",
+        "include residuals": true,
+        "save frequency": 100,
+        "variables to save": ["Mach", "Pressure", "Temperature"],
+    },
+
+    // Flags
+    flags: {
+        experimental: false,
+        "safe mode": true,
+        "allow fallback": true,
+    },
+}
