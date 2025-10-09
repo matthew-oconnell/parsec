@@ -247,9 +247,13 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             // additionalProperties: default true
             bool allow_additional = true;
             auto it_add = schema_node.data.find("additionalProperties");
+            const Dictionary* addPropsSchema = nullptr;
             if (it_add != schema_node.data.end()) {
                 if (it_add->second.isBool()) allow_additional = it_add->second.asBool();
-                else if (it_add->second.isDict()) allow_additional = true; // schema for additional props not supported in Phase 1
+                else if (it_add->second.isDict()) {
+                    allow_additional = true; // additional properties allowed but must validate against schema
+                    addPropsSchema = it_add->second.asDict().get();
+                }
             }
             if (!allow_additional && props) {
                 // ensure no keys outside props
@@ -257,6 +261,47 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     const std::string &k = pd.first;
                     if (props->data.find(k) == props->data.end()) return std::optional<std::string>("property '" + (path.empty()?k:(path + "." + k)) + " not allowed by additionalProperties=false");
                 }
+            }
+            // If additionalProperties is a schema, validate any keys not in properties or patternProperties
+            if (addPropsSchema) {
+                // Build a set of property names covered by 'properties'
+                std::set<std::string> covered;
+                if (props) {
+                    for (auto const &p : props->items()) covered.insert(p.first);
+                }
+                // patternProperties keys
+                std::vector<std::pair<std::regex,const Dictionary*>> pattern_schemas;
+                auto it_pattern = schema_node.data.find("patternProperties");
+                if (it_pattern != schema_node.data.end() && it_pattern->second.isDict()) {
+                    const Dictionary &pp = *it_pattern->second.asDict();
+                    for (auto const &ppent : pp.items()) {
+                        try { pattern_schemas.emplace_back(std::regex(ppent.first), ppent.second.isDict()?ppent.second.asDict().get():nullptr); }
+                        catch(...) { }
+                    }
+                }
+                for (auto const &od : obj.items()) {
+                    const std::string &k = od.first;
+                    if (covered.find(k) != covered.end()) continue;
+                    bool matched_pattern = false;
+                    for (auto const &ps : pattern_schemas) {
+                        if (std::regex_match(k, ps.first)) { matched_pattern = true; break; }
+                    }
+                    if (matched_pattern) continue;
+                    // validate this additional property against addPropsSchema
+                    if (auto err = validate_node(od.second, schema_root, *addPropsSchema, path.empty()?k:(path + "." + k))) return err;
+                }
+            }
+
+            // minProperties / maxProperties (object property count constraints)
+            auto it_minp = schema_node.data.find("minProperties");
+            if (it_minp != schema_node.data.end() && it_minp->second.isInt()) {
+                int minp = it_minp->second.asInt();
+                if (static_cast<int>(obj.size()) < minp) return std::optional<std::string>("object '" + path + "' has fewer properties than minProperties");
+            }
+            auto it_maxp = schema_node.data.find("maxProperties");
+            if (it_maxp != schema_node.data.end() && it_maxp->second.isInt()) {
+                int maxp = it_maxp->second.asInt();
+                if (static_cast<int>(obj.size()) > maxp) return std::optional<std::string>("object '" + path + "' has more properties than maxProperties");
             }
 
             return std::nullopt;
