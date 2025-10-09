@@ -1,81 +1,64 @@
 JSON Schema features used in schemas/cfd_schema.json
 =================================================
 
-This file lists the JSON Schema (draft-07) keywords observed in
-`schemas/cfd_schema.json`.  Items are grouped and prioritized with
-short notes on implementation effort and next steps.
+Status: Phase 1 and Phase 2 features have been implemented in the validator. Below is an updated list
+showing what's implemented and what remains.
 
-High priority (core for validating the CFD schema):
-- $ref
-  - References to definitions (e.g., "#/definitions/State"). Needs a resolver and local reference support.
-- oneOf
-  - Widely used for variant object types and alternatives. Implement schema composition and selection logic.
+Completed (implemented)
+- $ref (local-only resolution for "#/..." paths)
+- type (string, number, integer, boolean, object, array)
 - properties
-  - Object property schemas. Required to validate object shapes.
 - required
-  - Required properties lists for objects.
-- type
-  - Basic type checking (string, number, integer, boolean, object, array).
-- items
-  - Array items (both single schema and array-of-schemas forms).
-- additionalProperties
-  - Controls whether extra object keys are allowed.
+- items (single-schema form and tuple-style array-of-schemas)
+- additionalProperties (boolean form supported; schema-form partially recognized)
 - enum
-  - Enumerated literal values.
 - minimum / maximum
-  - Numeric range checks.
-- exclusiveMinimum
-  - Exclusive numeric bounds.
-
-Medium priority (arrays, object/array constraints, common extras):
+- exclusiveMinimum / exclusiveMaximum
 - minItems / maxItems
-  - Array length constraints.
-- uniqueItems
-  - Deduplicated array entries constraint.
-- additionalItems
-  - When items is an array, controls extra item allowance.
+- uniqueItems (stringified deep-equality via Value::dump())
+- additionalItems (boolean and schema for tuple arrays)
 - patternProperties
-  - Property names matched by regex -> property schemas.
+- minLength / maxLength (string length checks)
+- Composition keywords: allOf, anyOf, oneOf
+
+Remaining / open items (suggested next work)
+- Full $ref robustness
+  - RFC6901 JSON Pointer escaping in refs (e.g., keys with ~1 or ~0 sequences).
+  - External $ref resolution (file or URL) and safe resolution policy.
+  - Cycle detection and caching for resolved refs.
+
+- additionalProperties (schema form)
+  - Currently additionalProperties:true/false is supported; when it's a schema we should validate extra properties against that schema.
+
+- uniqueItems: structural equality
+  - Replace current string-dump approach with a structural deep-equality comparator for Values to avoid false positives/negatives.
+
+- error reporting improvements for composition
+  - Provide better aggregated error messages for nested oneOf/anyOf cases (helpful for debugging complex schemas).
+
+- pattern (string regex on values)
+  - Validate string values against a 'pattern' keyword (if present in schema entries).
+
 - minProperties / maxProperties
-  - Object property count constraints.
-- default
-  - Default values (useful for documentation / filling in missing fields).
-- examples
-  - Examples in schema (not required for validation, but present).
-- description
-  - Descriptive text (ignore for validation, but keep when copying schema).
+  - Enforce object property-count constraints.
 
-Low priority / advanced features (present but less frequent or complex):
-- oneOf nested combinations (complex selection logic)
-  - Cases with multiple nested oneOf alternatives will require careful error-reporting and backtracking.
-- pattern (regex on string values)
-  - I saw patternProperties but not necessarily string 'pattern' in many places; still include.
-- minLength / maxLength
-  - Present in a few spots (note: some schema entries use minLength/maxLength for arrays — check semantics).
-- uniqueItems
-  - Already listed; kept here as it may require deep-equality checks.
+- dependencies / dependentRequired / dependentSchemas
+  - Conditional presence rules used by some schemas.
 
-Non-standard / project-specific fields seen in the schema:
-- hidden
-  - A custom keyword used to mark UI-hidden options. Not part of JSON Schema draft; treat as annotation.
+- const, format, contentMediaType
+  - Advanced constraints that may appear in other schemas.
 
-Not observed (draft-07 features not present or rare in this schema):
-- $id, allOf, anyOf, not, dependencies, const, pattern (rare), format, contentMediaType
-
-Implementation roadmap suggestions
-- Phase 1 (minimum viable):
-  - Implement: type, properties, required, $ref (local only), items(single schema), enum, minimum/maximum, minItems/maxItems, additionalProperties.
-  - This will cover the majority of straightforward checks in the CFD schema.
-
-- Phase 2 (composition & arrays):
-  - Implement: oneOf resolution and selection, items(array-of-schemas) with additionalItems, uniqueItems, patternProperties.
-
-- Phase 3 (advanced):
-  - Implement: complex nested oneOf error aggregation, pattern, minLength/maxLength semantics, defaults/apply-defaults if desired.
+- defaults / applyDefaults (optional)
+  - Optionally populate missing properties with default values (non-mandatory; often used for tooling).
 
 Notes / next steps
-- I focused on exact keywords used in `schemas/cfd_schema.json` (deduplicated). If you want, I can:
-  - Generate a prioritized implementation ticket list with estimated effort (hours) per feature.
-  - Start implementing Phase 1 features in the validator and add tests (I recommend starting with $ref and type/properties/required).
+- The core validator now covers the majority of features used by the CFD schema. I recommend the next priorities be:
+  1) Full $ref robustness (escaping and cycle-safe resolution)
+  2) additionalProperties when it's a schema
+  3) structural uniqueItems
+  4) pattern (string patterns) and min/maxProperties
+
+- I can implement any of the above in order and add unit tests that mirror the CFD schema usage. Tell me which you'd like to prioritize and I'll start the implementation and tests.
 
 Generated from a scan of schemas/cfd_schema.json on commit: working workspace
+
