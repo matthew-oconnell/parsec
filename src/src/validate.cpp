@@ -1,3 +1,5 @@
+// All helpers and code inside a single ps namespace
+#include <string>
 #include "ps/validate.hpp"
 #include <sstream>
 #include <vector>
@@ -8,6 +10,11 @@
 #include <iostream>
 
 namespace ps {
+// Helper: limit error message to 80 characters (truncate with ...)
+static std::string limit_line_length(const std::string& msg, size_t maxlen = 80) {
+    if (msg.size() <= maxlen) return msg;
+    return msg.substr(0, maxlen-3) + "...";
+}
 
 // Helper: convert internal path (dot/bracket style) to folder-style display path
 static std::string display_path(const std::string &path) {
@@ -235,7 +242,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
     if (it_type != schema_node.data.end() && it_type->second.isString()) {
         std::string t = it_type->second.asString();
         if (t == "object") {
-            if (!data.isDict()) return std::optional<std::string>("expected type 'object' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
+            if (!data.isDict()) return std::optional<std::string>(limit_line_length("expected type 'object' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             const Dictionary &obj = *data.asDict();
 
             // required array
@@ -351,7 +358,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "array") {
-            if (!data.isList()) return std::optional<std::string>("expected type 'array' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
+            if (!data.isList()) return std::optional<std::string>(limit_line_length("expected type 'array' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             const auto &arr = data.asList();
             // items can be either a single schema or an array of schemas (tuple validation)
             auto it_items = schema_node.data.find("items");
@@ -419,7 +426,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "string") {
-            if (!data.isString()) return std::optional<std::string>("expected type 'string' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
+            if (!data.isString()) return std::optional<std::string>(limit_line_length("expected type 'string' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             // minLength / maxLength (optional)
             auto it_minl = schema_node.data.find("minLength");
             if (it_minl != schema_node.data.end() && it_minl->second.isInt()) {
@@ -443,12 +450,12 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "integer" || t == "number") {
-            if (!(data.isInt() || (t == "number" && data.isDouble()))) return std::optional<std::string>("expected type '" + t + "' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
+            if (!(data.isInt() || (t == "number" && data.isDouble()))) return std::optional<std::string>(limit_line_length("expected type '" + t + "' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
         }
         else if (t == "boolean") {
-            if (!data.isBool()) return std::optional<std::string>("expected type 'boolean' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
+            if (!data.isBool()) return std::optional<std::string>(limit_line_length("expected type 'boolean' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             return std::nullopt;
         }
     }
