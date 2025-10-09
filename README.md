@@ -162,6 +162,28 @@ target_link_libraries(myapp PRIVATE parsec)
 
 Public headers are located at `src/include/ps` and provide `ps::Value` and `ps::Dictionary` APIs plus the parser entry points `ps::parse_json` and `ps::parse_ron`.
 
+Brace-init (raw brace syntax) in C++
+
+For convenience the library supports building `ps::Dictionary` and `ps::Value` using C++ brace-initializers. This is handy for small examples, tests, or embedding configuration directly in code.
+
+Examples:
+
+```cpp
+#include <ps/parsec.hpp>
+
+// Create a dictionary with mixed values
+ps::Dictionary cfg = {
+	{ "name", ps::Value(std::string("example")) },
+	{ "port", ps::Value(int64_t(8080)) },
+	{ "features", ps::Value(ps::Value::list_t{ ps::Value("a"), ps::Value("b") }) }
+};
+
+// Nested shorthand using Dictionary temporaries
+ps::Dictionary nested = { { "child", ps::Value(ps::Dictionary{{ "x", ps::Value(int64_t(7)) }}) } };
+
+// You can pass these directly into validate/setDefaults as shown above.
+```
+
 Schema validation and defaults (developer)
 
 The library exposes a small schema validation helper and a defaults applier in `ps::validate` and `ps::setDefaults` respectively.
