@@ -62,6 +62,17 @@ cmake --build build --parallel
 
 If the file contains a syntax error the tool prints a helpful message with line/column and exits non-zero. This makes it handy to plug into pre-commit hooks or CI pipelines to ensure configuration correctness.
 
+Schema validation from the CLI
+
+The `parsec` CLI can also validate a configuration against a JSON schema-like dictionary. Use the `--validate` flag and provide the schema (JSON) and the data file (JSON or RON):
+
+```bash
+# validate data.ron against schema.json
+./build/parsec --validate schema.json data.ron
+```
+
+On success the CLI prints `OK: validation passed` and exits 0. On failure it prints a one-line `validation error:` message and exits non-zero so you can integrate it into CI or pre-commit checks.
+
 ### Example error messages
 
 Here are two realistic examples of the kind of output `parsec` prints when it encounters a syntax violation. The messages include a one-line explanation, the line with the error, and a caret pointing to the column.
@@ -150,5 +161,58 @@ target_link_libraries(myapp PRIVATE parsec)
 ```
 
 Public headers are located at `src/include/ps` and provide `ps::Value` and `ps::Dictionary` APIs plus the parser entry points `ps::parse_json` and `ps::parse_ron`.
+
+Schema validation and defaults (developer)
+
+The library exposes a small schema validation helper and a defaults applier in `ps::validate` and `ps::setDefaults` respectively.
+
+Signatures (in `ps/validate.hpp`):
+
+```cpp
+// returns std::nullopt on success, or an error message on failure
+std::optional<std::string> ps::validate(const ps::Dictionary& data, const ps::Dictionary& schema);
+
+// returns a new Dictionary where missing properties with `default` in the schema are filled in
+ps::Dictionary ps::setDefaults(const ps::Dictionary& data, const ps::Dictionary& schema);
+```
+
+Minimal usage examples:
+
+Validate a parsed file against a schema:
+
+```cpp
+#include <ps/parsec.hpp>
+#include <ps/validate.hpp>
+
+// parse content (JSON or RON) and validate against a JSON schema (loaded as JSON)
+std::string schema_json = "{ \"type\": \"object\", \"properties\": { \"port\": { \"type\": \"integer\", \"required\": true } } }";
+auto s = ps::parse_json(schema_json);
+ps::Dictionary schema = *s.asDict();
+
+std::string data_ron = "{ port: 8080 }";
+ps::Value v = ps::parse_ron(data_ron);
+ps::Dictionary data = *v.asDict();
+
+auto err = ps::validate(data, schema);
+if (err.has_value()) std::cerr << "validation error: " << *err << '\n';
+else std::cout << "validation passed\n";
+```
+
+Apply defaults from a schema to produce a completed configuration:
+
+```cpp
+#include <ps/parsec.hpp>
+#include <ps/validate.hpp>
+
+ps::Dictionary schema; // build or parse schema as a Dictionary
+// example schema with a default
+schema["type"] = ps::Value(std::string("object"));
+ps::Dictionary props; props["port"] = ps::Value(ps::Dictionary{{"type", ps::Value(std::string("integer"))},{"default", ps::Value(int64_t(8080))}});
+schema["properties"] = ps::Value(props);
+
+ps::Dictionary input; // missing port
+ps::Dictionary completed = ps::setDefaults(input, schema);
+// completed now contains port=8080
+```
 
 If you'd like edits to the README style or different examples (more complex RON features, or showing how to produce machine-readable diffs), tell me which examples you prefer and I will update the file.
