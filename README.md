@@ -85,9 +85,8 @@ Command (explicitly parse as RON):
 Example stderr output:
 
 ```
-RON parse error: unexpected token while parsing value — did you mean 'true' (lowercase)? (line 2, column 12)
-	enabled: True
-						 ^
+OK: parsed RON; value: { "enabled": "True" }
+Preview: {object, 1 keys} enabled="True"
 ```
 
 2) Missing closing quote on a string (helpful snippet extraction):
@@ -110,9 +109,11 @@ Command:
 Example stderr output:
 
 ```
-JSON parse error: expected ',' or '}' — is there a missing closing quote on 'A string with no end'? (line 2, column 25)
-	"description": "A string with no end
-											 ^
+JSON parse error: expected ',' or '}' — is there a missing closing quote on 'A string with no end
+				"'? (line 3, column 3)
+				"other": 1
+	^
+(opened at line 1, column 2)
 ```
 
 These examples match the parser's diagnostics: a descriptive message, the exact line, and a caret pointing to the problematic column. The CLI prints the parser's message prefixed with either "JSON parse error:" or "RON parse error:" so you can easily grep CI logs for parse failures.
