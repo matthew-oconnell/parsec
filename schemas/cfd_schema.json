@@ -1,0 +1,4050 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "mesh filename",
+        "HyperSolve"
+    ],
+    "properties": {
+        "mesh filename": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "description": "The path to the mesh file HyperSolve should load."
+                },
+                {
+                    "type": "array",
+                    "description": "The path to the mesh files HyperSolve should load and solve sequentially."
+                }
+            ]
+        },
+        "restart": {
+            "type": "boolean",
+            "default": false,
+            "description": "Load initial state from restart file. NOTE: This is only used for single execution, NOT mesh adaptation cases."
+        },
+        "restart filename": {
+            "type": "string",
+            "default": "restart.snap",
+            "description": "Filename to use when reading / writing restart file"
+        },
+        "restart in filename": {
+            "type": "string",
+            "default": "",
+            "description": "Filename to use when reading the restart file.  If not specified `restart filename` is used."
+        },
+        "restart out filename": {
+            "type": "string",
+            "default": "",
+            "description": "Filename to use when writing the restart file. If not specified `restart filename` is used."
+        },
+        "steps": {
+            "type": "integer",
+            "default": 500,
+            "description": "Total number of timesteps to execute flow solver (per mesh when doing adaptation)."
+        },
+        "checkpoint frequency": {
+            "type": "integer",
+            "default": 500,
+            "description": "The frequency that checkpoint files (visualization, restart, etc.) are written."
+        },
+        "components": {
+            "type": "object",
+            "default": {},
+            "additionalProperties": {
+                "$ref": "#/definitions/Component"
+            }
+        },
+        "allow solve retry": {
+            "type": "boolean",
+            "default": true,
+            "description": "Run sequence solve procedure upon nonlinear solver stall.  This will retry the solve using a sequence of different settings to try and recover a solution."
+        },
+        "sequence solve": {
+            "type": "boolean",
+            "default": false,
+            "description": "Perform solves starting from the most robust discretization settings to the requested discretization settings.  This can help increase solver robustness/efficiency when starting from a challenging initial condition."
+        },
+        "HyperSolve": {
+            "type": "object",
+            "description": "The settings directly related to the HyperSolve fluid solver and domain problem definition.",
+            "required": [
+                "states",
+                "boundary conditions"
+            ],
+            "properties": {
+                "gpu device id": {
+                    "hidden": true,
+                    "description": "GPU Device ID",
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "mpi rank"
+                            ]
+                        },
+                        {
+                            "type": "number"
+                        }
+                    ],
+                    "default": "mpi rank"
+                },
+                "adjoint solver settings": {
+                    "$ref": "#/definitions/Adjoint Solver Settings"
+                },
+                "adjoint cost function": {
+                    "hidden": true,
+                    "description": "Cost function for adjoint solver.  This is under development.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "boundary conditions": {
+                    "type": "array",
+                    "description": "Spatial boundary conditions for the domain",
+                    "items": {
+                        "$ref": "#/definitions/Boundary Condition"
+                    }
+                },
+                "compute adjoint solution": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Solve the Adjoint system.",
+                    "default": false
+                },
+                "domain name": {
+                    "type": "string",
+                    "description": "The domain name sets the filename base for the convergence history files.",
+                    "default": "domain"
+                },
+                "equation type": {
+                    "type": "string",
+                    "description": "The equation to be solved.",
+                    "default": "laminar",
+                    "enum": [
+                        "euler",
+                        "laminar",
+                        "hns8",
+                        "turbulent",
+                        "heat equation",
+                        "hyperbolic heat equation",
+                        "vulcan-euler",
+                        "vulcan-laminar",
+                        "radiation equation",
+                        "gauss",
+                        "maxwell",
+                        "vulcan-turbulent",
+                        "ohm"
+                    ]
+                },
+                "discretization settings": {
+                    "$ref": "#/definitions/Discretization Settings"
+                },
+                "debug": {
+                    "$ref": "#/definitions/Debugging Settings"
+                },
+                "hns rescaling": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "rescaling factor for the HNS heat variable",
+                    "default": 1.0
+                },
+                "inflate mesh halo": {
+                    "hidden": true,
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "boolean"
+                        }
+                    ],
+                    "description": "Inflate the communcation ghost layer. You should only change this for debugging purposes or in rare circumstances.",
+                    "default": "auto"
+                },
+                "initialization regions": {
+                    "type": "array",
+                    "description": "A list of different geometric regions and the state they should be initialized to",
+                    "default": [],
+                    "additionalProperties": false,
+                    "additionalItems": false,
+                    "items": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "required": [
+                                    "state",
+                                    "type",
+                                    "lo",
+                                    "hi"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "state": {
+                                        "type": "string",
+                                        "description": "name of the state used in the region"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "aabb",
+                                            "axis-aligned bounding-box"
+                                        ]
+                                    },
+                                    "lo": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "hi": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "state",
+                                    "type",
+                                    "radius",
+                                    "center"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "state": {
+                                        "type": "string",
+                                        "description": "name of the state used in the region"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "sphere"
+                                        ]
+                                    },
+                                    "center": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "default": [
+                                            0,
+                                            0,
+                                            0
+                                        ]
+                                    },
+                                    "radius": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "state",
+                                    "type",
+                                    "center0",
+                                    "center1",
+                                    "a0",
+                                    "a1",
+                                    "b0",
+                                    "b1",
+                                    "n0",
+                                    "n1",
+                                    "localYDirection0",
+                                    "localYDirection1",
+                                    "useCDNozzle",
+                                    "machNumberRoot"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "state": {
+                                        "type": "string",
+                                        "description": "name of the state used in the region"
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "super ellipse frustum"
+                                        ]
+                                    },
+                                    "center0": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "default": [
+                                            0,
+                                            0,
+                                            0
+                                        ]
+                                    },
+                                    "center1": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "default": [
+                                            0,
+                                            0,
+                                            0
+                                        ]
+                                    },
+                                    "a0": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "a1": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "b0": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "b1": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "n0": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "n1": {
+                                        "type": "number",
+                                        "minimum": 0.0
+                                    },
+                                    "localYDirection0": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "default": [
+                                            0,
+                                            0,
+                                            0
+                                        ]
+                                    },
+                                    "localYDirection1": {
+                                        "type": "array",
+                                        "minItems": 3,
+                                        "maxItems": 3,
+                                        "items": {
+                                            "type": "number"
+                                        },
+                                        "default": [
+                                            0,
+                                            0,
+                                            0
+                                        ]
+                                    },
+                                    "useCDNozzle": {
+                                        "type": "boolean",
+                                        "description": "Use isentropic area ratios to state within the region.",
+                                        "default": false
+                                    },
+                                    "machNumberRoot": {
+                                        "type": "string",
+                                        "enum": [
+                                            "subsonic",
+                                            "supersonic",
+                                            "sonic"
+                                        ],
+                                        "description": "Selects the mach number root of the isentropic relations used to set the state within the region."
+                                    },
+                                    "alignVelocity": {
+                                        "type": "boolean",
+                                        "description": "Align velocity vector with linear interpolation between frustum axis and side walls.  Flow will be directed from the super ellipse at center0 to the super ellipse at center1.",
+                                        "default": false
+                                    }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "type",
+                                    "thickness"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "boundary layer",
+                                            "bl"
+                                        ],
+                                        "description": "This input parameter forces the no-slip surface boundary conditions to be linearly blended with the flowfield initialization over the distance provided by the value specified on this line. The purpose of this input is to mitigate the discontinuous jump condition formed at the intersection of the initialized flowfield and the no-slip surfaces."
+                                    },
+                                    "mesh boundary tags": {
+                                        "$ref": "#/definitions/Mesh Boundary Tags"
+                                    },
+                                    "thickness": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0.0
+                                    }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "type",
+                                    "state",
+                                    "inflow boundary tags",
+                                    "side wall boundary tags",
+                                    "length",
+                                    "thickness"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "injector"
+                                        ],
+                                        "description": ""
+                                    },
+                                    "state": {
+                                        "type": "string",
+                                        "description": "name of the state used in the region"
+                                    },
+                                    "inflow boundary tags": {
+                                        "$ref": "#/definitions/Mesh Boundary Tags"
+                                    },
+                                    "side wall boundary tags": {
+                                        "$ref": "#/definitions/Mesh Boundary Tags"
+                                    },
+                                    "length": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0.0
+                                    },
+                                    "thickness": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0.0
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "initial state": {
+                    "description": "The name of the state to use as the initial state for the entire domain. If this is not set, the first state is used by default",
+                    "type": "string"
+                },
+                "reference length state": {
+                    "description": "The name of the state to used in computing the length scale in hns8. If this is not set, the first state is used by default",
+                    "type": "string"
+                },
+                "initialize velocity from surfaces": {
+                    "hidden": true,
+                    "type": "array",
+                    "description": "Initialize velocity field based on distance function from specified tags.",
+                    "default": []
+                },
+                "linear solver settings": {
+                    "$ref": "#/definitions/Linear Solver Settings"
+                },
+                "mesh unit length": {
+                    "type": "number",
+                    "description": "The conversion factor from grid units to meters.",
+                    "default": 1.0
+                },
+                "mesh closed tolerance": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Tolerance that the mesh geometry is expected to be closed.",
+                    "default": 1.0e-11
+                },
+                "compute uncoupled radiative heat flux": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Compute surface radiative heat flux via HARA.  Requires compiling with HARA library support.",
+                    "default": false
+                },
+                "mms type": {
+                    "hidden": true,
+                    "type": "string",
+                    "description": "Method of Manufactured Solutions (MMS) type.",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "entropy wave",
+                        "steady inviscid shock",
+                        "masa",
+                        "euler",
+                        "heat-equation",
+                        "hiro poisson",
+                        "hns8",
+                        "isentropic vortex",
+                        "laminar",
+                        "sa turbulent",
+                        "wilcox2006 turbulent",
+                        "radiation equation",
+                        "radiation-plane-parallel",
+                        "gauss",
+                        "maxwell",
+                        "ohm"
+                    ]
+                },
+                "MMS strong bc": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Apply the manufactured solution via strong boundary conditions.",
+                    "default": false
+                },
+                "global petsc options": {
+                    "type": "string",
+                    "description": "Options to pass to the global PETSc options database.",
+                    "default": ""
+                },
+                "nondimensional reference state": {
+                    "description": "The name of the state to use as the nondimensional reference state. If this is not set, the first state is used by default",
+                    "type": "string"
+                },
+                "nonlinear solver settings": {
+                    "$ref": "#/definitions/Nonlinear Solver Settings"
+                },
+                "print configuration": {
+                    "type": "boolean",
+                    "description": "Print the full configuration (input file w/defaults added).",
+                    "default": false
+                },
+                "print kokkos configuration": {
+                    "type": "boolean",
+                    "description": "Print the Kokko configuration",
+                    "default": false
+                },
+                "profiling": {
+                    "$ref": "#/definitions/Performance Profiling"
+                },
+                "restart from previous history": {
+                    "type": "boolean",
+                    "description": "Restart from CFL and iteration number found at the end of the *-residual.csv file.  This is intended for developer use.",
+                    "default": false
+                },
+                "states": {
+                    "type": "object",
+                    "description": "Physical states to be used for boundary/initial conditions",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/State"
+                    }
+                },
+                "smart initialize": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Initialize the solution via distance to boundary conditions.  Requires a least one solid-surface type boundary condition and one dirichlet type boundary condition."
+                },
+                "subsolve": {
+                    "$ref": "#/definitions/Subsolve"
+                },
+                "thermodynamics": {
+                    "$ref": "#/definitions/Thermodynamics"
+                },
+                "time accuracy": {
+                    "$ref": "#/definitions/Time Accuracy"
+                },
+                "turbulence model": {
+                    "$ref": "#/definitions/Turbulence Model"
+                },
+                "radiation solver settings": {
+                    "hidden": true,
+                    "$ref": "#/definitions/Radiation Settings"
+                },
+                "mhd solver settings": {
+                    "hidden": true,
+                    "$ref": "#/definitions/MHD Settings"
+                },
+                "particle solver settings": {
+                    "hidden": true,
+                    "$ref": "#/definitions/Particle Phase Settings"
+                },
+                "verify adjoint": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Verify the adjoint solution with complex variables.",
+                    "default": false
+                },
+                "verify jacobians": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Verify the Jacobian with complex variables.",
+                    "default": false
+                },
+                "verify with mms": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Verify the discretization with the Method of Manufactured Solutions.",
+                    "default": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "mesh adaptation": {
+            "$ref": "#/definitions/Mesh Adaptation"
+        },
+        "laura mesh adaptation": {
+            "$ref": "#/definitions/LAURA Mesh Adaptation"
+        },
+        "hs-cell field bundles": {
+            "hidden": true,
+            "type": "object",
+            "description": "List of bundled fields that can be listed as a single field",
+            "properties": {},
+            "additionalProperties": true,
+            "default": {
+                "auto": [
+                    "density*",
+                    "mass-fractions*",
+                    "u",
+                    "v",
+                    "w",
+                    "entropy",
+                    "enthalpy",
+                    "pressure",
+                    "temperature",
+                    "mach",
+                    "total-enthalpy",
+                    "eddy-viscosity",
+                    "eddy-viscosity-ratio",
+                    "y-plus",
+                    "cell-height",
+                    "surface-heat-flux",
+                    "tau-wall",
+                    "entropy"
+                ],
+                "boundary": [
+                    "pressure",
+                    "temperature",
+                    "density*",
+                    "mass-fractions*",
+                    "surface-heat-flux",
+                    "tau-wall",
+                    "y-plus",
+                    "cell-height"
+                ],
+                "restart": [
+                    "u",
+                    "v",
+                    "w",
+                    "pressure",
+                    "temperature",
+                    "mach",
+                    "density*",
+                    "nu-tilde"
+                ]
+            }
+        },
+        "hs-node field bundles": {
+            "hidden": true,
+            "type": "object",
+            "description": "List of bundled fields that can be listed as a single field",
+            "properties": {},
+            "additionalProperties": true,
+            "default": {
+                "auto": [
+                    "!-gradient-!",
+                    "density-!",
+                    "boundary-!",
+                    "residual-!",
+                    "!-adaptation-sensor",
+                    "total-pres!",
+                    "total-temp!",
+                    "restart-!",
+                    "!-heat-load"
+                ],
+                "restart": [
+                    "u",
+                    "v",
+                    "w",
+                    "pressure",
+                    "temperature",
+                    "density-*",
+                    "nu-tilde"
+                ]
+            }
+        },
+        "field bundles": {
+            "hidden": true,
+            "type": "object",
+            "description": "List of bundled fields that can be listed as a single field",
+            "additionalProperties": true,
+            "properties": {},
+            "default": {}
+        },
+        "visualization": {
+            "type": "array",
+            "description": "Options controlling the visualization from sampling the domain. Note: this is an array of objects, so multiple sampling definitions can be defined for a simulation.",
+            "items": {
+                "oneOf": [
+                    {
+                        "$ref": "#/definitions/Point Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Line Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Plane Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Sphere Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Boundary Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Volume Sample"
+                    },
+                    {
+                        "$ref": "#/definitions/Volume Debug Sample"
+                    }
+                ]
+            },
+            "default": []
+        },
+        "preprocessor": {
+            "hidden": true,
+            "type": "string",
+            "default": "auto",
+            "description": "Plugin to use for the reading and partitioning the mesh.  The default ('auto') automatically chooses this option by looking at the extension of the mesh filename."
+        },
+        "MMS": {
+            "hidden": true,
+            "description": "This section controls the Method of Manufactured Solution verification process in HyperSolve. This is for developer use only, and should not be specified during normal HyperSolve execution.",
+            "additionalProperties": true
+        }
+    },
+    "additionalProperties": false,
+    "definitions": {
+        "Adjoint Solver Settings": {
+            "hidden": true,
+            "type": "object",
+            "description": "Settings to control HyperSolve steady-state adjoint solver.",
+            "properties": {
+                "petsc options": {
+                    "type": "string",
+                    "description": "Options to pass to PETSc for the adjoint solve.",
+                    "default": "-ksp_monitor -pc_type bjacobi -pc_bjacobi_blocks 1 -ksp_gmres_restart 1000 -sub_ksp_max_it 100 -sub_ksp_gmres_restart 100"
+                },
+                "absolute tolerance": {
+                    "type": "number",
+                    "description": "Adjoint linear solver absolute tolerance.",
+                    "default": 1e-16
+                },
+                "relative tolerance": {
+                    "type": "number",
+                    "description": "Adjoint linear solver relative tolerance.",
+                    "default": 1e-08
+                },
+                "max krylov search directions": {
+                    "type": "integer",
+                    "description": "Maximum number of Krylov search directions for adjoint linear solver.",
+                    "default": 1000
+                },
+                "monitor residual": {
+                    "type": "boolean",
+                    "description": "Monitor the convergence of the Adjoint linear solver.",
+                    "default": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "Debugging Settings": {
+            "type": "object",
+            "description": "Debugging settings for diagnosing problems with HyperSolve.  In general, these should not be used unless the solver is performing poorly.",
+            "properties": {
+                "linesearch samples": {
+                    "type": "integer",
+                    "description": "Sample and print the linesearch results for debugging convergence issues.",
+                    "default": 0,
+                    "minimum": 0
+                },
+                "linesearch visualization samples": {
+                    "type": "integer",
+                    "description": "Number of samples along a solution update to visualize the residual change.",
+                    "default": 0
+                },
+                "linesearch visualization threshold": {
+                    "type": "number",
+                    "description": "The (approximate) percentage of points to visualize.  For example, if you only want to visualize the top 10 percent of nodes where the residual change would increase the overall residual L2 norm the most, set this option to 0.1",
+                    "minimum": 0.0,
+                    "default": 0.1
+                },
+                "linesearch skip threshold": {
+                    "type": "number",
+                    "description": "Only plot a linesearch sampling if the linesearch update factor is below this threshold.",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.99
+                },
+                "print non-finite terms": {
+                    "type": "boolean",
+                    "description": "Check for NaNs/Infs in the residual vector. If found, print the term name that generated them.",
+                    "default": false
+                },
+                "print realizability violation reason": {
+                    "type": "boolean",
+                    "description": "Print reason for realizability violations in the linesearch",
+                    "default": false
+                },
+                "plot all term residuals": {
+                    "type": "boolean",
+                    "description": "Plot the residuals of individual terms.",
+                    "default": false
+                }
+            }
+        },
+        "Discretization Settings": {
+            "type": "object",
+            "description": "Settings that control the HyperSolve discretization.",
+            "properties": {
+                "buffer limiter": {
+                    "type": "integer",
+                    "description": "Extend the effect of limiter at nodes to some distance of neighbors.  This produces a wider region of limiting around shocks, and useful for simulations with strong bow shocks at high Mach numbers.",
+                    "default": 0
+                },
+                "lock limiter": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Lock the limiter after this number of nonlinear iterations.",
+                    "default": -1
+                },
+                "entropy fix type": {
+                    "description": "The entropy fix to be used with the Roe flux function.  Only applicable for roe-type fluxes, such as 'roe', 'low-dissipation roe', and 'rroe'",
+                    "type": "string",
+                    "default": "harten",
+                    "enum": [
+                        "harten",
+                        "harten-hyman"
+                    ]
+                },
+                "eigenvalue limiting coefficient": {
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "description": "The eigenvalue smoothing coefficient used in some flux functions."
+                        },
+                        {
+                            "type": "string",
+                            "enum": [
+                                "auto"
+                            ],
+                            "description": "Automatically determine the acoustic eigenvalue smoothing coefficient used in some flux functions. This is the default (and recommend setting)."
+                        }
+                    ],
+                    "default": "auto"
+                },
+                "particle phase source terms": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Special source terms which engage the solution of continuum modeled particle phase governing equations",
+                    "default": false
+                },
+                "flux function": {
+                    "type": "string",
+                    "description": "The inviscid flux function.",
+                    "default": "rroe",
+                    "enum": [
+                        "roe",
+                        "low-dissipation roe",
+                        "roe-rusanov",
+                        "rroe",
+                        "low-dissipation rroe",
+                        "ldfss",
+                        "rusanov",
+                        "h-rusanov",
+                        "pure inviscid",
+                        "particle phase",
+                        "slau",
+                        "slau2",
+                        "hlle++",
+                        "hll",
+                        "gauss",
+                        "maxwell",
+                        "radiation-equation",
+                        "ohm"
+                    ]
+                },
+                "kappa": {
+                    "description": "kappa parameter in U-MUSCL scheme. Kappa = 0 is Fromm's scheme, and kappa = 1/2 yields 3rd-order accuracy in certain situations.",
+                    "type": "number",
+                    "default": 0.5
+                },
+                "second order jacobian": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Include gradient linearizations in Jacobian (Warning: large memory requirement).",
+                    "default": false
+                },
+                "solve hns8 gradients only": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Only solve the HNS8 gradient equations, leaving the meanflow fixed",
+                    "default": false
+                },
+                "hns8 second order": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Solve without using quadratic LSQ in HNS terms",
+                    "default": false
+                },
+                "hns scale factors": {
+                    "hidden": true,
+                    "type": "array",
+                    "description": "EXPERIMENTAL: adjust hns8 length scales",
+                    "items": {
+                        "type": "number",
+                        "minLength": 2,
+                        "maxLength": 2,
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "default": [
+                        1.0,
+                        1.0
+                    ]
+                },
+                "hns scheme-IQ": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Apply C-Quadratic gradient correction to temperature gradient"
+                },
+                "slope limiter": {
+                    "type": "string",
+                    "description": "The slope limiter for the U-MUSCL scheme.",
+                    "default": "pressure",
+                    "enum": [
+                        "first order",
+                        "barth",
+                        "venkat",
+                        "r3",
+                        "pressure",
+                        "new pressure",
+                        "van leer",
+                        "van albada",
+                        "no limiter"
+                    ]
+                },
+                "viscous flux slope limiter": {
+                    "type": "string",
+                    "description": "The slope limiter for the state extrapolation scheme in the viscous flux.",
+                    "default": "no limiter",
+                    "enum": [
+                        "first order",
+                        "barth",
+                        "venkat",
+                        "r3",
+                        "pressure",
+                        "new pressure",
+                        "van leer",
+                        "van albada",
+                        "no limiter"
+                    ]
+                },
+                "slope limiter settings": {
+                    "type": "object",
+                    "properties": {
+                        "coefficient": {
+                            "type": "number",
+                            "description": "A tunable value present in some limiters (i.e., 'venkat', 'van leer', etc.).  A larger value may improve nonlinear convergence at the expense of permitting large oscillations near shocks.",
+                            "default": 0.3
+                        },
+                        "activation range": {
+                            "type": "array",
+                            "description": "The range over which the state-based limiters (e.g., 'pressure', 'temperature', etc.) are engaged.  For a example, a range of [2, 3] will start to trigger the limiter when the jump in nearby solution states exceeds two and completely engages the limiter for a jump above three.",
+                            "items": {
+                                "type": "number",
+                                "minLength": 2,
+                                "maxLength": 2,
+                                "minimum": 0.0
+                            },
+                            "default": [
+                                2.0,
+                                3.0
+                            ]
+                        }
+                    }
+                },
+                "lhs settings": {
+                    "hidden": true,
+                    "type": "object",
+                    "description": "EXPERIMENTAL: Settings to use for the Jacobian calculation.  There are no safety checks for options in this section.",
+                    "default": {},
+                    "additionalProperties": true
+                },
+                "viscous gradient weights power": {
+                    "type": "number",
+                    "description": "Inverse distance weight power for the viscous terms least-squares gradient computation.",
+                    "default": 1
+                },
+                "gradient method": {
+                    "type": "string",
+                    "description": "The method to use for computing gradients that are used for solution reconstruction and evaluating the viscous diffusion terms.",
+                    "enum": [
+                        "LLSQ",
+                        "QLSQ",
+                        "GG",
+                        "IEBG"
+                    ],
+                    "default": "LLSQ"
+                },
+                "viscous gradient method": {
+                    "type": "string",
+                    "description": "The method to use for computing gradients that are used for solution reconstruction and evaluating the viscous diffusion terms. The default (auto) will use what is specified in the 'gradient method' option",
+                    "enum": [
+                        "LLSQ",
+                        "QLSQ",
+                        "GG",
+                        "IEBG",
+                        "auto"
+                    ],
+                    "default": "auto"
+                },
+                "IEBG settings": {
+                    "$ref": "#/definitions/IEBG Settings"
+                },
+                "qlsq stencil threshold increase": {
+                    "type": "integer",
+                    "description": "Increase the stencil-size threshold for quadratic least-squares gradient computation above the minimum (9 edges per node in 3D, or 5 edges per node in 2D).",
+                    "default": 0
+                },
+                "vulcan min LSQ stencil size": {
+                    "hidden": true,
+                    "default": "auto",
+                    "description": "Minimum stencil size that Vulcan will augment to reach.",
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                        },
+                        {
+                            "type": "string",
+                            "enum": [
+                                "auto"
+                            ]
+                        }
+                    ]
+                },
+                "alpha-damping coefficient": {
+                    "type": "number",
+                    "description": "Alpha coefficient for damping term in viscous flux.",
+                    "default": 1.333333333333333
+                },
+                "max skewness angle": {
+                    "type": "number",
+                    "description": "Max angle between edge and face normal in alpha-damping skewness measure used in the gradient damping term in viscous flux. Specified in degrees.",
+                    "minimum": 0.0,
+                    "maximum": 90.0,
+                    "default": 90.0
+                },
+                "alpha-damping edge length tolerance": {
+                    "type": "number",
+                    "description": "The minimum edge length to engage the damping term in the alpha-damping scheme.",
+                    "minimum": 0.0,
+                    "default": 1e-10
+                },
+                "viscous damping type": {
+                    "type": "string",
+                    "description": "Damping type used to stabalize the viscous gradients",
+                    "enum": [
+                        "alpha-damping-1st-order",
+                        "alpha-damping",
+                        "face-tangent"
+                    ],
+                    "default": "alpha-damping"
+                },
+                "mass diffusion gradient": {
+                    "type": "string",
+                    "description": "Gradient used to drive the mass diffusion flux. The 'none' option disables the mass diffusion flux.",
+                    "enum": [
+                        "mass-fraction",
+                        "mole-fraction",
+                        "none"
+                    ],
+                    "default": "mole-fraction"
+                },
+                "disable flux extrapolation": {
+                    "type": "boolean",
+                    "description": "Disable the flux extrapolation for convective fluxes.  This will prevent third-order accuracy is some cases, and may other degrade accuracy of the second order scheme.  This is intended as a debugging option.",
+                    "default": false
+                },
+                "disable flux reconstruction": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Disable the flux reconstruction term in Vulcan 3rd order scheme",
+                    "default": false
+                },
+                "limit mass fractions": {
+                    "type": "boolean",
+                    "description": "Clip species mass fractions to prevent them from becoming negative in the solution.",
+                    "default": false
+                },
+                "vulcan limiter use mlp": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Limit based on reconstruction to cell nodes, amounts to more restrictive",
+                    "default": false
+                },
+                "vulcan boundary coeff": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Additional limiting coefficient to match Vulcan-Classic",
+                    "default": 1.0
+                },
+                "vulcan gradient selfcheck": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Allow Vulcan to perform gradient selfchecks on startup. Disable for 2D simulations not in the xy plane.",
+                    "default": true
+                },
+                "vulcan gradient include ghosts": {
+                    "hidden": true,
+                    "oneOf": [
+                        {
+                            "type": "boolean",
+                            "description": "Add all ghost cells in the LSQ stencils in Vulcan"
+                        },
+                        {
+                            "type": "array",
+                            "description": "List of specific boundary tags to include in LSQ stencils"
+                        }
+                    ],
+                    "default": false
+                },
+                "vulcan order": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "EXPERIMENTAL: toggle 3rd order terms in Vulcan",
+                    "default": 2
+                },
+                "vulcan inviscid gradient": {
+                    "hidden": true,
+                    "type": "string",
+                    "description": "Inviscid gradient method - only used by Vulcan.",
+                    "default": "C-ANG",
+                    "enum": [
+                        "C-ANG",
+                        "F-ANG",
+                        "C-LSQ"
+                    ]
+                },
+                "vulcan viscous gradient": {
+                    "hidden": true,
+                    "type": "string",
+                    "description": "Viscous gradient method - only used by Vulcan.",
+                    "default": "C-ANG",
+                    "enum": [
+                        "C-ANG",
+                        "F-ANG",
+                        "C-LSQ"
+                    ]
+                },
+                "scale residual by volume": {
+                    "type": "boolean",
+                    "description": "Scale the equations by dual volume, to normalize the effects of large changes in mesh cell size.",
+                    "default": false
+                },
+                "shock sensor type": {
+                    "hidden": true,
+                    "type": "string",
+                    "description": "The type of shock sensor function to use.",
+                    "enum": [
+                        "lovely-haimes",
+                        "ducros",
+                        "hendrickson"
+                    ],
+                    "default": "lovely-haimes"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Linear Solver Settings": {
+            "type": "object",
+            "description": "Settings controlling the linear solver for the (non-adjoint) solver.",
+            "properties": {
+                "absolute tolerance": {
+                    "type": "number",
+                    "description": "The absolute tolerance for the linear solver.",
+                    "default": 1e-16
+                },
+                "max sweeps": {
+                    "type": "integer",
+                    "description": "The number of Jacobi sweeps.  Only activated if solver type = 'Jacobi'",
+                    "default": 15
+                },
+                "max krylov search directions": {
+                    "type": "integer",
+                    "description": "The maximum number of krylov search directions for the Krylov linear solver.",
+                    "default": 50
+                },
+                "relative tolerance": {
+                    "type": "number",
+                    "description": "The relative tolerance for the linear solver.",
+                    "default": 0.001
+                },
+                "monitor residual": {
+                    "type": "boolean",
+                    "description": "Monitor the convergence of the linear solver.",
+                    "default": false
+                },
+                "check frequency": {
+                    "type": "integer",
+                    "description": "Frequency to perform preconditioner convergence test.",
+                    "default": 5
+                },
+                "divergence tolerance": {
+                    "type": "number",
+                    "description": "Allowable preconditioner increase in the linear residual L2 norm before aborting solve.",
+                    "default": 2.0
+                },
+                "preconditioner": {
+                    "type": "string",
+                    "description": "The preconditioner for the linear solver solver. For the PETSc solver, the default is 'asm'. For the Kokkos solver, the default is 'MCGS'.",
+                    "default": "auto",
+                    "examples": [ "MCGS", "Jacobi", "asm", "sor", "bjacobi" ]
+                },
+                "single precision off-diagonal": {
+                    "type": "boolean",
+                    "description": "Store Kokkos preconditioner matrix entries at single-precision.",
+                    "default": true
+                },
+                "print load balance": {
+                    "type": "boolean",
+                    "description": "Monitor the load balance of the Kokkos linear solver.",
+                    "default": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "Nonlinear Solver Settings": {
+            "type": "object",
+            "description": "Nonlinear solver settings.",
+            "properties": {
+                "petsc options": {
+                    "type": "string",
+                    "description": "Options for the PETSc nonlinear solver.",
+                    "default": ""
+                },
+                "starting cfl": {
+                    "type": "number",
+                    "description": "The CFL number for computing the starting timestep.",
+                    "default": 1.0,
+                    "minimum": 0.0
+                },
+                "cfl increase factor": {
+                    "type": "number",
+                    "description": "The factor to change the CFL number after a 'good' nonlinear iteration.",
+                    "default": 1.5,
+                    "minimum": 1.0
+                },
+                "cfl decrease factor": {
+                    "type": "number",
+                    "description": "The factor to change the CFL number after a 'bad' nonlinear iteration.",
+                    "default": 0.1,
+                    "maximum": 1.0,
+                    "minimum": 0.0
+                },
+                "cfl reduction linesearch threshold": {
+                    "type": "number",
+                    "description": "The minimum linesearch value allowed before the CFL will be reduced.",
+                    "default": 0.2,
+                    "minimum": 0.0
+                },
+                "cfl increase linesearch threshold": {
+                    "type": "number",
+                    "description": "The minimum linesearch value required before the CFL will be increased.",
+                    "default": 0.5,
+                    "minimum": 0.0
+                },
+                "cfl reduction linear solver threshold": {
+                    "type": "number",
+                    "description": "The maximum linear solver relative convergence threshold before the CFL will lower.",
+                    "default": 0.99,
+                    "minimum": 0.0
+                },
+                "monitor cfl changes": {
+                    "type": "boolean",
+                    "description": "Print the reason(s) for changes to CFL number at each timestep.",
+                    "default": false
+                },
+                "cfl bounds": {
+                    "type": "array",
+                    "description": "The min/max CFL numbers.",
+                    "default": [
+                        0.001,
+                        1000000.0
+                    ],
+                    "additionalItems": false
+                },
+                "use jacobian freezing": {
+                    "type": "boolean",
+                    "description": "Allow the Jacobian to be updated less frequently based on nonlinear residual",
+                    "default": false
+                },
+                "jacobian free newton krylov": {
+                    "type": "boolean",
+                    "description": "Engage the Jacobian Free Newton-Krylov (JFNK) nonlinear solver.",
+                    "default": true
+                },
+                "use complex variables": {
+                    "type": "boolean",
+                    "description": "Employ complex variables in the JFNK nonlinear solver (slower, but more robust).",
+                    "default": false
+                },
+                "write linear system": {
+                    "type": "boolean",
+                    "description": "write the linear solve system to disk",
+                    "default": false
+                },
+                "enable linesearch": {
+                    "type": "boolean",
+                    "description": "Enable backtracking line search.  Note, this option is not supported in the Jacobi nonlinear solver.",
+                    "default": true
+                },
+                "monitor linesearch": {
+                    "type": "boolean",
+                    "description": "Monitor the residual L2 norm during the line search when determining update step size.",
+                    "default": false
+                },
+                "residual increase allowance": {
+                    "type": "number",
+                    "description": "Allowable increase in the spatial residual L2 norm before decreasing the CFL number.",
+                    "default": 2.0,
+                    "minimum": 0.0
+                },
+                "residual stopping tolerance": {
+                    "type": "number",
+                    "description": "The residual L2 norm stopping tolerance.  A value of -1 automatically computes the stopping tolerance",
+                    "default": -1
+                },
+                "percent update limiting": {
+                    "type": "number",
+                    "description": "An additional limiter on density and temperature updates.  This should be between 0.0 and 1.0, with 1.0 disabling the limiting. This is applied after the line search global scaling is applied globally to the solution update.",
+                    "default": 1.0,
+                    "maximum": 1.0,
+                    "minimum": 0.0
+                },
+                "solver": {
+                    "type": "string",
+                    "description": "The nonlinear solver plugin name. The default (auto) will select the best option based on the full configuration.",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "debug-explicit",
+                        "Jacobi",
+                        "Kokkos",
+                        "PETSc"
+                    ]
+                },
+                "update stopping tolerance": {
+                    "type": "number",
+                    "description": "The stopping tolerance based on the solution update L2 norm.",
+                    "default": 1e-15
+                }
+            },
+            "additionalProperties": false
+        },
+        "IEBG Settings": {
+            "type": "object",
+            "description": "Settings related the Implicit Edge-based Gradient (IEBG) method",
+            "properties": {
+                "c": {
+                    "type": "number",
+                    "description": "Parameter to control the accuracy the IEBG gradients.  A value of 2.6 is optimal, but may lead to stiff linear systems.  A value of 5.0 is recommended.",
+                    "default": 5.0
+                },
+                "kappa": {
+                    "description": "kappa parameter in U-MUSCL scheme for the gradient extrapolation in the IEBG method. A value other than zero will cause IEBG method to lose quadratic exactness.",
+                    "type": "number",
+                    "default": 0.0
+                },
+                "solver": {
+                    "type": "string",
+                    "description": "Linear solver plugin to use for IEBG solves. Setting this to 'auto' will use the best available.",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "PETSc",
+                        "Kokkos",
+                        "Jacobi"
+                    ]
+                },
+                "quadratic-exact": {
+                    "type": "boolean",
+                    "description": "Use version the produces exact gradients for quadratic function",
+                    "default": true
+                },
+                "petsc options": {
+                    "type": "string",
+                    "description": "Options for the PETSc linear solver."
+                },
+                "max sweeps": {
+                    "type": "integer",
+                    "description": "The number of preconditioner sweeps.",
+                    "default": 5
+                },
+                "max krylov search directions": {
+                    "type": "integer",
+                    "description": "The maximum number of krylov search directions for the Krylov linear solver.",
+                    "default": 10
+                },
+                "relative tolerance": {
+                    "type": "number",
+                    "description": "The relative tolerance for the linear solver.",
+                    "default": 1e-5
+                },
+                "monitor residual": {
+                    "type": "boolean",
+                    "description": "Monitor the convergence of the linear solver.",
+                    "default": false
+                },
+                "report linear solve failure": {
+                    "type": "boolean",
+                    "description": "Report a warning if the linear solver fails to converge to the specified tolerance.",
+                    "default": false
+                },
+                "preconditioner": {
+                    "type": "string",
+                    "description": "The preconditioner for the linear solver solver. For the PETSc solver, the default is 'asm'. For the Kokkos solver, the default is 'MCGS'.",
+                    "default": "auto",
+                    "examples": [ "MCGS", "Jacobi", "asm", "sor", "bjacobi" ]
+                },
+                "gradient weights power": {
+                    "type": "number",
+                    "description": "Inverse distance weight power for the least-squares gradient weights used in the IEBG method.",
+                    "default": 0
+                },
+                "persist across solves": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "EXPERIMENTAL (and possibly very dangerous) option to persist the gradient computed by the IEBG linear solve across solves.",
+                    "default": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "Performance Profiling": {
+            "type": "object",
+            "description": "Performance profiling settings.",
+            "properties": {
+                "debug": {
+                    "type": "boolean",
+                    "description": "Enable debugging for tracer output.",
+                    "default": false
+                },
+                "trace memory": {
+                    "type": "boolean",
+                    "description": "Include memory usage statistics in the tracer output.",
+                    "default": false
+                },
+                "print load balance": {
+                    "type": "boolean",
+                    "description": "Print the load balance at each checkpoint.",
+                    "default": false
+                },
+                "ranks to trace": {
+                    "description": "The MPI ranks to output tracer profile files.",
+                    "oneOf": [
+                        {
+                            "type": "integer"
+                        },
+                        {
+                            "type": "string",
+                            "examples": [ "1:71,85:92,207" ]
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        }
+                    ],
+                    "default": []
+                }
+            },
+            "additionalProperties": false
+        },
+        "Thermodynamics": {
+            "type": "object",
+            "description": "Settings to control the thermodynamic equations of state used.",
+            "properties": {
+                "chemical nonequilibrium": {
+                    "type": "boolean",
+                    "description": "The chemical source term for nonequilibrium flow",
+                    "default": false
+                },
+                "reaction model filename": {
+                    "type": "string",
+                    "description": "The chemical nonequilibrium model filename",
+                    "default": "kinetic_data"
+                },
+                "thermal nonequilibrium": {
+                    "type": "boolean",
+                    "description": "Engage thermal vibrational nonequilibrium",
+                    "default": false
+                },
+                "Prandtl number": {
+                    "type": "number",
+                    "description": "The fluid Prandtl number.",
+                    "default": 0.72
+                },
+                "turbulent Prandtl number": {
+                    "type": "number",
+                    "description": "The turbulent Prandtl number.",
+                    "default": 0.9
+                },
+                "ratio of specific heats": {
+                    "type": "number",
+                    "description": "The ratio of specific heats (gamma).",
+                    "default": 1.4
+                },
+                "use constant transport properties": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "description": "Use constant transport properties (for MMS or analytic cases).",
+                    "default": false
+                },
+                "viscosity": {
+                    "hidden": true,
+                    "description": "Constant viscosity applied with 'use constant transport properties' option.",
+                    "type": "number",
+                    "default": -1.0
+                },
+                "thermal conductivity": {
+                    "hidden": true,
+                    "description": "Constant thermal conductivity applied with 'use constant transport properties' option.",
+                    "type": "number",
+                    "default": -1.0
+                },
+                "molecular weight": {
+                    "type": "number",
+                    "description": "Assumed molecular weight for perfect gas.",
+                    "default": 28.8
+                },
+                "Sutherland": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "description": "Sutherland's law specified with mu0, T0, S0",
+                            "required": [
+                                "mu0",
+                                "T0",
+                                "S0"
+                            ],
+                            "properties": {
+                                "mu0": {
+                                    "type": "number",
+                                    "description": "Sutherland's law reference viscosity [kg/(m*s)]"
+                                },
+                                "T0": {
+                                    "type": "number",
+                                    "description": "Sutherland's law reference temperature [K]"
+                                },
+                                "S0": {
+                                    "type": "number",
+                                    "description": "Sutherland's law Sutherland temperature [K]"
+                                }
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "description": "Sutherland's law specified with S1, S2",
+                            "required": [
+                                "S1",
+                                "S2"
+                            ],
+                            "properties": {
+                                "S1": {
+                                    "type": "number",
+                                    "description": "Sutherland's law coefficient 1 [kg/(m*s*K^(1/2)]"
+                                },
+                                "S2": {
+                                    "type": "number",
+                                    "description": "Sutherland's law coefficient 2 temperature [K]"
+                                }
+                            }
+                        }
+                    ],
+                    "default": {
+                        "S1": 1.458205e-6,
+                        "S2": 110.333333
+                    }
+                },
+                "species": {
+                    "type": "array",
+                    "description": "The species mixture.",
+                    "uniqueItems": true,
+                    "default": [
+                        "perfect gas"
+                    ]
+                },
+                "Park vibtronic relaxation": {
+                    "type": "boolean",
+                    "description": "Engage Park model values for vibrational constants required for vibrational-translational energy relaxation",
+                    "default": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "Time Accuracy": {
+            "type": "object",
+            "description": "Time integrator settings.",
+            "properties": {
+                "hns gradient cfl ratio": {
+                    "type": "number",
+                    "description": "The ratio of CFL number for the HNS gradient variables vs the state variables, (i.e., density, temperature, etc.).",
+                    "default": 1.0,
+                    "minimum": 0.0
+                },
+                "turbulent cfl ratio": {
+                    "type": "number",
+                    "description": "The ratio of CFL number for the turbulence variables vs the state variables, (i.e., density, temperature, etc.).",
+                    "default": 1.0,
+                    "minimum": 0.0
+                },
+                "type": {
+                    "type": "string",
+                    "description": "The time integrator type.",
+                    "default": "global timestepping",
+                    "enum": [
+                        "local timestepping",
+                        "global timestepping",
+                        "fixed timestep",
+                        "ramped timestep"
+                    ]
+                },
+                "timestep": {
+                    "type": "number",
+                    "description": "The timestep applied with the 'fixed timestep' time integrator, or the starting timestep for the 'ramped timestep' time integrator.",
+                    "default": 1e-4,
+                    "minimum": 0.0
+                },
+                "subiteration tolerance": {
+                    "type": "number",
+                    "description": "The relative tolerance to decrease the unsteady residual in a nonlinear iteration, otherwise the nonlinear solve is considered a failure by the CFL controller.",
+                    "default": 0.99,
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "subiterations": {
+                    "type": "integer",
+                    "description": "The number of iterations to performe before advancing to the next timestep.",
+                    "default": 1,
+                    "minimum": 1
+                },
+                "viscous timestep limit": {
+                    "type": "boolean",
+                    "description": "Add an extra timestep limit based on viscous stability limits",
+                    "default": false
+                },
+                "order": {
+                    "type": "integer",
+                    "description": "Order of accuracy for time integrator.  BDF supports order ≤ 2 and ESDIRK supports order ≤ 4.",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 4
+                },
+                "method": {
+                    "type": "string",
+                    "description": "Temporal integration scheme to use.",
+                    "enum": [
+                        "RK",
+                        "BDF",
+                        "ESDIRK"
+                    ],
+                    "default": "BDF"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Turbulence Model": {
+            "type": "object",
+            "description": "Turbulence Model settings.",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "The turbulence model type.",
+                    "default": "laminar",
+                    "enum": [
+                        "laminar",
+                        "sa",
+                        "sa-neg",
+                        "sa-catriscons",
+                        "sst-2003m",
+                        "wilcox2006"
+                    ]
+                },
+                "reynolds stress model": {
+                    "type": "string",
+                    "description": "Constitutive relationship for the Reynolds stress.",
+                    "default": "Boussinesq",
+                    "enum": [
+                        "Boussinesq",
+                        "QCR2000",
+                        "QCR2013",
+                        "QCR2013-V"
+                    ]
+                },
+                "farfield turbulence ratio": {
+                    "type": "number",
+                    "description": "A global value for the ratio of nu-tilde to the freestream kinematic viscosity. This option is only used for the Spalart-Allmaras family of models. This value is used for the initial condition and freestream boundary conditions. This option can be overriden by placing a turbulence intensity in a specific boundary condition definition.",
+                    "default": 3.0
+                },
+                "turbulence intensity": {
+                    "type": "number",
+                    "description": "A global value for the freestream turbulence intensity. This option is only used for two-equation models, such as SST or Wilcox2006. This value is used for the initial condition and freestream boundary conditions. This option can be overriden by placing a turbulence intensity in a specific boundary condition definition.",
+                    "default": 4E-5
+                },
+                "eddy viscosity ratio": {
+                    "type": "number",
+                    "description": "A global value for the freestream ratio of eddy viscosity to molecular viscosity. This value is used for the initial condition and freestream boundary conditions. This option can be overriden by placing a turbulence intensity in a specific boundary condition definition.",
+                    "default": 0.009
+                },
+                "use f_t2": {
+                    "type": "boolean",
+                    "description": "Set up an SA model to use the f_t2 terms. Note that SA-neg always includes the f_t2 terms.",
+                    "default": true
+                },
+                "first order": {
+                    "type": "boolean",
+                    "description": "Solve turbulence equations first order.",
+                    "default": false
+                },
+                "free shear": {
+                    "type": "boolean",
+                    "description": "Treat wall distance as infinite",
+                    "default": false
+                },
+                "des": {
+                    "type": "boolean",
+                    "description": "Use the DES source term.",
+                    "default": false
+                },
+                "skip source": {
+                    "type": "boolean",
+                    "description": "Debug option to skip computing the turbulent source terms.",
+                    "default": false
+                },
+                "include extra gradient inner product": {
+                    "type": "boolean",
+                    "description": "Only used for an SA model. Adds a source term with the inner-product between the gradient of density and the gradient of nu_tilde. This term is not explicitly listed in the incompressible transport equation for nu-tilde, but it appears for a variable-density transport equation. While some codes omit this term, it is part of the standard model.",
+                    "default": true
+                },
+                "k-neg": {
+                    "type": "boolean",
+                    "description": "Use the k-neg variant by Stefanski, Jordan, and Edwards. Only used for two-equation models, such as SST and Wilcox2006.",
+                    "default": true
+                },
+                "model constants": {
+                    "type": "object",
+                    "description": "Constants used in the turbulence model. These are primarily intended for debugging or power users.  New users should not change these.",
+                    "properties": {
+                        "production factor": {
+                            "type": "number",
+                            "description": "Factor by which to multiply the production term in the turbulence PDE(s). Set this value to zero to turn off production.",
+                            "default": 1.0
+                        },
+                        "destruction factor": {
+                            "type": "number",
+                            "description": "Factor by which to multiply the destruction term in the turbulence PDE(s). Set this value to zero to turn off destruction.",
+                            "default": 1.0
+                        },
+                        "cross-terms factor": {
+                            "type": "number",
+                            "description": "Factor by which to multiply the source terms with inner products of gradients, in the turbulence PDE(s). Set this value to zero to turn off the gradient inner products.",
+                            "default": 1.0
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "Radiation Settings": {
+            "hidden": true,
+            "type": "object",
+            "description": "Settings for the finite volume radiation solver specified by \"equation type\": \"radiation equation\".",
+            "properties": {
+                "gas radiation file": {
+                    "type": "string",
+                    "description": "file containing absorption and emission data for the gas phase",
+                    "default": "gas-radiation.snap"
+                },
+                "scattering file": {
+                    "type": "string",
+                    "description": "file containing scattering, absorption, emission, and asymmetry factor data for the particle phase. Absorption, emission, and asymmetry factor fields are optional in this file.",
+                    "default": "scattering.snap"
+                },
+                "wavenumber": {
+                    "type": "number",
+                    "description": "wavenumber associated with the external fields and wall emission boundary condition. Must match the fields names in the gas absorption snap file (e.g. absorption-2268.8 for the absorption coefficient at a wavenumber of 2268.8). TODO: Clean this part up.",
+                    "default": 2000
+                },
+                "time dependent": {
+                    "type": "boolean",
+                    "description": "use time terms to relax the solution rather than solving directly.",
+                    "default": true
+                },
+                "constant absorption coefficient": {
+                    "type": "number",
+                    "description": "constant absorption coefficient specified throughout the domain.",
+                    "default": 1.0
+                },
+                "constant emission coefficient": {
+                    "type": "number",
+                    "description": "constant emission coefficient specified throughout the domain.",
+                    "default": 1.0
+                },
+                "constant scattering coefficient": {
+                    "type": "number",
+                    "description": "constant scattering coefficient specified throughout the domain.",
+                    "default": 0.0
+                },
+                "constant asymmetry factor": {
+                    "type": "number",
+                    "description": "constant scattering asymmetry factor specified throughout the domain.",
+                    "default": 0.0
+                },
+                "override asymmetry factor": {
+                    "type": "boolean",
+                    "description": "override the asymmetry factor from the scattering file with the constant asymmetry factor variable.",
+                    "default": false
+                },
+                "minimum absorption coefficient": {
+                    "type": "number",
+                    "description": "minimum value of gas absorption coefficient, lower values are clipped.",
+                    "default": 1e-4
+                }
+            },
+            "additionalProperties": false
+        },
+        "MHD Settings": {
+            "hidden": true,
+            "type": "object",
+            "description": "Settings for the finite volume magnetohydrodynamic solver specified by \"equation type\": \"gauss\" or \"maxwell\".",
+            "properties": {
+                "gas solution": {
+                    "type": "string",
+                    "description": "gas solution snap file",
+                    "default": "restart.snap"
+                },
+                "mhd state solution": {
+                    "type": "string",
+                    "description": "mhd state solution snap file",
+                    "default": "mhdstate.snap"
+                },
+                "chi parameter": {
+                    "type": "number",
+                    "description": "Chi parameter for hyperbolic maxwell equation",
+                    "default": 1.0
+                },
+                "gamma parameter": {
+                    "type": "number",
+                    "description": "Gamma parameter for hyperbolic maxwell equation",
+                    "default": 1.0
+                },
+                "engaged": {
+                    "type": "boolean",
+                    "description": "Whether or not MHD modifications to navier stokes solver are engaged",
+                    "default": false
+                },
+                "magnet": {
+                    "type": "boolean",
+                    "description": "Whether or not to model an onboard magnet",
+                    "default": false
+                },
+                "magnet strength": {
+                    "type": "number",
+                    "description": "Strength of on-board magnet, in T",
+                    "default": 1.0
+                },
+                "magnet influence": {
+                    "type": "number",
+                    "description": "Radius of influence of on-board magnet model, in m",
+                    "default": 0.1
+                },
+                "magnet location": {
+                    "type": "array",
+                    "description": "The location of the on-board magnet [x, y, z]",
+                    "default": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "additionalItems": false
+                },
+                "magnet axis": {
+                    "type": "array",
+                    "description": "The axis orientation of on-board magnet [x, y, z]",
+                    "default": [
+                        1,
+                        0,
+                        0
+                    ],
+                    "additionalItems": false
+                },
+                "magnet model": {
+                    "type": "string",
+                    "description": "Magnet source term model",
+                    "default": "single dipole"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Particle Phase Settings": {
+            "hidden": true,
+            "type": "object",
+            "description": "Settings for the continuum particle phase solver.",
+            "properties": {
+                "Material density": {
+                    "type": "number",
+                    "description": "Density of the particle material [kg/m^3]. Default is that of Mars dust.",
+                    "default": 2940.0
+                },
+                "Material specific heat": {
+                    "type": "number",
+                    "description": "Specific heat capacity of the particle material [J/kg/K]. Default is that of SiO2.",
+                    "default": 700.0
+                },
+                "Heat of vaporization": {
+                    "type": "number",
+                    "description": "Latent heat of vaporization of the particle material [J/kg]. Default is that of SiO2.",
+                    "default": 8.6e6
+                },
+                "emissivity": {
+                    "type": "number",
+                    "description": "Emissivity of particles.",
+                    "default": 0.85
+                },
+                "Vaporization smoothing range": {
+                    "type": "number",
+                    "description": "Temperature range over which to smoothly engage vaporization [K].",
+                    "default": 50
+                },
+                "radius": {
+                    "type": "number",
+                    "description": "Radius of particles [m]. Default is the mass averaged radius of Mars dust.",
+                    "default": 2.0e-6
+                },
+                "vaporization": {
+                    "type": "boolean",
+                    "description": "enable vaporizing particle analysis through number density equation",
+                    "default": false
+                },
+                "gas phase thermodynamics": {
+                    "$ref": "#/definitions/Thermodynamics"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Boundary Condition": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/Axisymmetric Pole"
+                },
+                {
+                    "$ref": "#/definitions/Back Pressure"
+                },
+                {
+                    "$ref": "#/definitions/Dirichlet"
+                },
+                {
+                    "$ref": "#/definitions/Strongly Enforced Dirichlet"
+                },
+                {
+                    "$ref": "#/definitions/Riemann"
+                },
+                {
+                    "$ref": "#/definitions/Extrapolation"
+                },
+                {
+                    "$ref": "#/definitions/Viscous Wall"
+                },
+                {
+                    "$ref": "#/definitions/Symmetry"
+                },
+                {
+                    "$ref": "#/definitions/Slip Wall"
+                },
+                {
+                    "$ref": "#/definitions/Tangent Flow"
+                },
+                {
+                    "$ref": "#/definitions/Constant Temperature"
+                },
+                {
+                    "$ref": "#/definitions/Radiative Equilibrium Temperature"
+                },
+                {
+                    "$ref": "#/definitions/MMS"
+                },
+                {
+                    "$ref": "#/definitions/Subsonic Inflow Total Conditions"
+                },
+                {
+                    "$ref": "#/definitions/Supersonic Outflow (Vacuum)"
+                },
+                {
+                    "$ref": "#/definitions/Fixed Subsonic Inflow"
+                },
+                {
+                    "$ref": "#/definitions/Engine Inlet"
+                },
+                {
+                    "$ref": "#/definitions/Particle Wall"
+                },
+                {
+                    "$ref": "#/definitions/Marshak"
+                },
+                {
+                    "$ref": "#/definitions/Constant Intensity"
+                },
+                {
+                    "$ref": "#/definitions/Perfectly Conducting Surface"
+                },
+                {
+                    "$ref": "#/definitions/Silver Muller Absorption"
+                },
+                {
+                    "$ref": "#/definitions/Weak Constant MHD"
+                }
+            ]
+        },
+        "Dirichlet": {
+            "description": "Fixed external state.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "dirichlet"
+                    ]
+                },
+                "state": {
+                    "description": "name of state to apply at boundary",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "state"
+            ],
+            "additionalProperties": false
+        },
+        "Strongly Enforced Dirichlet": {
+            "description": "Fixed external state, but strongly enforced at the boundary nodes. This is typically only used for debugging.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "strong dirichlet"
+                    ]
+                },
+                "state": {
+                    "description": "name of state to apply at boundary",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "state"
+            ],
+            "additionalProperties": false
+        },
+        "Riemann": {
+            "description": "Fixed external state determined by riemman invariants. This boundary condition should be used for a farfield condition.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "riemann"
+                    ]
+                },
+                "state": {
+                    "description": "name of state to apply at boundary",
+                    "type": "string"
+                },
+                "blending factor": {
+                    "description": "Percent of speed of sound to smooth the transition between interior and exterior states used at the boundary.  Larger values may help convergence at the expense of less accuracy in transonic regions.",
+                    "type": "number",
+                    "default": 0.05
+                }
+            },
+            "required": [
+                "state"
+            ],
+            "additionalProperties": false
+        },
+        "Extrapolation": {
+            "description": "Extrapolate internal state to external state",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "extrapolation"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Slip Wall": {
+            "description": "Enforce only tangent velocity along a wall. Boundary is considered a wall",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "slip wall"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Tangent Flow": {
+            "description": "Enforce only tangent velocity along a boundary.  Boundary is not considered a wall",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "tangent flow"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Constant Temperature": {
+            "hidden": true,
+            "description": "Constant temperature boundary. For heat equation solvers only.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "constant temperature",
+                        "weak constant temperature"
+                    ]
+                },
+                "temperature": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Radiative Equilibrium Temperature": {
+            "hidden": true,
+            "description": "Radiative equilibrium temperature boundary. For heat equation solvers only.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "weak radiative equilibrium temperature"
+                    ]
+                },
+                "emissivity": {
+                    "type": "number",
+                    "description": "surface emissive efficient factor",
+                    "default": 1.0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Symmetry": {
+            "description": "Enforce symmetry condition",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "symmetry",
+                        "weak symmetry"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Viscous Wall": {
+            "description": "Enforce no slip condition on a viscous wall.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "no slip",
+                        "wall matching",
+                        "weak no slip"
+                    ]
+                },
+                "wall temperature": {
+                    "description": "The wall temperature condition. A number indicates a constant wall temperature.",
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        {
+                            "type": "string",
+                            "enum": [
+                                "adiabatic",
+                                "radiative equilibrium"
+                            ]
+                        }
+                    ]
+                },
+                "emissivity": {
+                    "type": "number",
+                    "description": "The surface emissivity for 'wall temperature' = 'radiative equilibrium' condition.",
+                    "default": 0.89,
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                },
+                "wall catalysis": {
+                    "type": "string",
+                    "description": "The surface catalysis condition",
+                    "enum": [
+                        "non-catalytic",
+                        "super-catalytic",
+                        "fully-catalytic"
+                    ],
+                    "default": "non-catalytic"
+                },
+                "freestream mass fractions": {
+                    "description": "The mass fraction state to use for the super-catalytic surface condition.  All species will recombine to these conditions at the surface.",
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "State definition for mass fractions"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "number",
+                                "minimum": 0.0
+                            },
+                            "minItems": 1
+                        },
+                        {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "number",
+                                    "minimum": 0.0
+                                }
+                            },
+                            "additionalItems": false,
+                            "minProperties": 1
+                        }
+                    ]
+                },
+                "relaxation factor": {
+                    "type": "number",
+                    "description": "The relaxation factor for updating the temperature when 'wall temperature' = 'radiative equilibrium'.",
+                    "default": 1.0,
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                }
+            },
+            "required": [
+                "wall temperature"
+            ],
+            "additionalProperties": false
+        },
+        "Axisymmetric Pole": {
+            "description": "A collection of degenerate surface elements along an axisymmetric pole.  This is usually only needed when using a structured 'wedge' grid that has one collapsed block side.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "axisymmetric pole"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Back Pressure": {
+            "description": "Outflow condition with static pressure specified when the flow is subsonic.  For supersonic flow, the interior state is extrapolated to the exterior state.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "back pressure"
+                    ]
+                },
+                "outflow static pressure": {
+                    "type": "number"
+                }
+            },
+            "required": [
+                "outflow static pressure"
+            ],
+            "additionalProperties": false
+        },
+        "MMS": {
+            "hidden": true,
+            "description": "Impose the MMS solution weakly (mms) or strong (strong mms) at boundary",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "mms",
+                        "strong mms",
+                        "strong-weak hns mms"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Subsonic Inflow Total Conditions": {
+            "description": "Subsonic inflow with the state determined by specified total conditions.  NOTE: Only implemented for an ideal gas assumption.",
+            "required": [
+                "inflow total pressure",
+                "inflow total temperature"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "subsonic inflow total"
+                    ]
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "inflow total pressure": {
+                    "description": "The total pressure at inflow.",
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "inflow total temperature": {
+                    "description": "The total temperature at inflow.",
+                    "type": "number",
+                    "minimum": 0.0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Supersonic Outflow (Vacuum)": {
+            "description": "Supersonic outflow state with a vacuum ratio used where subsonic flow is encountered.",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "supersonic outflow"
+                    ]
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "vacuum ratio": {
+                    "description": "The pressure ratio to impose for the outflow condition when subsonic flow is encountered.",
+                    "type": "number",
+                    "default": 0.1,
+                    "minimum": 0.0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Fixed Subsonic Inflow": {
+            "description": "Subsonic inflow with the state determined by a fixed density/velocity state.",
+            "required": [
+                "densities",
+                "velocity"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "fixed subsonic inflow"
+                    ]
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "densities": {
+                    "description": "The species densities at inflow.",
+                    "type": "array",
+                    "items": {
+                        "type": "number",
+                        "minLength": 1,
+                        "minimum": 0.0
+                    }
+                },
+                "velocity": {
+                    "description": "The velocity at inflow.",
+                    "type": "array",
+                    "items": {
+                        "type": "number",
+                        "minLength": 3,
+                        "maxLength": 3
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "Engine Inlet": {
+            "description": "Inflow conditions for an engine inlet based on a prescribed back pressure, with a relaxation factor to ease in the pressure at the inflow.",
+            "required": [
+                "outflow static pressure"
+            ],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "engine inlet"
+                    ]
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "outflow static pressure": {
+                    "description": "The engine outflow static pressure.",
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                "pressure relaxation": {
+                    "description": "A relaxation factor used when updating the engine inflow pressure.",
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Particle Wall": {
+            "hidden": true,
+            "description": "Permeable wall condition which produces shadowing on faces turned from flow. Behaves as extrapolation for particle impact faces and a zero valued dirichlet condition on shadowed faces.",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "strong particle wall",
+                        "particle wall"
+                    ]
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Marshak": {
+            "hidden": true,
+            "description": "Radiation boundary condition which balances the intensity and radiative flux against surface radiative intensity.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "marshak",
+                        "strong marshak"
+                    ]
+                },
+                "wall temperature": {
+                    "type": "number",
+                    "description": "The constant wall temperature in Kelvin."
+                },
+                "emissivity": {
+                    "type": "number",
+                    "description": "The emissivity of the surface.",
+                    "default": 0.85
+                },
+                "wavenumber": {
+                    "type": "number",
+                    "description": "The wavenumber of the simulation in inverse cm **TODO, synch this with the overall solution wavenumber.",
+                    "default": 2000.0
+                }
+            },
+            "required": [
+                "wall temperature"
+            ],
+            "additionalProperties": false
+        },
+        "Constant Intensity": {
+            "hidden": true,
+            "description": "Constant intensity boundary. For radiation solver only.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "weak constant intensity",
+                        "constant intensity"
+                    ]
+                },
+                "intensity": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Weak Constant MHD": {
+            "hidden": true,
+            "description": "Generic constant boundary for MHD state solvers. Not recommended for Maxwell Solver.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "weak constant mhd"
+                    ]
+                },
+                "intensity": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Perfectly Conducting Surface": {
+            "hidden": true,
+            "description": "Perfectly conducting surface. For Maxwell solver only.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "perfectly conducting surface"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Silver Muller Absorption": {
+            "hidden": true,
+            "description": "Silver-Muller absorption boundary. For Maxwell solver only.",
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "silver muller absorption"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "Mesh Boundary Tags": {
+            "description": "Define a grouping of mesh surface tags.  These can be specified as a single integer, an array, or string.  Specifying a string is useful when you have many non-contiguous ranges.",
+            "oneOf": [
+                {
+                    "type": "integer"
+                },
+                {
+                    "type": "string",
+                    "examples": [ "1:71,85:92,207" ]
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "minItems": 1
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "minItems": 1
+                }
+            ]
+        },
+        "Component": {
+            "type": "object",
+            "description": "A grouping of boundaries to compute integrated quantities.",
+            "required": [
+                "mesh boundary tags"
+            ],
+            "properties": {
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "specify an output filename(s).  If this option is omitted, the output filename will be `<group name>_forces.csv`"
+                }
+            }
+        },
+        "Field Names": {
+            "description": "Name of field(s) to visualize. Run the 'fields' subcommand (e.g., `hs fields input.json`) for a list of available field names.",
+            "oneOf": [
+                {
+                    "type": "string",
+                    "examples": [ "temperature" ]
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "examples": [ [ "temperature", "pressure", "density" ] ]
+                }
+            ]
+        },
+        "Mesh Adaptation": {
+            "type": "object",
+            "description": "Options controlling unstructured mesh adaptation via interpolation error control.",
+            "properties": {
+                "project name": {
+                    "type": "string",
+                    "description": "The base name for files written during mesh adaptation.  If not set by user, this option is automatically set to the basename of the 'mesh filename' option."
+                },
+                "interpolator plugin": {
+                    "type": "string",
+                    "description": "Plugin used to interpolate the solution between meshes.  The default (auto) will automatically determine the plugin based on the mesh element types.",
+                    "default": "auto",
+                    "enum": [
+                        "auto",
+                        "ParfaitInterpolator",
+                        "RefinePlugins"
+                    ]
+                },
+                "scalar to adapt threshold": {
+                    "type": "array",
+                    "description": "Lower and upper bounds of the scalar to adapt.  Setting this to a smaller range can help allocate more points away from strong shocks during adaptation.",
+                    "items": {
+                        "type": "number",
+                        "minItems": 2,
+                        "maxItems": 2
+                    },
+                    "default": [
+                        -1e50,
+                        1e50
+                    ]
+                },
+                "starting mesh complexity": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "auto"
+                            ]
+                        },
+                        {
+                            "type": "number",
+                            "minimum": 0.0
+                        }
+                    ],
+                    "default": "auto",
+                    "description": "Starting mesh complexity value used by the refine library."
+                },
+                "startup steps": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "auto"
+                            ]
+                        },
+                        {
+                            "type": "number",
+                            "minimum": 0
+                        }
+                    ],
+                    "default": "auto",
+                    "description": "Number of nonlinear iterations to perform on the initial mesh.  The default (auto) will use the same number of steps for all meshes."
+                },
+                "startup sequencing levels": {
+                    "type": "number",
+                    "description": "Number of meshes to solve sequentially to initialize the solution on the target mesh.",
+                    "minimum": 0
+                },
+                "max mesh complexity": {
+                    "type": "number",
+                    "default": 1e12,
+                    "description": "Maximum mesh complexity value to be used by the refine library before terminating the adaptation process.",
+                    "minimum": 0.0
+                },
+                "max mesh iterations": {
+                    "type": "integer",
+                    "default": 1000,
+                    "description": "Maximum number of meshes to adapt",
+                    "minimum": 0
+                },
+                "iterations at fixed complexity": {
+                    "type": "integer",
+                    "default": 2,
+                    "description": "Number of meshes adapted at the same complexity value"
+                },
+                "complexity increase factor": {
+                    "type": "number",
+                    "default": 1.5,
+                    "description": "Linear increase factor for mesh complexity",
+                    "minimum": 0.0
+                },
+                "scalar to adapt": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "temperature",
+                    "description": "Scalar(s) to use to form multiscale metric needed for mesh adaptation.",
+                    "examples": [
+                        "density",
+                        "temperature",
+                        "mach"
+                    ]
+                },
+                "hessian calculator": {
+                    "hidden": true,
+                    "type": "object",
+                    "description": "options to control how the Hessian is computed for the multiscale metric",
+                    "properties": {
+                        "plugin": {
+                            "type": "string",
+                            "description": "plugin to use for the Hessian calculation",
+                            "enum": [
+                                "RefinePlugins",
+                                "HyperSolve",
+                                "InfGradientCalculator"
+                            ],
+                            "default": "RefinePlugins"
+                        },
+                        "gradient method": {
+                            "type": "string",
+                            "description": "The method to use for computing Hessian with HyperSolve plugin. QLSQ is currently disallowed due to a missing step in parallel for the Hessian calculation",
+                            "enum": [
+                                "LLSQ",
+                                "GG",
+                                "IEBG"
+                            ],
+                            "default": "LLSQ"
+                        },
+                        "IEBG settings": {
+                            "$ref": "#/definitions/IEBG Settings"
+                        }
+                    }
+                },
+                "buffer": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Coarsens the adaptation metric approaching the x max boundary."
+                },
+                "shock smoothing iterations": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Smooth shocks in the scalar field for multiscale metric needed by refine."
+                },
+                "spalding y+": {
+                    "type": "number",
+                    "default": -1.0,
+                    "description": "Adapt initial mesh to target y+ using u+ from Spalding Law of the Wall"
+                },
+                "spalding sweeps": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Number of sweeps in refine per spalding pass",
+                    "minimum": 0
+                },
+                "spalding passes": {
+                    "type": "integer",
+                    "default": 5,
+                    "description": "Number of spalding passes to adapt initial mesh",
+                    "minimum": 0
+                },
+                "explicit wall spacing": {
+                    "hidden": true,
+                    "description": "EXPERIMENTAL: Apply target normal spacing at surface boundaries. A positive value engages is option.",
+                    "type": "number",
+                    "default": -1
+                },
+                "fixed point adaptation": {
+                    "type": "boolean",
+                    "description": "Average the Hessian used for adaptation. The Hessian of the adaptation scalar will be computed according to the 'checkpoint frequency' option and averaged before used to compute the adaptation metric.",
+                    "default": false
+                },
+                "multiply scalar": {
+                    "hidden": true,
+                    "type": "object",
+                    "description": "EXPERIMENTAL: Multiply the scalar for adaptation at nodes on a set of tags",
+                    "properties": {
+                        "factor": {
+                            "type": "number",
+                            "default": 1.0
+                        },
+                        "radius": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "mesh boundary tags": {
+                            "$ref": "#/definitions/Mesh Boundary Tags"
+                        }
+                    }
+                },
+                "minimum shock region spacing": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "EXPERIMENTAL: Minimum edge length in mesh regions where the shock sensor indicates a shock is present. A positive value engages this option.",
+                    "default": -1
+                },
+                "shock collar strength": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "EXPERIMENTAL: limit mesh spacing outside shock collar distance to be no finer than this multiple.",
+                    "default": -1
+                },
+                "shock collar distance": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "EXPERIMENTAL: region within which is considered the near wall region for shock collar limiting.",
+                    "default": 1e-4
+                },
+                "near-wall spacing": {
+                    "hidden": true,
+                    "type": "object",
+                    "description": "EXPERIMENTAL: Override the metric spacing near the wall with a geometric growth spacing function.",
+                    "properties": {
+                        "threshold": {
+                            "type": "number",
+                            "default": 0.0,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: The wall distance threshold below which to override the mesh spacing. A value greater than zero activates this feature."
+                        },
+                        "normal spacing": {
+                            "type": "number",
+                            "default": 1e-5,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: the target normal spacing"
+                        },
+                        "target cell reynolds number": {
+                            "type": "number",
+                            "default": 0.0,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: the target max cell reynolds at the wall.  A value greater than zero engages this option."
+                        },
+                        "tangent spacing": {
+                            "type": "number",
+                            "default": -1.0,
+                            "description": "EXPERIMENTAL: the target tangent spacing.  A negative value infers this spacing from the metric."
+                        },
+                        "growth rate": {
+                            "type": "number",
+                            "default": 1.1,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: the normal spacing function growth rate"
+                        },
+                        "clustering strength": {
+                            "type": "number",
+                            "default": 1.0,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: The clustering strength to apply to weighting spalding uplus."
+                        },
+                        "far clip": {
+                            "type": "number",
+                            "default": 0.1,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: Wall distance scaling applied for distances less than far clip."
+                        },
+                        "near clip": {
+                            "type": "number",
+                            "default": 1e-4,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: Wall distance scaling applies maximum strength for distances below near clip"
+                        },
+                        "max strength multiplier": {
+                            "type": "number",
+                            "default": 10.0,
+                            "minimum": 0.0,
+                            "description": "EXPERIMENTAL: Wall distance scaling maximum multiplier"
+                        },
+                        "type": {
+                            "type": "string",
+                            "default": "intersect",
+                            "enum": [
+                                "intersect",
+                                "shrink",
+                                "spalding",
+                                "wall distance scaled",
+                                "geometric growth hessian",
+                                "sine growth hessian"
+                            ]
+                        },
+                        "apply gradation": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "EXPERIMENTAL: apply gradation to the metric after wall spacing is applied."
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "restart from iteration": {
+                    "type": "integer",
+                    "description": "Restart from adaptation iteration.  Requires a mesh and restart file are available at the requested iteration."
+                },
+                "use first mesh": {
+                    "type": "boolean",
+                    "description": "Run the exact first mesh listed, do not adapt it"
+                },
+                "redirect output to file": {
+                    "type": "boolean",
+                    "description": "Redirect output from the mesh adaptation plugin to log files in the history directory",
+                    "default": false
+                },
+                "sweeps": {
+                    "type": "integer",
+                    "description": "Number of mesh adaptation sweeps.",
+                    "default": 15
+                },
+                "norm order": {
+                    "type": "number",
+                    "default": 2,
+                    "description": "The norm order for the multiscale metric.",
+                    "minimum": 0
+                },
+                "gradation": {
+                    "type": "number",
+                    "default": -1,
+                    "description": "The gradation parameter to apply to the metric.  Values greater than zero gradually decrease gradation.  Values less than zero trigger a mixed-space gradation technique."
+                },
+                "aspect ratio": {
+                    "type": "number",
+                    "default": -1,
+                    "description": "The maximum allowable spacing ratio in the metric field.  A value greater than zero engages this option."
+                },
+                "freeze all surfaces": {
+                    "hidden": true,
+                    "type": "boolean",
+                    "default": false,
+                    "description": "EXPERIMENTAL: prevent any adaptation on triangle elements.  This is intended to be used when the surface mesh is either explicitly provided in the starting mesh or no geometry is available."
+                },
+                "multiscale determinant eigenvalues": {
+                    "hidden": true,
+                    "type": "number",
+                    "default": 3,
+                    "description": "EXPERIMENTAL: The number of hessian eigenvalues to use in the local metric scaling."
+                },
+                "write metric": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Dump the metric for adaptation as a solb file."
+                }
+            },
+            "additionalProperties": false
+        },
+        "LAURA Mesh Adaptation": {
+            "type": "object",
+            "description": "Perform structured mesh adaptation using the algorithm in the LAURA CFD code for aligning the outer boundary of the mesh with a bow shock and adjusting the boundary layer region of the mesh to a target spacing.",
+            "properties": {
+                "adapt to scalar": {
+                    "type": "string",
+                    "description": "The field to use for detecting the shock location (e.g., density, temperature, etc.).",
+                    "default": "temperature"
+                },
+                "grid sequencing": {
+                    "type": "object",
+                    "description": "Options that control structured grid sequencing. This option is currently not compatible with mesh adaptation.",
+                    "properties": {
+                        "levels": {
+                            "type": "integer",
+                            "description": "Number of grid levels to coarsen by a factor of 2 and sequentially solve from coarsest to finest.",
+                            "default": 0,
+                            "minimum": 0
+                        },
+                        "steps": {
+                            "type": "integer",
+                            "description": "Number of steps to perform on each grid level before the finest grid is reached.  Not setting this option will result in the same number of steps as the final (finest) mesh on all mesh levels"
+                        },
+                        "interpolator plugin": {
+                            "type": "string",
+                            "description": "Plugin to use for prolongating the coarse mesh solution to the next finer mesh level",
+                            "default": "StridedStructuredMeshInterpolator"
+                        },
+                        "stopping tolerance": {
+                            "type": "number",
+                            "description": "Residual stopping tolerance for solves on meshes prior to the final (finest) mesh. Not setting this option will result in the value in the nonlinear solver settings being used."
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "target shock arc length": {
+                    "type": "number",
+                    "description": "Fraction of arc length distance between body and inflow boundary where the bow shock is captured.",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.7
+                },
+                "inflate uniformly": {
+                    "type": "boolean",
+                    "description": "If any K-Line is set to increase in length, rescale all K-Lines by the maximum scaling factor.  This option may prevent grid lines from crossing when parts of the bow shock lie outside the computational domain.",
+                    "default": false
+                },
+                "target wall cell Reynolds number": {
+                    "type": "number",
+                    "description": "This value define the target cell Reynolds number at the wall after an adaptation.",
+                    "default": 1.0,
+                    "minimum": 0.0
+                },
+                "shock sensor jump": {
+                    "type": "number",
+                    "description": "This parameter is used to detect bow shocks. Bow shock is first detected when the sensing parameter defined by jumpflag exceeds by this value, while searching from inflow boundary.",
+                    "default": 1.05
+                },
+                "max wall spacing": {
+                    "type": "number",
+                    "description": "A real number, normally ﹤ 1 x 10^-3, that limits the cell size of grid cells off the wall for a better quality grid after adaptation. Negative or zero value turns off the use of this limiter.",
+                    "default": -1.0
+                },
+                "max distance": {
+                    "type": "number",
+                    "description": "The limit value of the maximum arc length of lines from the surface to the outer domain after an adaptation is performed.",
+                    "default": 1e6
+                },
+                "fraction of points in boundary layer": {
+                    "type": "number",
+                    "description": "This parameter approximately defines fraction of k-cells in the boundary layer region.",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.75
+                },
+                "stretching coefficient": {
+                    "type": "number",
+                    "description": "A parameter than controls the stretching function used for the body-normal lines.  A value of zero or 1.15 is highly recommended.",
+                    "default": 0.0
+                },
+                "shock clustering coefficient": {
+                    "type": "number",
+                    "description": "This parameter controls the distribution of points near a detected bow shock.  Larger values will cluster points on either side of the shock.  A value of zero disables any clustering.",
+                    "default": 0.0
+                },
+                "total number of adaptations": {
+                    "type": "integer",
+                    "description": "The total number of adaptation cycles to perform.",
+                    "minimum": 0,
+                    "default": 0
+                },
+                "iterations between adaptations": {
+                    "type": "integer",
+                    "description": "The frequency of adaptation cycles.",
+                    "minimum": 0,
+                    "default": 0
+                },
+                "taubin smoothing passes": {
+                    "type": "integer",
+                    "description": "The number of passes to smooth the outer boundary after adaptation is performed.  Larger values will result in more smoothing",
+                    "minimum": 0,
+                    "default": 0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Subsolve": {
+            "hidden": true,
+            "type": "object",
+            "description": "Nonlinear elimination preconditioning subdomain solve settings",
+            "properties": {
+                "frequency": {
+                    "type": "integer",
+                    "description": "Number of outer nonlinear iterations between subsolves (zero disables all subsolves).",
+                    "default": 0
+                },
+                "wall distance cutoff": {
+                    "type": "number",
+                    "description": "cutoff wall distance for various subdomain sensors.",
+                    "default": 0.1
+                },
+                "overlap": {
+                    "type": "integer",
+                    "description": "Subsolve subdomain overlap",
+                    "default": 3
+                },
+                "domains": {
+                    "type": "array",
+                    "description": "subsolve domains",
+                    "items": {
+                        "$ref": "#/definitions/Subdomain"
+                    },
+                    "default": []
+                }
+            },
+            "additionalProperties": false
+        },
+        "Subdomain": {
+            "hidden": true,
+            "type": "object",
+            "description": "A mesh region to perform a Newton subsolve for nonlinear elimination.",
+            "required": [
+                "sensor"
+            ],
+            "properties": {
+                "sensor": {
+                    "type": "string",
+                    "enum": [
+                        "shock",
+                        "without shock",
+                        "cell reynolds number",
+                        "wall distance",
+                        "remainder"
+                    ],
+                    "description": "Sensor function to partition the subdomain."
+                },
+                "iterations": {
+                    "type": "integer",
+                    "description": "Number of nonlinear iterations.",
+                    "default": 10,
+                    "minimum": 0
+                },
+                "relative tolerance": {
+                    "type": "number",
+                    "description": "residual L2 norm decrease tolerance to stop the subsolve.",
+                    "default": 0.1
+                }
+            },
+            "additionalProperties": false
+        },
+        "Point Sample": {
+            "type": "object",
+            "description": "Visualization options for sampling a point in the flow field solution.",
+            "required": [
+                "type",
+                "filename",
+                "location"
+            ],
+            "examples": [
+                {
+                    "filename": "point.csv",
+                    "type": "point",
+                    "location": [ 0, 0.05, 0.05 ]
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "point"
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1.0
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1.0
+                },
+                "location": {
+                    "type": "array",
+                    "description": "sampling point location"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Line Sample": {
+            "type": "object",
+            "description": "Visualization options for sampling a line in the flow field solution.",
+            "required": [
+                "type",
+                "filename",
+                "a",
+                "b"
+            ],
+            "examples": [
+                {
+                    "filename": "line.csv",
+                    "type": "line",
+                    "a": [ 0, 0.05, 0.05 ],
+                    "b": [ 1, 0.05, 0.05 ]
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "line"
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "crinkle": {
+                    "type": "boolean",
+                    "description": "Crinkle cut the sampling operation.",
+                    "default": false
+                },
+                "a": {
+                    "type": "array",
+                    "description": "line starting point"
+                },
+                "b": {
+                    "type": "array",
+                    "description": "line ending point"
+                },
+                "zone name": {
+                    "type": "string",
+                    "description": "Zone name (only used in combination with Tecplot .dat or .plt files)."
+                }
+            },
+            "additionalProperties": false
+        },
+        "Plane Sample": {
+            "type": "object",
+            "description": "Visualization options for sampling a plane the flow field solution.",
+            "required": [
+                "type",
+                "filename",
+                "normal"
+            ],
+            "examples": [
+                {
+                    "filename": "plane.vtk",
+                    "type": "plane",
+                    "movie": true,
+                    "center": [ 0, 0, 0 ],
+                    "normal": [ 1, 0, 0 ]
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "plane"
+                    ]
+                },
+                "crinkle": {
+                    "type": "boolean",
+                    "description": "Crinkle cut the sampling operation.",
+                    "default": false
+                },
+                "mesh boundary tags": {
+                    "description": "Specify an (optional) group of mesh surface tags to extract field values on the their intersection with the defined plane.  A value of 'no' disables this (slice through the entire domain) and a value of 'all' will select all boundaries.",
+                    "$ref": "#/definitions/Mesh Boundary Tags",
+                    "default": "no"
+                },
+                "center": {
+                    "type": "array",
+                    "description": "origin (x,y,z) point for the sampling operation.",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "default": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "normal": {
+                    "type": "array",
+                    "description": "Plane normal for the sampling operation."
+                },
+                "zone name": {
+                    "type": "string",
+                    "description": "Zone name (only used with crinkle:true and when combined with Tecplot .dat or .plt files)."
+                }
+            },
+            "additionalProperties": false
+        },
+        "Sphere Sample": {
+            "type": "object",
+            "description": "Visualization options for sampling a sphere of inside the domain of the flow field.",
+            "required": [
+                "type",
+                "filename",
+                "radius"
+            ],
+            "examples": [
+                {
+                    "filename": "sphere.vtk",
+                    "type": "sphere",
+                    "movie": true,
+                    "center": [ 0, 0, 0 ],
+                    "radius": 1,
+                    "crinkle": true
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "sphere"
+                    ]
+                },
+                "crinkle": {
+                    "type": "boolean",
+                    "description": "Crinkle cut the sampling operation. If this is true, then the interior of the sphere will be included in the output, otherwise on the solution interpolated to the surface of the sphere is included.",
+                    "default": false
+                },
+                "center": {
+                    "type": "array",
+                    "description": "origin (x,y,z) point for the sampling operation.",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "default": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "zone name": {
+                    "type": "string",
+                    "description": "Zone name (only used with crinkle:true and when combined with Tecplot .dat or .plt files)."
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "radius": {
+                    "type": "number",
+                    "description": "Sphere radius for the sampling operation.",
+                    "minimum": 0.0
+                }
+            },
+            "additionalProperties": false
+        },
+        "Boundary Sample": {
+            "type": "object",
+            "description": "Visualization options for visualizing the flow field solution at mesh boundary tags.",
+            "required": [
+                "type",
+                "filename",
+                "mesh boundary tags"
+            ],
+            "examples": [
+                {
+                    "filename": "boundary.vtk",
+                    "type": "boundary",
+                    "mesh boundary tags": [ 0, 4, 7 ]
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "boundary"
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "zone name": {
+                    "type": "string",
+                    "description": "Zone name to be used in Tecplot .dat file (if .dat requested)"
+                },
+                "mesh boundary tags": {
+                    "$ref": "#/definitions/Mesh Boundary Tags"
+                },
+                "site": {
+                    "type": "string",
+                    "description": "Location to output field. The default (native) lets HyperSolve decide where fields are located.",
+                    "enum": [
+                        "node",
+                        "cell",
+                        "native"
+                    ],
+                    "default": "native"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Volume Debug Sample": {
+            "type": "object",
+            "description": "Visualization options for visualizing the full only volume cells solution.",
+            "required": [
+                "type",
+                "filename"
+            ],
+            "examples": [
+                {
+                    "filename": "volume.vtk",
+                    "type": "volume-debug"
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "volume-debug"
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "site": {
+                    "type": "string",
+                    "description": "Location to output field. The default (native) lets HyperSolve decide where fields are located.",
+                    "enum": [
+                        "node",
+                        "cell",
+                        "native"
+                    ],
+                    "default": "native"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Volume Sample": {
+            "type": "object",
+            "description": "Visualization options for visualizing the full domain flow field solution.",
+            "required": [
+                "type",
+                "filename"
+            ],
+            "examples": [
+                {
+                    "filename": "volume.vtk",
+                    "type": "volume"
+                }
+            ],
+            "properties": {
+                "fields": {
+                    "$ref": "#/definitions/Field Names",
+                    "default": "auto"
+                },
+                "filename": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Filename for the sampling output file(s)."
+                },
+                "type": {
+                    "type": "string",
+                    "description": "Type of sampling operation",
+                    "enum": [
+                        "volume"
+                    ]
+                },
+                "movie": {
+                    "type": "boolean",
+                    "description": "Output sequence of files for creating an animation.",
+                    "default": false
+                },
+                "iteration frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every N iterations",
+                    "default": -1
+                },
+                "simulation frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of simulation time",
+                    "default": -1
+                },
+                "walltime frequency": {
+                    "hidden": true,
+                    "type": "number",
+                    "description": "Output every x seconds of wall time",
+                    "default": -1
+                },
+                "site": {
+                    "type": "string",
+                    "description": "Location to output field. The default (native) lets HyperSolve decide where fields are located.",
+                    "enum": [
+                        "node",
+                        "cell",
+                        "native"
+                    ],
+                    "default": "native"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Gas State Composition": {
+            "oneOf": [
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "number",
+                        "minimum": 0.0
+                    },
+                    "minItems": 1
+                },
+                {
+                    "type": "object",
+                    "patternProperties": {
+                        ".*": {
+                            "type": "number",
+                            "minimum": 0.0
+                        }
+                    },
+                    "additionalItems": false,
+                    "minProperties": 1
+                }
+            ]
+        },
+        "Gas Temperature": {
+            "oneOf": [
+                {
+                    "description": "Gas temperature (assumes thermal equilibrium if thermal nonequilibrium is engaged).",
+                    "type": "number",
+                    "minimum": 0.0
+                },
+                {
+                    "description": "Gas temperature(s).  If thermal nonequilibrium is engaged, the first value is the translational-rotational temperature and the second value is the vibtronic temperature. ",
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "number",
+                        "minimum": 0.0
+                    }
+                }
+            ]
+        },
+        "State": {
+            "type": "object",
+            "oneOf": [
+                {
+                    "description": "Physical state description.  All units must be MKS.",
+                    "required": [
+                        "densities",
+                        "speed",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "densities": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "speed": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.  All units must be MKS.",
+                    "required": [
+                        "mass fractions",
+                        "mach number",
+                        "temperature",
+                        "direction",
+                        "density"
+                    ],
+                    "properties": {
+                        "densities": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "mach number": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "direction": {
+                            "type": "array",
+                            "items": {
+                                "type": "number"
+                            },
+                            "minItems": 3,
+                            "maxItems": 3
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.  All units must be MKS.",
+                    "required": [
+                        "densities",
+                        "speed",
+                        "pressure"
+                    ],
+                    "properties": {
+                        "densities": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "speed": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "pressure": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.  All units must be MKS.  Mass fractions must sum to 1.0 within a tolerance of 1e-6",
+                    "required": [
+                        "density",
+                        "speed",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "mass fractions": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "density": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "speed": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.  All units must be MKS.  Mass fractions must sum to 1.0 within a tolerance of 1e-6",
+                    "required": [
+                        "pressure",
+                        "speed",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "mass fractions": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "pressure": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "speed": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.",
+                    "required": [
+                        "mach number",
+                        "total temperature",
+                        "total density"
+                    ],
+                    "properties": {
+                        "mach number": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "total temperature": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "total density": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "mass fractions": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.  For single species only.",
+                    "required": [
+                        "reynolds number",
+                        "mach number",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "mass fractions": {
+                            "$ref": "#/definitions/Gas State Composition"
+                        },
+                        "mach number": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "reynolds number": {
+                            "type": "number",
+                            "description": "Important: this should be defined as **per grid unit**.",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.",
+                    "required": [
+                        "mach number",
+                        "pressure",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "mach number": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "pressure": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                },
+                {
+                    "description": "Physical state description.",
+                    "required": [
+                        "mach number",
+                        "density",
+                        "temperature"
+                    ],
+                    "properties": {
+                        "mach number": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "density": {
+                            "type": "number",
+                            "minimum": 0.0
+                        },
+                        "temperature": {
+                            "$ref": "#/definitions/Gas Temperature"
+                        },
+                        "angle of attack": {
+                            "type": "number",
+                            "default": 0.0
+                        },
+                        "angle of yaw": {
+                            "type": "number",
+                            "default": 0.0
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

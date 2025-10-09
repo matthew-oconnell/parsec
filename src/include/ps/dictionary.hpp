@@ -43,6 +43,17 @@ struct Value {
     Value(const std::vector<std::string>& v_) { list_t L; for (auto const &x: v_) L.emplace_back(x); v = std::move(L); }
     Value(const std::vector<bool>& v_) { list_t L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
 
+    // initializer-list helpers for convenient braced initialization
+    // Note: avoid an initializer_list<std::string> overload to prevent
+    // ambiguity with initializer_list<const char*> and initializer_list<Value>.
+    Value(std::initializer_list<const char*> init) {
+        list_t L; L.reserve(init.size());
+        for (auto const &e: init) L.emplace_back(std::string(e));
+        v = std::move(L);
+    }
+    // declared here, defined after Dictionary is declared
+    Value(std::initializer_list<std::pair<const std::string, Value>> init);
+
     // canonical camelCase type checks (use std::holds_alternative directly)
     bool isNull() const noexcept { return std::holds_alternative<std::monostate>(v); }
     bool isInt() const noexcept { return std::holds_alternative<int64_t>(v); }
@@ -250,6 +261,11 @@ struct Dictionary {
 
 inline Value::Value(const Dictionary& d) : v(std::make_shared<Dictionary>(d)) {}
 inline Value::Value(Dictionary&& d) : v(std::make_shared<Dictionary>(std::move(d))) {}
+
+inline Value::Value(std::initializer_list<std::pair<const std::string, Value>> init) {
+    Dictionary d(init);
+    v = std::make_shared<Dictionary>(std::move(d));
+}
 
 inline std::string Value::to_string() const {
     if (isNull()) return "null";
