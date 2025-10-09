@@ -9,6 +9,50 @@
 
 namespace ps {
 
+// Helper: convert internal path (dot/bracket style) to folder-style display path
+static std::string display_path(const std::string &path) {
+    if (path.empty()) return std::string("root");
+    // replace dots with '/'
+    std::string s = path;
+    for (char &c : s) if (c == '.') c = '/';
+    // convert [N] into /N
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ) {
+        if (s[i] == '[') {
+            size_t j = s.find(']', i);
+            if (j != std::string::npos) {
+                // append '/' then the index
+                out.push_back('/');
+                out.append(s.substr(i+1, j - (i+1)));
+                i = j + 1;
+                continue;
+            }
+        }
+        out.push_back(s[i]);
+        ++i;
+    }
+    return out;
+}
+
+// Helper: return a short type name for a Value
+static std::string value_type_name(const Value &v) {
+    if (v.isDict()) return "object";
+    if (v.isList()) return "array";
+    if (v.isString()) return "string";
+    if (v.isInt()) return "integer";
+    if (v.isDouble()) return "number";
+    if (v.isBool()) return "boolean";
+    return "unknown";
+}
+
+// Helper: short preview of a Value for error messages
+static std::string value_preview(const Value &v, size_t maxlen = 80) {
+    std::string s = v.dump();
+    if (s.size() > maxlen) s = s.substr(0, maxlen-3) + "...";
+    return s;
+}
+
 // Resolve a local JSON Pointer-style $ref (only supports local refs starting with "#/")
 static const Dictionary* resolve_local_ref(const Dictionary& root, const std::string& ref) {
     if (ref.empty()) return nullptr;
@@ -191,7 +235,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
     if (it_type != schema_node.data.end() && it_type->second.isString()) {
         std::string t = it_type->second.asString();
         if (t == "object") {
-            if (!data.isDict()) return std::optional<std::string>("property '" + path + "' expected type object");
+            if (!data.isDict()) return std::optional<std::string>("expected type 'object' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
             const Dictionary &obj = *data.asDict();
 
             // required array
@@ -307,7 +351,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "array") {
-            if (!data.isList()) return std::optional<std::string>("property '" + path + "' expected type array");
+            if (!data.isList()) return std::optional<std::string>("expected type 'array' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
             const auto &arr = data.asList();
             // items can be either a single schema or an array of schemas (tuple validation)
             auto it_items = schema_node.data.find("items");
@@ -375,7 +419,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "string") {
-            if (!data.isString()) return std::optional<std::string>("property '" + path + "' expected type string");
+            if (!data.isString()) return std::optional<std::string>("expected type 'string' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
             // minLength / maxLength (optional)
             auto it_minl = schema_node.data.find("minLength");
             if (it_minl != schema_node.data.end() && it_minl->second.isInt()) {
@@ -399,12 +443,12 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             return std::nullopt;
         }
         else if (t == "integer" || t == "number") {
-            if (!(data.isInt() || (t == "number" && data.isDouble()))) return std::optional<std::string>("property '" + path + "' expected type " + t);
+            if (!(data.isInt() || (t == "number" && data.isDouble()))) return std::optional<std::string>("expected type '" + t + "' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
         }
         else if (t == "boolean") {
-            if (!data.isBool()) return std::optional<std::string>("property '" + path + "' expected type boolean");
+            if (!data.isBool()) return std::optional<std::string>("expected type 'boolean' at '" + display_path(path) + "' but found '" + value_type_name(data) + "' (value: " + value_preview(data) + ")");
             return std::nullopt;
         }
     }
