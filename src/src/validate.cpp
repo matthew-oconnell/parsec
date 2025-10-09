@@ -385,6 +385,17 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             if (it_maxl != schema_node.data.end() && it_maxl->second.isInt()) {
                 if ((int)data.asString().size() > it_maxl->second.asInt()) return std::optional<std::string>("property '" + path + "' longer than maxLength");
             }
+            // pattern (regular expression) - if present, the string must match
+            auto it_pattern = schema_node.data.find("pattern");
+            if (it_pattern != schema_node.data.end() && it_pattern->second.isString()) {
+                const std::string pat = it_pattern->second.asString();
+                try {
+                    std::regex re(pat);
+                    if (!std::regex_match(data.asString(), re)) return std::optional<std::string>("property '" + path + "' does not match pattern");
+                } catch (...) {
+                    // invalid regex in schema: ignore pattern constraint
+                }
+            }
             return std::nullopt;
         }
         else if (t == "integer" || t == "number") {
