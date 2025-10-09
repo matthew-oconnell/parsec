@@ -16,6 +16,7 @@ target_sources(parsec_lib
   PRIVATE
     src/parsec.cpp
     src/json_parser.cpp
+    src/parse.cpp
     src/ron_parser.cpp
     src/validate.cpp
   src/defaults.cpp
