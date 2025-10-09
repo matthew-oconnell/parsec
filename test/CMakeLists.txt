@@ -19,6 +19,7 @@ add_executable(parsec_tests
   test_cli_parser_selection.cpp
   test_pretty_print.cpp
   test_validate.cpp
+  test_setdefaults.cpp
   test_validate_cfd.cpp
 )
 target_link_libraries(parsec_tests PRIVATE parsec_lib Catch2::Catch2WithMain)
