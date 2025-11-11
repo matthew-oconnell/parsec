@@ -36,7 +36,7 @@ namespace {
         }
 
         void push_opener(char ch) { opener_stack.push_back(Opener{ch, line, col}); }
-        void pop_opener(char expected) {
+        void pop_opener() {
             if (opener_stack.empty()) return;
             opener_stack.pop_back();
         }
@@ -275,12 +275,12 @@ namespace {
             opener_stack.push_back(Opener{'[', line, col});
             Value::list_t out;
             skip_ws();
-            if (peek() == ']') { get(); pop_opener(']'); return Value(std::move(out)); }
+            if (peek() == ']') { get(); pop_opener(); return Value(std::move(out)); }
             while (true) {
                 out.emplace_back(parse_value());
                 skip_ws();
                 char c = peek();
-                if (c == ']') { get(); pop_opener(']'); break; }
+                if (c == ']') { get(); pop_opener(); break; }
                 if (c == ',') { get(); skip_ws(); continue; }
                 // Allow implicit separator: if the next token looks like the start of a value, accept it
                 if (c == '{' or c == '[' or c == '"' or c == 'n' or c == 't' or c == 'f' or c == '-' or std::isdigit(static_cast<unsigned char>(c))) {
@@ -303,7 +303,7 @@ namespace {
             opener_stack.push_back(Opener{'{', line, col});
             Dictionary d;
             skip_ws();
-            if (peek() == '}') { get(); pop_opener('}'); return Value(std::move(d)); }
+            if (peek() == '}') { get(); pop_opener(); return Value(std::move(d)); }
             while (true) {
                 skip_ws();
                 if (peek() != '"') {
@@ -326,7 +326,7 @@ namespace {
                 d[k.asString()] = v;
                 skip_ws();
                 char c = peek();
-                if (c == '}') { get(); pop_opener('}'); break; }
+                if (c == '}') { get(); pop_opener(); break; }
                 if (c == ',') { get(); skip_ws(); continue; }
                 // Allow implicit separator between object members: next token is a string key
                 if (c == '"') {
@@ -416,7 +416,6 @@ Value parse_json(const std::string& text) {
         // Tolerate a top-level sequence of object members without surrounding braces
         // e.g. "key": value  "key2": value2
         // If the input starts with a string followed by ':', treat as an implicit root object
-        size_t save_i = p.i;
         char first_nonws = '\0';
         for (size_t k = 0; k < text.size(); ++k) {
             if (not std::isspace(static_cast<unsigned char>(text[k]))) { first_nonws = text[k]; break; }
