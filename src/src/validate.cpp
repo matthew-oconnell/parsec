@@ -87,9 +87,14 @@ static const Dictionary* resolve_local_ref(const Dictionary& root, const std::st
 // Forward declaration of recursive validator
 static std::optional<std::string> validate_node(const Value& data, const Dictionary& schema_root, const Dictionary& schema_node, const std::string& path);
 
-// Helper: get a child schema dictionary from a Value that is expected to be an object
-static const Dictionary* schema_from_value(const Dictionary& root, const Value& v) {
+// Helper: get a child schema dictionary from a Value that is expected to be an
+// object. Some schema positions allow either a schema object or a string
+// $ref (local JSON pointer). Accept the schema root so we can resolve local
+// refs when a string is provided.
+static const Dictionary* schema_from_value(const Dictionary& schema_root, const Value& v) {
     if (v.isDict()) return v.asDict().get();
+    // Accept a string as a local $ref (e.g. "#/definitions/foo")
+    if (v.isString()) return resolve_local_ref(schema_root, v.asString());
     return nullptr;
 }
 
