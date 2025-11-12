@@ -448,11 +448,11 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
             }
             out << "[\n";
             for (size_t i=0;i<L.size();++i) {
-                out << std::string(level+indent, ' ');
+                out << std::string(static_cast<size_t>(level+indent), ' ');
                 dumpValue(L[i], level+indent);
                 if (i+1 < L.size()) out << ",\n"; else out << "\n";
             }
-            out << std::string(level, ' ') << "]";
+            out << std::string(static_cast<size_t>(level), ' ') << "]";
             return;
         }
         if (val.isDict()) { dumpObject(*val.asDict(), level); return; }
@@ -468,11 +468,11 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         }
         out << "{\n";
         for (size_t i=0;i<items.size();++i) {
-            out << std::string(level+indent, ' ') << '"' << items[i].first << '"' << ": ";
+            out << std::string(static_cast<size_t>(level+indent), ' ') << '"' << items[i].first << '"' << ": ";
             dumpValue(items[i].second, level+indent);
             if (i+1 < items.size()) out << ",\n"; else out << "\n";
         }
-        out << std::string(level, ' ') << "}";
+    out << std::string(static_cast<size_t>(level), ' ') << "}";
     };
 
     dumpObject(*this, 0);

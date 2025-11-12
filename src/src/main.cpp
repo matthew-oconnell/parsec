@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     try {
         ps::Value v;
-        bool parsed = false;
+        bool parsed;
         std::string used;
 
         if (mode == "--json" or mode == "json") {

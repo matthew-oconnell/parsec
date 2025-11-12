@@ -1,6 +1,8 @@
 
 # parsec — human-friendly dictionary parser for C++
 
+Licensed under the Apache License, Version 2.0 — see the `LICENSE` file for details.
+
 parsec is a small, easy-to-use C++ library (namespace `ps`) that provides a "Python-like" dictionary Value/Dictionary type and a parser for human-friendly configuration files. The parser accepts both JSON and a more relaxed, readable format (RON — Rusty Object Notation) that reduces quoting, trailing-comma pain, and visual clutter.
 
 This README shows why parsec's parser is easier for humans, how to validate files with the command-line tool, and a short developer section describing how to integrate the library into your C++ project.

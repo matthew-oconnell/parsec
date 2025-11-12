@@ -22,7 +22,28 @@ target_sources(parsec_lib
   src/defaults.cpp
 )
 
+## Compiler warning flags
 target_compile_options(parsec_lib PRIVATE -Wall -Wextra -Wpedantic)
+
+# Optionally enable a stricter set of warnings and/or treat warnings as errors.
+option(PARSEC_ENABLE_STRICT_WARNINGS "Enable additional strict warning flags" OFF)
+option(PARSEC_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
+
+if(PARSEC_ENABLE_STRICT_WARNINGS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(parsec_lib PRIVATE -Wconversion -Wsign-conversion -Wshadow -Wnull-dereference -Wdouble-promotion)
+  elseif(MSVC)
+    # MSVC specific warnings could be added here
+  endif()
+endif()
+
+if(PARSEC_WARNINGS_AS_ERRORS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(parsec_lib PRIVATE -Werror)
+  elseif(MSVC)
+    target_compile_options(parsec_lib PRIVATE /WX)
+  endif()
+endif()
 
 option(PARSEC_BUILD_CLI "Build parsec CLI tool" ON)
 if (PARSEC_BUILD_CLI)

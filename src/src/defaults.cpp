@@ -34,7 +34,6 @@ static Dictionary apply_defaults_to_object(const Dictionary &input, const Dictio
             } else {
                 // Not present: if schema has a default, use it; else if propSchema is an object with nested defaults, we may
                 // create an empty object and apply nested defaults if there are defaults deeper in the schema.
-                auto it_def = propSchema ? propSchema->data.find("default") : propSchemaVal.isDict() ? propSchemaVal.asDict()->data.find("default") : propSchemaVal.asDict()->data.end();
                 if (propSchema && propSchema->data.find("default") != propSchema->data.end()) {
                     out[k] = clone_value(propSchema->data.at("default"));
                 } else if (propSchema && propSchema->data.find("type") != propSchema->data.end() && propSchema->data.at("type").isString() && propSchema->data.at("type").asString() == "object") {
