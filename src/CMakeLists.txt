@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(parsec-lib LANGUAGES CXX)
 
 add_library(parsec_lib STATIC)
+add_library(ps::parsec ALIAS parsec_lib)
 
 target_compile_features(parsec_lib PUBLIC cxx_std_17)
 
@@ -19,7 +20,7 @@ target_sources(parsec_lib
     src/parse.cpp
     src/ron_parser.cpp
     src/validate.cpp
-  src/defaults.cpp
+    src/defaults.cpp
 )
 
 ## Compiler warning flags
@@ -31,7 +32,9 @@ option(PARSEC_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 if(PARSEC_ENABLE_STRICT_WARNINGS)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(parsec_lib PRIVATE -Wconversion -Wsign-conversion -Wshadow -Wnull-dereference -Wdouble-promotion)
+    target_compile_options(parsec_lib PRIVATE
+      -Wconversion -Wsign-conversion -Wshadow -Wnull-dereference -Wdouble-promotion
+    )
   elseif(MSVC)
     # MSVC specific warnings could be added here
   endif()
@@ -57,3 +60,30 @@ endif()
 if (PARSEC_BUILD_TESTS)
   # tests are handled at top-level in test/
 endif()
+
+# -------------------------------
+# Install & export parsec targets
+# -------------------------------
+include(GNUInstallDirs)
+
+install(TARGETS parsec_lib
+  EXPORT parsecTargets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+if (PARSEC_BUILD_CLI)
+  install(TARGETS parsec
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
+endif()
+
+install(DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT parsecTargets
+  NAMESPACE ps::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/parsec
+)
