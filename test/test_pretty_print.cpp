@@ -1,5 +1,5 @@
 #include <catch2/catch_all.hpp>
-#include <ps/dictionary.hpp>
+#include <ps/dictionary.h>
 
 using namespace ps;
 

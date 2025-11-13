@@ -117,7 +117,7 @@ struct Value {
     const Value& at(const key_type& k) const;
     Value& at(const key_type& k);
 
-    size_t size() const noexcept;
+    int size() const noexcept;
 
     std::string to_string() const;
     // compatibility: return an int corresponding to Dictionary::TYPE for tests that call .type() on parse_json result
@@ -185,7 +185,7 @@ struct Dictionary {
     }
     bool has(const key_type& key) const noexcept { return count(key) == 1; }
     bool contains(const key_type& k) const noexcept { return has(k); }
-    size_t size() const noexcept {
+    int size() const noexcept {
         if (not data.empty()) return data.size();
         if (scalar && scalar->isDict()) return scalar->asDict()->size();
         return 0;
@@ -257,7 +257,7 @@ struct Dictionary {
       : data(init) {}
 };
 
- 
+
 
 inline Value::Value(const Dictionary& d) : v(std::make_shared<Dictionary>(d)) {}
 inline Value::Value(Dictionary&& d) : v(std::make_shared<Dictionary>(std::move(d))) {}
@@ -288,7 +288,7 @@ inline std::string Value::to_string() const {
     return "<unknown>";
 }
 
- 
+
 inline std::vector<int> Value::asInts() const {
     if (isList()) { std::vector<int> out; for (auto const &e: asList()) out.push_back(e.isInt()?static_cast<int>(e.asInt()):0); return out; }
     if (isInt()) return std::vector<int>{static_cast<int>(asInt())};
@@ -350,7 +350,7 @@ inline Value& Value::at(const key_type& k) {
     if (isDict()) { auto &p = *std::get<dict_ptr>(v); return p.at(k); }
     throw std::out_of_range("not an object");
 }
-inline size_t Value::size() const noexcept {
+inline int Value::size() const noexcept {
     if (isList()) return asList().size();
     if (isDict()) { const auto &p = asDict(); return p ? p->size() : 0; }
     return 0;
@@ -522,7 +522,7 @@ inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
 
 } // namespace ps
 
- 
+
 namespace ps {
 
 // Helper: detect homogeneous list type - used by Dictionary::type and Value::type

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ps/dictionary.hpp>
+#include <ps/dictionary.h>
 #include <string>
 
 namespace ps {

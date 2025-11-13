@@ -1,5 +1,5 @@
 #include <catch2/catch_all.hpp>
-#include <ps/dictionary.hpp>
+#include <ps/dictionary.h>
 #include <ps/simple_json.hpp>
 
 using namespace ps;
@@ -134,6 +134,18 @@ TEST_CASE("add a vector") {
     REQUIRE(3 == dict["some bools"].size());
     REQUIRE(Dictionary::BoolArray == dict["some bools"].type());
     REQUIRE(my_bools == dict.at("some bools").asBools());
+}
+
+TEST_CASE("query array") {
+    Dictionary dict;
+
+    std::vector<int> v{5, 4, 2};
+    dict["some integers"] = v;
+    auto my_array = dict["some integers"];
+    REQUIRE(my_array.size() == 3);
+    REQUIRE(my_array[0] == 5);
+    REQUIRE(my_array[1] == 4);
+    REQUIRE(my_array[2] == 2);
 }
 
 TEST_CASE("Add nested elements") {
