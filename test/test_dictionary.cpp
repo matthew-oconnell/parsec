@@ -1,6 +1,6 @@
 #include <catch2/catch_all.hpp>
 #include <ps/dictionary.h>
-#include <ps/simple_json.hpp>
+#include <ps/json.h>
 
 using namespace ps;
 using Catch::Approx;

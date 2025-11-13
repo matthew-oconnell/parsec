@@ -2,9 +2,9 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
-#include "ps/parsec.hpp"
-#include "ps/validate.hpp"
-#include "ps/ron.hpp"
+#include "ps/parsec.h"
+#include "ps/validate.h"
+#include "ps/ron.h"
 
 namespace fs = std::filesystem;
 using namespace ps;
@@ -36,11 +36,11 @@ TEST_CASE("validate medium schema fail example", "[validate][medium][fail]") {
 
     fs::path schemap = examples.parent_path() / "schemas" / "medium_schema.json";
     std::string schema_content = read_file_strip_fence(schemap);
-    auto v_schema = ps::parse_json(schema_content);
+    auto v_schema = ps::parse(schema_content);
     REQUIRE(v_schema.isDict());
     Dictionary schema = *v_schema.asDict();
 
-    auto err = validate(cfg, schema);
+    auto err = ps::validate(cfg, schema);
     // This example intentionally violates the schema (version component has leading zero)
     REQUIRE(err.has_value());
 }

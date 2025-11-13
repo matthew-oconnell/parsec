@@ -1,5 +1,5 @@
 #include <catch2/catch_all.hpp>
-#include <ps/simple_json.hpp>
+#include <ps/json.h>
 
 TEST_CASE("parser supports // line comments and /* block comments */") {
     using namespace ps;

@@ -1,4 +1,4 @@
-#include <ps/simple_json.hpp>
+#include <ps/json.h>
 #include <cctype>
 #include <stdexcept>
 #include <sstream>

@@ -1,6 +1,6 @@
 #include <catch2/catch_all.hpp>
-#include <ps/parsec.hpp>
-#include <ps/ron.hpp>
+#include <ps/parsec.h>
+#include <ps/ron.h>
 
 TEST_CASE("RON and JSON parsing APIs work and produce distinct errors") {
     // valid RON-ish input (unquoted keys)

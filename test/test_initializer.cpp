@@ -1,5 +1,5 @@
 #include <catch2/catch_all.hpp>
-#include "ps/parsec.hpp"
+#include "ps/parsec.h"
 
 using namespace ps;
 

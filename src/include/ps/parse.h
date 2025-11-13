@@ -10,4 +10,7 @@ namespace ps {
 // both parser error messages joined.
 Value parse(const std::string& text);
 
+Value parse_json(const std::string& text);
+Value parse_ron(const std::string& text);
+
 } // namespace ps

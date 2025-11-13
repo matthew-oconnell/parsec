@@ -1,6 +1,6 @@
 // All helpers and code inside a single ps namespace
 #include <string>
-#include "ps/validate.hpp"
+#include "ps/validate.h"
 #include <sstream>
 #include <vector>
 #include <algorithm>

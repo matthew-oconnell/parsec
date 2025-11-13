@@ -1,6 +1,6 @@
 #include <catch2/catch_all.hpp>
-#include "ps/parsec.hpp"
-#include "ps/validate.hpp"
+#include "ps/parsec.h"
+#include "ps/validate.h"
 
 using namespace ps;
 

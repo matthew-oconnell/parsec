@@ -1,6 +1,6 @@
-#include <ps/parse.hpp>
-#include <ps/simple_json.hpp>
-#include <ps/ron.hpp>
+#include <ps/parse.h>
+#include <ps/json.h>
+#include <ps/ron.h>
 #include <stdexcept>
 
 namespace ps {

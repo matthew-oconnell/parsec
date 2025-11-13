@@ -1,10 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <ps/simple_json.hpp>
-#include <ps/ron.hpp>
-#include <ps/parse.hpp>
-#include <ps/validate.hpp>
+#include <ps/json.h>
+#include <ps/ron.h>
+#include <ps/parse.h>
+#include <ps/validate.h>
 #include <algorithm>
 
 int main(int argc, char** argv) {

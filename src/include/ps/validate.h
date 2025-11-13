@@ -2,7 +2,7 @@
 
 #include <string>
 #include <optional>
-#include "ps/parsec.hpp"
+#include "ps/parsec.h"
 
 namespace ps {
 
