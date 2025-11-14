@@ -185,12 +185,17 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                 auto itreq = propSpec.data.find("required");
                 if (itreq != propSpec.data.end() && itreq->second.isBool()) required = itreq->second.asBool();
 
-                if (!obj.has(propName)) {
+                auto itObj = obj.data.find(propName);
+                if (itObj == obj.data.end()) {
                     if (required) return std::optional<std::string>("missing required property '" + propName + "'");
                     continue;
                 }
-                const Value &childVal = obj.data.at(propName);
-                if (auto err = validate_node(childVal, schema_root, propSpec, propName)) return err;
+                const Value &childVal = itObj->second;
+                if (childVal.isDict()) {
+                    if (auto err = validate_node(*childVal.asDict(), schema_root, propSpec, propName)) return err;
+                } else {
+                    if (auto err = validate_node(childVal, schema_root, propSpec, propName)) return err;
+                }
             }
             return std::nullopt;
         }
@@ -295,7 +300,11 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                         if (std::regex_match(od.first, re)) {
                             if (patSchema) {
                                 std::string childPath = path.empty() ? od.first : (path + "." + od.first);
-                                if (auto err = validate_node(od.second, schema_root, *patSchema, childPath)) return err;
+                                if (od.second.isDict()) {
+                                    if (auto err = validate_node(*od.second.asDict(), schema_root, *patSchema, childPath)) return err;
+                                } else {
+                                    if (auto err = validate_node(od.second, schema_root, *patSchema, childPath)) return err;
+                                }
                             }
                         }
                     }
@@ -346,7 +355,12 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     }
                     if (matched_pattern) continue;
                     // validate this additional property against addPropsSchema
-                    if (auto err = validate_node(od.second, schema_root, *addPropsSchema, path.empty()?k:(path + "." + k))) return err;
+                    std::string childPath = path.empty()?k:(path + "." + k);
+                    if (od.second.isDict()) {
+                        if (auto err = validate_node(*od.second.asDict(), schema_root, *addPropsSchema, childPath)) return err;
+                    } else {
+                        if (auto err = validate_node(od.second, schema_root, *addPropsSchema, childPath)) return err;
+                    }
                 }
             }
 
@@ -374,11 +388,16 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                 if (itemsVal.isList()) {
                     // tuple-style
                     const auto &schemas = itemsVal.asList();
-                    for (size_t i = 0; i < arr.size() && i < schemas.size(); ++i) {
+                    for (size_t i = 0, n = arr.size(); i < n && i < schemas.size(); ++i) {
                         const Dictionary* itemSchema = schema_from_value(schema_root, schemas[i]);
                         if (itemSchema) {
                             std::string childPath = path + "[" + std::to_string(i) + "]";
-                            if (auto err = validate_node(arr[i], schema_root, *itemSchema, childPath)) return err;
+                            const Value &elem = arr[i];
+                            if (elem.isDict()) {
+                                if (auto err = validate_node(*elem.asDict(), schema_root, *itemSchema, childPath)) return err;
+                            } else {
+                                if (auto err = validate_node(elem, schema_root, *itemSchema, childPath)) return err;
+                            }
                         }
                     }
                     // handle additionalItems
@@ -390,9 +409,14 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                             } else if (it_add->second.isDict()) {
                                 const Dictionary* addSchema = schema_from_value(schema_root, it_add->second);
                                 if (addSchema) {
-                                    for (size_t i = schemas.size(); i < arr.size(); ++i) {
+                                    for (size_t i = schemas.size(), n = arr.size(); i < n; ++i) {
                                         std::string childPath = path + "[" + std::to_string(i) + "]";
-                                        if (auto err = validate_node(arr[i], schema_root, *addSchema, childPath)) return err;
+                                        const Value &elem = arr[i];
+                                        if (elem.isDict()) {
+                                            if (auto err = validate_node(*elem.asDict(), schema_root, *addSchema, childPath)) return err;
+                                        } else {
+                                            if (auto err = validate_node(elem, schema_root, *addSchema, childPath)) return err;
+                                        }
                                     }
                                 }
                             }
@@ -402,9 +426,14 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     // single-schema form
                     const Dictionary* itemSchema = schema_from_value(schema_root, itemsVal);
                     if (itemSchema) {
-                        for (size_t i = 0; i < arr.size(); ++i) {
+                        for (size_t i = 0, n = arr.size(); i < n; ++i) {
                             std::string childPath = path + "[" + std::to_string(i) + "]";
-                            if (auto err = validate_node(arr[i], schema_root, *itemSchema, childPath)) return err;
+                            const Value &elem = arr[i];
+                            if (elem.isDict()) {
+                                if (auto err = validate_node(*elem.asDict(), schema_root, *itemSchema, childPath)) return err;
+                            } else {
+                                if (auto err = validate_node(elem, schema_root, *itemSchema, childPath)) return err;
+                            }
                         }
                     }
                 }
@@ -415,7 +444,9 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             if (it_unique != schema_node.data.end() && it_unique->second.isBool() && it_unique->second.asBool()) {
                 std::set<std::string> seen;
                 for (auto const &el : arr) {
-                    std::string s = el.dump();
+                    std::string s;
+                    if (el.isDict()) s = el.asDict()?el.asDict()->dump():std::string("null");
+                    else s = el.dump();
                     if (seen.find(s) != seen.end()) return std::optional<std::string>("array '" + path + "' contains non-unique items");
                     seen.insert(s);
                 }
@@ -482,14 +513,22 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     // its `scalar` member, prefer that Value directly so we validate the actual
     // JSON value instead of a wrapper object. This keeps tests and callers that
     // use Dictionary::scalar working as expected.
-    Value vdata;
-    if (data.scalar) vdata = *data.scalar;
-    else vdata = Value(data);
-    auto res = validate_node(vdata, schema, schema, "");
-    if (std::getenv("PS_VALIDATE_DEBUG")) {
-        std::cerr << "validate debug: data=" << vdata.dump() << " schema=" << schema.dump() << " result=" << (res?*res:"<ok>") << "\n";
+    std::optional<std::string> res;
+    if (data.scalar) {
+        // If the Dictionary wraps a scalar Value, validate that Value directly.
+        res = validate_node(*data.scalar, schema, schema, "");
+        if (std::getenv("PS_VALIDATE_DEBUG")) {
+            std::cerr << "validate debug: data=" << data.scalar->dump() << " schema=" << schema.dump() << " result=" << (res?*res:"<ok>") << "\n";
+        }
+        return res;
+    } else {
+        // If the Dictionary is an object/array wrapper, validate the Dictionary form.
+        res = validate_node(data, schema, schema, "");
+        if (std::getenv("PS_VALIDATE_DEBUG")) {
+            std::cerr << "validate debug: data=" << data.dump() << " schema=" << schema.dump() << " result=" << (res?*res:"<ok>") << "\n";
+        }
+        return res;
     }
-    return res;
 }
 
 // Small wrapper overload: accept a Dictionary directly and forward to the
