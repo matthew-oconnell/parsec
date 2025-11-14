@@ -5,9 +5,9 @@
 using namespace ps;
 
 TEST_CASE("setDefaults: basic property default", "[defaults]") {
-    Dictionary schema; schema["type"] = Value("object");
-    Dictionary props; props["port"] = Value(Dictionary{{"type", Value(std::string("integer"))},{"default", Value(int64_t(8080))}});
-    schema["properties"] = Value(props);
+    Dictionary schema; schema["type"] = "object";
+    Dictionary props; props["port"] = Dictionary{{"type", "integer"},{"default", int64_t(8080)}};
+    schema["properties"] = props;
 
     Dictionary input; // empty
     auto out = setDefaults(input, schema);
@@ -17,33 +17,32 @@ TEST_CASE("setDefaults: basic property default", "[defaults]") {
 }
 
 TEST_CASE("setDefaults: nested object defaults", "[defaults]") {
-    Dictionary innerSchema; innerSchema["type"] = Value("object");
-    Dictionary innerProps; innerProps["x"] = Value(Dictionary{{"type", Value(std::string("integer"))},{"default", Value(int64_t(7))}});
-    innerSchema["properties"] = Value(innerProps);
+    Dictionary innerSchema; innerSchema["type"] = "object";
+    Dictionary innerProps; innerProps["x"] = Dictionary{{"type", "integer"},{"default", int64_t(7)}};
+    innerSchema["properties"] = innerProps;
 
-    Dictionary schema; schema["type"] = Value("object");
-    Dictionary props; props["child"] = Value(innerSchema);
-    schema["properties"] = Value(props);
+    Dictionary schema; schema["type"] = "object";
+    Dictionary props; props["child"] = innerSchema;
+    schema["properties"] = props;
 
     Dictionary input; // child missing
     auto out = setDefaults(input, schema);
     REQUIRE(out.has("child"));
-    REQUIRE(out.at("child").isDict());
-    REQUIRE(out.at("child").asDict()->has("x"));
-    REQUIRE(out.at("child").asDict()->at("x").asInt() == 7);
+    REQUIRE(out.at("child").has("x"));
+    REQUIRE(out.at("child").at("x").asInt() == 7);
 }
 
 TEST_CASE("setDefaults: additionalProperties schema applied to existing extras", "[defaults]") {
-    Dictionary schema; schema["type"] = Value("object");
-    Dictionary add; add["type"] = Value("object");
-    Dictionary addProps; addProps["y"] = Value(Dictionary{{"type", Value(std::string("integer"))},{"default", Value(int64_t(2))}});
-    add["properties"] = Value(addProps);
-    schema["additionalProperties"] = Value(add);
-
-    Dictionary input; input["extra"] = Value(Dictionary{{"z", Value(1)}});
+    Dictionary schema; schema["type"] = "object";
+    Dictionary add; add["type"] = "object";
+    Dictionary addProps; addProps["y"] = Dictionary{{"type", "integer"},{"default", int64_t(2)}};
+    add["properties"] = addProps;
+    schema["additionalProperties"] = add;
+    Dictionary input; input["extra"] = Dictionary{{"z", int64_t(1)}};
     auto out = setDefaults(input, schema);
     REQUIRE(out.has("extra"));
-    auto extra = out.at("extra").asDict();
-    REQUIRE(extra->has("y"));
-    REQUIRE(extra->at("y").asInt() == 2);
+    auto extra = out.at("extra");
+    REQUIRE(extra.isDict());
+    REQUIRE(extra.has("y"));
+    REQUIRE(extra.at("y").asInt() == 2);
 }

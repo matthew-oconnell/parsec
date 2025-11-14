@@ -14,12 +14,12 @@ TEST_CASE("Dictionary initializer-list construction", "[init]") {
     REQUIRE(dict.at("key").asString() == "value");
 
     REQUIRE(dict.has("key2"));
-    auto arr = dict.at("key2").asList();
+    auto arr = dict.at("key2");
     REQUIRE(arr.size() == 4);
     REQUIRE(arr[0].asString() == "my");
 
     REQUIRE(dict.has("key3"));
-    auto child = dict.at("key3").asDict();
-    REQUIRE(child->has("obj key"));
-    REQUIRE(child->at("obj key").asBool() == true);
+    auto child = dict.at("key3");
+    REQUIRE(child.has("obj key"));
+    REQUIRE(child.at("obj key").asBool() == true);
 }

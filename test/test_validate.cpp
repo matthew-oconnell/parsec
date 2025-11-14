@@ -9,11 +9,19 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
     // Build schema as Dictionary
     Dictionary schema;
     // name: required string
-    Dictionary nameSpec; nameSpec["type"] = Value("string"); nameSpec["required"] = Value(true);
+    Dictionary nameSpec;
+    nameSpec["type"] = Value("string");
+    nameSpec["required"] = Value(true);
     // port: required integer, between 1 and 65535
-    Dictionary portSpec; portSpec["type"] = Value("integer"); portSpec["required"] = Value(true); portSpec["minimum"] = Value(int64_t(1)); portSpec["maximum"] = Value(int64_t(65535));
+    Dictionary portSpec;
+    portSpec["type"] = Value("integer");
+    portSpec["required"] = Value(true);
+    portSpec["minimum"] = Value(int64_t(1));
+    portSpec["maximum"] = Value(int64_t(65535));
     // debug: optional boolean
-    Dictionary debugSpec; debugSpec["type"] = Value("boolean"); debugSpec["required"] = Value(false);
+    Dictionary debugSpec;
+    debugSpec["type"] = Value("boolean");
+    debugSpec["required"] = Value(false);
 
     schema["name"] = Value(nameSpec);
     schema["port"] = Value(portSpec);
@@ -48,8 +56,8 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
 
     SECTION("invalid: out of range") {
         Dictionary cfg;
-        cfg["name"] = Value(std::string("example"));
-        cfg["port"] = Value(int64_t(70000));
+        cfg["name"] = "example";
+        cfg["port"] = 70000;
         auto err = validate(cfg, schema);
         REQUIRE(err.has_value());
         REQUIRE(err.value().find("above maximum") != std::string::npos);
@@ -59,35 +67,53 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
 // Phase1 tests
 TEST_CASE("validate phase1: basic types and numeric bounds", "[validate][phase1]") {
     Dictionary schema;
-    Dictionary a; a["type"] = Value("integer"); a["required"] = Value(true); a["minimum"] = Value(int64_t(0)); a["maximum"] = Value(int64_t(10));
-    Dictionary b; b["type"] = Value("number"); b["minimum"] = Value(0.5);
-    Dictionary c; c["type"] = Value("string"); c["minLength"] = Value(int64_t(2)); c["maxLength"] = Value(int64_t(5));
-    schema["a"] = Value(a);
-    schema["b"] = Value(b);
-    schema["c"] = Value(c);
+    Dictionary a;
+    a["type"] = "integer";
+    a["required"] = true;
+    a["minimum"] = 0;
+    a["maximum"] = 10;
+    Dictionary b;
+    b["type"] = "number";
+    b["minimum"] = 0.5;
+    Dictionary c;
+    c["type"] = "string";
+    c["minLength"] = 2;
+    c["maxLength"] = 5;
+    schema["a"] = a;
+    schema["b"] = b;
+    schema["c"] = c;
 
     SECTION("valid values") {
-        Dictionary cfg; cfg["a"] = Value(int64_t(3)); cfg["b"] = Value(1.5); cfg["c"] = Value(std::string("hey"));
+        Dictionary cfg;
+        cfg["a"] = 3;
+        cfg["b"] = 1.5;
+        cfg["c"] = "hey";
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }
 
     SECTION("missing required") {
-        Dictionary cfg; cfg["b"] = Value(1.0);
+        Dictionary cfg;
+        cfg["b"] = Value(1.0);
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
         REQUIRE(e.value().find("missing required") != std::string::npos);
     }
 
     SECTION("numeric out of range") {
-        Dictionary cfg; cfg["a"] = Value(int64_t(11)); cfg["b"] = Value(0.25); cfg["c"] = Value(std::string("ok"));
+        Dictionary cfg;
+        cfg["a"] = 11;
+        cfg["b"] = 0.25;
+        cfg["c"] = "ok";
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
 
     SECTION("string length violations") {
-        Dictionary cfg; cfg["a"] = Value(int64_t(3)); cfg["b"] = Value(2.0);
-        cfg["c"] = Value(std::string("x"));
+        Dictionary cfg;
+        cfg["a"] = 3;
+        cfg["b"] = 2.0;
+        cfg["c"] = "x";
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
@@ -95,31 +121,37 @@ TEST_CASE("validate phase1: basic types and numeric bounds", "[validate][phase1]
 
 TEST_CASE("validate phase1: enum and additionalProperties", "[validate][phase1]") {
     Dictionary schema;
-    Dictionary top; // use full-schema with type/object/properties
-    top["type"] = Value("object");
+    Dictionary top;  // use full-schema with type/object/properties
+    top["type"] = "object";
     Dictionary props;
-    Dictionary color; color["type"] = Value("string"); color["enum"] = Value(std::vector<Value>{ Value(std::string("red")), Value(std::string("green")), Value(std::string("blue")) });
-    props["color"] = Value(color);
-    top["properties"] = Value(props);
-    top["additionalProperties"] = Value(false);
+    Dictionary color;
+    color["type"] = "string";
+    color["enum"] = std::vector<std::string>{"red", "green", "blue"};
+    props["color"] = color;
+    top["properties"] = props;
+    top["additionalProperties"] = false;
 
-    auto err_ok = validate(Dictionary(), top); // top-level empty data is fine
+    auto err_ok = validate(Dictionary(), top);  // top-level empty data is fine
     (void)err_ok;
 
     SECTION("enum allowed") {
-        Dictionary cfg; cfg["color"] = Value(std::string("green"));
+        Dictionary cfg;
+        cfg["color"] = "green";
         auto e = validate(cfg, top);
         REQUIRE(!e.has_value());
     }
 
     SECTION("enum disallowed") {
-        Dictionary cfg; cfg["color"] = Value(std::string("yellow"));
+        Dictionary cfg;
+        cfg["color"] = "yellow";
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
     }
 
     SECTION("additionalProperties blocked") {
-        Dictionary cfg; cfg["color"] = Value(std::string("blue")); cfg["extra"] = Value(42);
+        Dictionary cfg;
+        cfg["color"] = "blue";
+        cfg["extra"] = 42;
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
         REQUIRE(e.value().find("not allowed") != std::string::npos);
@@ -128,29 +160,40 @@ TEST_CASE("validate phase1: enum and additionalProperties", "[validate][phase1]"
 
 TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase1]") {
     Dictionary schema;
-    Dictionary top; top["type"] = Value("object");
-    Dictionary props; 
-    Dictionary arrs; arrs["type"] = Value("array");
-    Dictionary itemSchema; itemSchema["type"] = Value("integer");
-    arrs["items"] = Value(itemSchema);
-    arrs["minItems"] = Value(int64_t(1)); arrs["maxItems"] = Value(int64_t(3));
-    props["nums"] = Value(arrs);
-    top["properties"] = Value(props);
+    Dictionary top;
+    top["type"] = "object";
+    Dictionary props;
+    Dictionary arrs;
+    arrs["type"] = "array";
+    Dictionary itemSchema;
+    itemSchema["type"] = "integer";
+    arrs["items"] = itemSchema;
+    arrs["minItems"] = int64_t(1);
+    arrs["maxItems"] = int64_t(3);
+    props["nums"] = arrs;
+    top["properties"] = props;
 
     SECTION("array valid sizes") {
-        Dictionary cfg; std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); cfg["nums"] = Value(L);
+        Dictionary cfg;
+        std::vector<int> L{1,2};
+        cfg["nums"] = L;
         auto e = validate(cfg, top);
         REQUIRE(!e.has_value());
     }
 
     SECTION("array too few") {
-        Dictionary cfg; std::vector<Value> L; cfg["nums"] = Value(L);
+        Dictionary cfg;
+        std::vector<Dictionary> L;
+        cfg["nums"] = L;
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
     }
 
     SECTION("array element wrong type") {
-        Dictionary cfg; std::vector<Value> L; L.emplace_back(std::string("x")); cfg["nums"] = Value(L);
+        Dictionary cfg;
+        std::vector<std::string> L;
+        L.emplace_back("x");
+        cfg["nums"] = L;
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
     }
@@ -159,25 +202,38 @@ TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase
 TEST_CASE("validate phase1: $ref resolution (local)", "[validate][phase1]") {
     // Build a schema that uses local definitions and $ref
     Dictionary schema;
-    schema["definitions"] = Value(Dictionary{{"PositiveInt", Value(Dictionary{{"type", Value(std::string("integer"))},{"minimum", Value(int64_t(1))}})}});
-    Dictionary top; top["type"] = Value("object");
-    Dictionary props; Dictionary p; p["$ref"] = Value(std::string("#/definitions/PositiveInt")); props["count"] = Value(p); top["properties"] = Value(props);
-    schema["root"] = Value(top);
+    schema["definitions"] =
+                Dictionary{{"PositiveInt",
+                                  Dictionary{{"type", "integer"},
+                                                   {"minimum", int64_t(1)}}}};
+    Dictionary top;
+    top["type"] = "object";
+    Dictionary props;
+    Dictionary p;
+    p["$ref"] = "#/definitions/PositiveInt";
+    props["count"] = p;
+    top["properties"] = props;
+    schema["root"] = top;
 
     // Validate correct
-    Dictionary data; data["count"] = Value(int64_t(5));
-    // validate against the sub-schema: we expect validate(data, schema_root_that_contains_definitions_and_root)
-    Dictionary full; full = schema; // contains definitions and 'root'
-    // Note: our simple resolve_local_ref expects refs relative to the schema passed in; pass full.root (root is top-level)
-    // Place the actual schema at top-level for convenience
-    full = top; // but keep definitions at top-level is necessary; attach definitions into the same dict
+    Dictionary data;
+    data["count"] = int64_t(5);
+    // validate against the sub-schema: we expect validate(data,
+    // schema_root_that_contains_definitions_and_root)
+    Dictionary full;
+    full = schema;  // contains definitions and 'root'
+    // Note: our simple resolve_local_ref expects refs relative to the schema passed in; pass
+    // full.root (root is top-level) Place the actual schema at top-level for convenience
+    full = top;  // but keep definitions at top-level is necessary; attach definitions into the same
+                 // dict
     full["definitions"] = schema["definitions"];
 
     auto e = validate(data, full);
     REQUIRE(!e.has_value());
 
     // invalid when below minimum
-    Dictionary bad; bad["count"] = Value(int64_t(0));
+    Dictionary bad;
+    bad["count"] = int64_t(0);
     auto e2 = validate(bad, full);
     REQUIRE(e2.has_value());
 }
@@ -186,163 +242,244 @@ TEST_CASE("validate phase1: $ref resolution (local)", "[validate][phase1]") {
 TEST_CASE("validate phase2: oneOf/anyOf/allOf", "[validate][phase2]") {
     Dictionary schema;
     // allOf: must be both integer and >= 5
-    Dictionary s1; s1["type"] = Value(std::string("integer"));
-    Dictionary s2; s2["minimum"] = Value(int64_t(5));
-    Dictionary all; all["allOf"] = Value(std::vector<Value>{ Value(s1), Value(s2) });
-
+    Dictionary s1;
+    s1["type"] = "integer";
+    Dictionary s2;
+    s2["minimum"] = int64_t(5);
+    Dictionary all;
+    all["allOf"] = std::vector<Dictionary>{s1, s2};
     SECTION("allOf success") {
-        Dictionary d; d.scalar = Value(int64_t(6));
+        Dictionary d;
+        d = 6;
         auto e = validate(d, all);
         REQUIRE(!e.has_value());
     }
 
     SECTION("allOf failure") {
-        Dictionary d; d.scalar = Value(int64_t(3));
+        Dictionary d;
+        d = 3;
         auto e = validate(d, all);
         REQUIRE(e.has_value());
     }
 
     // anyOf: either integer or string
-    Dictionary any; any["anyOf"] = Value(std::vector<Value>{ Value(s1), Value(Dictionary{{"type", Value(std::string("string"))}}) });
-    SECTION("anyOf match") { Dictionary d; d.scalar = Value(std::string("hi")); REQUIRE(!validate(d, any).has_value()); }
-    SECTION("anyOf no match") { Dictionary d; d.scalar = Value(1.23); REQUIRE(validate(d, any).has_value()); }
+    Dictionary any;
+    any["anyOf"] = std::vector<Dictionary>{
+                s1, Dictionary{{"type", "string"}}};
+    SECTION("anyOf match") {
+        Dictionary d;
+        d = std::string("hi");
+        REQUIRE(!validate(d, any).has_value());
+    }
+    SECTION("anyOf no match") {
+        Dictionary d;
+        d = 1.23;
+        REQUIRE(validate(d, any).has_value());
+    }
 
     // oneOf: exactly one alternative
-    Dictionary o1; o1["type"] = Value(std::string("integer")); o1["minimum"] = Value(int64_t(0));
-    Dictionary o2; o2["type"] = Value(std::string("integer")); o2["maximum"] = Value(int64_t(10));
-    Dictionary one; one["oneOf"] = Value(std::vector<Value>{ Value(o1), Value(o2) });
-    SECTION("oneOf ambiguous") { Dictionary d; d.scalar = Value(int64_t(5)); REQUIRE(validate(d, one).has_value()); }
+    Dictionary o1;
+    o1["type"] = "integer";
+    o1["minimum"] = int64_t(0);
+    Dictionary o2;
+    o2["type"] = "integer";
+    o2["maximum"] = int64_t(10);
+    Dictionary one;
+    one["oneOf"] = std::vector<Dictionary>{o1, o2};
+    SECTION("oneOf ambiguous") {
+        Dictionary d;
+        d = int64_t(5);
+        REQUIRE(validate(d, one).has_value());
+    }
 }
 
 TEST_CASE("validate phase2: tuple items and additionalItems", "[validate][phase2]") {
-    Dictionary schema; schema["type"] = Value(std::string("array"));
+    Dictionary schema;
+    schema["type"] = "array";
     // tuple: [int, string], additionalItems=false
-    std::vector<Value> tupleSchemas; tupleSchemas.emplace_back(Dictionary{{"type", Value(std::string("integer"))}});
-    tupleSchemas.emplace_back(Dictionary{{"type", Value(std::string("string"))}});
-    schema["items"] = Value(tupleSchemas);
-    schema["additionalItems"] = Value(false);
+    std::vector<Dictionary> tupleSchemas;
+    tupleSchemas.emplace_back(Dictionary{{"type", "integer"}});
+    tupleSchemas.emplace_back(Dictionary{{"type", "string"}});
+    schema["items"] = tupleSchemas;
+    schema["additionalItems"] = false;
 
-    SECTION("tuple valid") { std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(!e.has_value()); }
-    SECTION("tuple extra item") { std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); L.emplace_back(int64_t(3)); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(e.has_value()); }
+    SECTION("tuple valid") {
+        std::vector<Dictionary> L;
+        L.emplace_back(int64_t(1));
+        L.emplace_back(std::string("ok"));
+        Dictionary d;
+        d = L;
+        auto e = validate(d, schema);
+        REQUIRE(!e.has_value());
+    }
+    SECTION("tuple extra item") {
+        std::vector<Dictionary> L;
+        L.emplace_back(int64_t(1));
+        L.emplace_back(std::string("ok"));
+        L.emplace_back(int64_t(3));
+        Dictionary d;
+        d = L;
+        auto e = validate(d, schema);
+        REQUIRE(e.has_value());
+    }
 }
 
 TEST_CASE("validate phase2: uniqueItems and patternProperties", "[validate][phase2]") {
-    Dictionary obj; obj["type"] = Value(std::string("object"));
-    Dictionary props; props["id"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
-    obj["properties"] = Value(props);
+    Dictionary obj;
+    obj["type"] = "object";
+    Dictionary props;
+    props["id"] = Dictionary{{"type", "integer"}};
+    obj["properties"] = props;
     // patternProperties: keys starting with foo- must be strings
-    Dictionary pat; pat["^foo-.*"] = Value(Dictionary{{"type", Value(std::string("string"))}});
-    obj["patternProperties"] = Value(pat);
-
+    Dictionary pat;
+    pat["^foo-.*"] = Dictionary{{"type", "string"}};
+    obj["patternProperties"] = pat;
     SECTION("patternProperties match") {
-        Dictionary cfg; cfg["foo-bar"] = Value(std::string("yes")); cfg["id"] = Value(int64_t(1)); auto e = validate(cfg, obj); REQUIRE(!e.has_value()); }
+        Dictionary cfg;
+        cfg["foo-bar"] = std::string("yes");
+        cfg["id"] = int64_t(1);
+        auto e = validate(cfg, obj);
+        REQUIRE(!e.has_value());
+    }
 
     SECTION("patternProperties mismatch") {
-        Dictionary cfg; cfg["foo-baz"] = Value(int64_t(5)); auto e = validate(cfg, obj); REQUIRE(e.has_value()); }
+        Dictionary cfg;
+        cfg["foo-baz"] = int64_t(5);
+        auto e = validate(cfg, obj);
+        REQUIRE(e.has_value());
+    }
 
     // uniqueItems
-    Dictionary arr; arr["type"] = Value(std::string("array")); arr["uniqueItems"] = Value(true);
-    std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); L.emplace_back(int64_t(1)); arr["items"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
-    SECTION("uniqueItems violation") { Dictionary d; d.scalar = Value(L); auto e = validate(d, arr); REQUIRE(e.has_value()); }
+    Dictionary arr;
+    arr["type"] = "array";
+    arr["uniqueItems"] = true;
+    std::vector<Dictionary> L;
+    L.emplace_back(int64_t(1));
+    L.emplace_back(int64_t(2));
+    L.emplace_back(int64_t(1));
+    arr["items"] = Dictionary{{"type", "integer"}};
+    SECTION("uniqueItems violation") {
+        Dictionary d;
+        d = L;
+        auto e = validate(d, arr);
+        REQUIRE(e.has_value());
+    }
 }
-
-
 
 // Additional-properties tests merged
 TEST_CASE("validate additionalProperties as schema", "[validate][additionalProperties]") {
     Dictionary schema;
-    schema["type"] = Value(std::string("object"));
+    schema["type"] = "object";
     Dictionary props;
-    props["id"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
-    schema["properties"] = Value(props);
+    props["id"] = Dictionary{{"type", "integer"}};
+    schema["properties"] = props;
     // additionalProperties is a schema that requires string
-    Dictionary addSchema; addSchema["type"] = Value(std::string("string"));
-    schema["additionalProperties"] = Value(addSchema);
-
+    Dictionary addSchema;
+    addSchema["type"] = "string";
+    schema["additionalProperties"] = addSchema;
     SECTION("extra property validated by schema passes") {
         Dictionary cfg;
-        cfg["id"] = Value(int64_t(1));
-        cfg["note"] = Value(std::string("ok"));
+        cfg["id"] = int64_t(1);
+        cfg["note"] = std::string("ok");
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }
 
     SECTION("extra property fails schema") {
         Dictionary cfg;
-        cfg["id"] = Value(int64_t(1));
-        cfg["note"] = Value(int64_t(5));
+        cfg["id"] = int64_t(1);
+        cfg["note"] = int64_t(5);
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
 }
 
 TEST_CASE("validate minProperties and maxProperties", "[validate][minmaxprops]") {
-    Dictionary schema; schema["type"] = Value(std::string("object"));
-    schema["minProperties"] = Value(int64_t(2));
-    schema["maxProperties"] = Value(int64_t(3));
+    Dictionary schema;
+    schema["type"] = "object";
+    schema["minProperties"] = int64_t(2);
+    schema["maxProperties"] = int64_t(3);
 
     SECTION("too few properties") {
-        Dictionary cfg; cfg["a"] = Value(1);
+        Dictionary cfg;
+        cfg["a"] = int64_t(1);
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
     SECTION("within bounds") {
-        Dictionary cfg; cfg["a"] = Value(1); cfg["b"] = Value(2);
+        Dictionary cfg;
+        cfg["a"] = int64_t(1);
+        cfg["b"] = int64_t(2);
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }
     SECTION("too many properties") {
-        Dictionary cfg; cfg["a"] = Value(1); cfg["b"] = Value(2); cfg["c"] = Value(3); cfg["d"] = Value(4);
+        Dictionary cfg;
+        cfg["a"] = int64_t(1);
+        cfg["b"] = int64_t(2);
+        cfg["c"] = int64_t(3);
+        cfg["d"] = int64_t(4);
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
 }
 
-TEST_CASE("additionalProperties schema can be an object schema with required fields", "[validate][additionalProperties][object-schema]") {
-    Dictionary schema; schema["type"] = Value(std::string("object"));
+TEST_CASE("additionalProperties schema can be an object schema with required fields",
+          "[validate][additionalProperties][object-schema]") {
+    Dictionary schema;
+    schema["type"] = "object";
     // no explicit properties
-    Dictionary addSchema; addSchema["type"] = Value(std::string("object"));
+    Dictionary addSchema;
+    addSchema["type"] = "object";
     // additional properties must be objects that contain key 'x'
-        addSchema["required"] = Value(std::vector<Value>{ Value(std::string("x")) });
-    schema["additionalProperties"] = Value(addSchema);
+    addSchema["required"] = std::vector<Value>{Value(std::string("x"))};
+    schema["additionalProperties"] = addSchema;
 
     SECTION("extra property missing required field fails") {
-        Dictionary cfg; cfg["extra"] = Value(Dictionary{{"y", Value(1)}});
+        Dictionary cfg;
+        cfg["extra"] = Dictionary{{"y", int64_t(1)}};
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
 
     SECTION("extra property meeting object schema passes") {
-        Dictionary cfg; cfg["extra"] = Value(Dictionary{{"x", Value(1)}});
+        Dictionary cfg;
+        cfg["extra"] = Dictionary{{"x", int64_t(1)}};
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }
 }
 
-TEST_CASE("patternProperties take precedence over additionalProperties", "[validate][patternProperties][additionalProperties]") {
-    Dictionary schema; schema["type"] = Value(std::string("object"));
+TEST_CASE("patternProperties take precedence over additionalProperties",
+          "[validate][patternProperties][additionalProperties]") {
+    Dictionary schema;
+    schema["type"] = "object";
     // patternProperties: keys starting with pref_ must be integers
-        Dictionary patterns; patterns["^pref_.*"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
-    schema["patternProperties"] = Value(patterns);
+    Dictionary patterns;
+    patterns["^pref_.*"] = Dictionary{{"type", "integer"}};
+    schema["patternProperties"] = patterns;
     // additionalProperties requires strings
-    Dictionary addSchema; addSchema["type"] = Value(std::string("string"));
-    schema["additionalProperties"] = Value(addSchema);
-
+    Dictionary addSchema;
+    addSchema["type"] = "string";
+    schema["additionalProperties"] = addSchema;
     SECTION("patternProperties match validated by pattern schema") {
-        Dictionary cfg; cfg["pref_a"] = Value(int64_t(5));
+        Dictionary cfg;
+        cfg["pref_a"] = int64_t(5);
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }
 
     SECTION("patternProperties mismatch fails even though additionalProperties would accept") {
-        Dictionary cfg; cfg["pref_a"] = Value(std::string("not-int"));
+        Dictionary cfg;
+        cfg["pref_a"] = std::string("not-int");
         // patternProperties expects integer; additionalProperties (string) should not be applied
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
     }
 
     SECTION("non-matching properties fall through to additionalProperties") {
-        Dictionary cfg; cfg["other"] = Value(std::string("ok"));
+        Dictionary cfg;
+        cfg["other"] = std::string("ok");
         auto e = validate(cfg, schema);
         REQUIRE(!e.has_value());
     }

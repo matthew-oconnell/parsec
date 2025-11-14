@@ -2,13 +2,13 @@
 
 namespace ps {
 
-// Helper: deep-copy a Value (Value uses shared_ptr for dicts so copy constructor is fine)
-static Value clone_value(const Value& v) { return v; }
+// Helper: deep-copy a Dictionary (copy constructor performs deep copy)
+static Dictionary clone_value(const Dictionary& v) { return v; }
 
 // Recursively apply defaults from schema_node into target (which may be a dict or scalar)
-static Value apply_defaults_to_value(const Value& dataVal,
-                                     const Dictionary& schema_root,
-                                     const Dictionary& schema_node);
+static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
+                                         const Dictionary& schema_root,
+                                         const Dictionary& schema_node);
 
 static Dictionary apply_defaults_to_object(const Dictionary& input,
                                            const Dictionary& schema_root,
@@ -17,31 +17,25 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 
     // properties
     const Dictionary* props = nullptr;
-    auto it_props = schema_node.data.find("properties");
-    if (it_props != schema_node.data.end())
-        props = it_props->second.isDict() ? it_props->second.asDict().get() : nullptr;
+    auto it_props = schema_node.m_object_map.find("properties");
+    if (it_props != schema_node.m_object_map.end()) props = &it_props->second;
 
     if (props) {
         for (auto const& p : props->items()) {
             const std::string& k = p.first;
-            const Value& propSchemaVal = p.second;
-            const Dictionary* propSchema =
-                        propSchemaVal.isDict() ? propSchemaVal.asDict().get() : nullptr;
+            const Dictionary& propSchemaVal = p.second;
+            const Dictionary* propSchema = propSchemaVal.isMappedObject() ? &propSchemaVal : nullptr;
 
             // If key present in input, recursively apply defaults into it
             if (out.has(k)) {
                 if (propSchema) {
-                    // If the existing value is an object and the schema expects an object,
-                    // operate directly on Dictionary to avoid unnecessary Value roundtrips.
-                    if (out[k].isDict()) {
-                        Dictionary nested = *out[k].asDict();
-                        Dictionary nested_with =
-                                    apply_defaults_to_object(nested, schema_root, *propSchema);
-                        out[k] = Value(nested_with);
+                    if (out[k].isMappedObject()) {
+                        Dictionary nested = out[k];
+                        Dictionary nested_with = apply_defaults_to_object(nested, schema_root, *propSchema);
+                        out[k] = nested_with;
                     } else {
-                        Value existing = out[k];
-                        Value withDefaults =
-                                    apply_defaults_to_value(existing, schema_root, *propSchema);
+                        Dictionary existing = out[k];
+                        Dictionary withDefaults = apply_defaults_to_value(existing, schema_root, *propSchema);
                         out[k] = withDefaults;
                     }
                 }
@@ -49,16 +43,16 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
                 // Not present: if schema has a default, use it; else if propSchema is an object
                 // with nested defaults, we may create an empty object and apply nested defaults if
                 // there are defaults deeper in the schema.
-                if (propSchema && propSchema->data.find("default") != propSchema->data.end()) {
-                    out[k] = clone_value(propSchema->data.at("default"));
-                } else if (propSchema && propSchema->data.find("type") != propSchema->data.end() &&
-                           propSchema->data.at("type").isString() &&
-                           propSchema->data.at("type").asString() == "object") {
+                if (propSchema && propSchema->m_object_map.find("default") != propSchema->m_object_map.end()) {
+                    out[k] = clone_value(propSchema->m_object_map.at("default"));
+                } else if (propSchema && propSchema->m_object_map.find("type") != propSchema->m_object_map.end() &&
+                           propSchema->m_object_map.at("type").type() == Dictionary::String &&
+                           propSchema->m_object_map.at("type").asString() == "object") {
                     // If nested object may have defaults inside, create an empty object and apply
                     // nested defaults
                     Dictionary empty;
                     Dictionary nested = apply_defaults_to_object(empty, schema_root, *propSchema);
-                    if (!nested.empty()) out[k] = Value(nested);
+                    if (!nested.empty()) out[k] = nested;
                 }
             }
         }
@@ -66,24 +60,22 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 
     // additionalProperties: if schema object with default, and keys in input not covered by
     // properties, ensure defaults applied
-    auto it_add = schema_node.data.find("additionalProperties");
+    auto it_add = schema_node.m_object_map.find("additionalProperties");
     const Dictionary* addSchema = nullptr;
-    if (it_add != schema_node.data.end() && it_add->second.isDict())
-        addSchema = it_add->second.asDict().get();
+    if (it_add != schema_node.m_object_map.end() && it_add->second.isMappedObject()) addSchema = &it_add->second;
 
     if (addSchema) {
         for (auto const& pd : out.items()) {
             const std::string& k = pd.first;
-            if (props && props->data.find(k) != props->data.end())
-                continue;  // covered by properties
+            if (props && props->m_object_map.find(k) != props->m_object_map.end()) continue;  // covered by properties
             // apply defaults into this additional property
-            if (pd.second.isDict()) {
-                Dictionary nested = *pd.second.asDict();
+            if (pd.second.isMappedObject()) {
+                Dictionary nested = pd.second;
                 Dictionary nested_with = apply_defaults_to_object(nested, schema_root, *addSchema);
-                out[k] = Value(nested_with);
+                out[k] = nested_with;
             } else {
-                Value existing = pd.second;
-                Value withDefaults = apply_defaults_to_value(existing, schema_root, *addSchema);
+                Dictionary existing = pd.second;
+                Dictionary withDefaults = apply_defaults_to_value(existing, schema_root, *addSchema);
                 out[k] = withDefaults;
             }
         }
@@ -92,44 +84,42 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
     return out;
 }
 
-static Value apply_defaults_to_value(const Value& dataVal,
-                                     const Dictionary& schema_root,
-                                     const Dictionary& schema_node) {
+static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
+                                         const Dictionary& schema_root,
+                                         const Dictionary& schema_node) {
     // If schema_node has a 'default' and dataVal is null/empty, return default
-    if ((dataVal.isNull() || (!dataVal.isDict() && !dataVal.isList()))) {
-        auto it_def = schema_node.data.find("default");
-        if (it_def != schema_node.data.end()) return clone_value(it_def->second);
+    if ((dataVal.type() == Dictionary::Null || (!dataVal.isMappedObject() && !dataVal.isArrayObject()))) {
+        auto it_def = schema_node.m_object_map.find("default");
+        if (it_def != schema_node.m_object_map.end()) return clone_value(it_def->second);
     }
 
     // If schema type is object, recurse
-    auto it_type = schema_node.data.find("type");
-    if (it_type != schema_node.data.end() && it_type->second.isString() &&
+    auto it_type = schema_node.m_object_map.find("type");
+    if (it_type != schema_node.m_object_map.end() && it_type->second.type() == Dictionary::String &&
         it_type->second.asString() == "object") {
         Dictionary inObj;
-        if (dataVal.isDict()) inObj = *dataVal.asDict();
+        if (dataVal.isMappedObject()) inObj = dataVal;
         Dictionary outObj = apply_defaults_to_object(inObj, schema_root, schema_node);
-        return Value(outObj);
+        return outObj;
     }
 
-    // If type is array and default exists at the array level but element defaults are not handled
-    // here
-    if (it_type != schema_node.data.end() && it_type->second.isString() &&
+    // If type is array
+    if (it_type != schema_node.m_object_map.end() && it_type->second.type() == Dictionary::String &&
         it_type->second.asString() == "array") {
-        if (!dataVal.isList()) {
-            auto it_def = schema_node.data.find("default");
-            if (it_def != schema_node.data.end()) return clone_value(it_def->second);
+        if (!dataVal.isArrayObject()) {
+            auto it_def = schema_node.m_object_map.find("default");
+            if (it_def != schema_node.m_object_map.end()) return clone_value(it_def->second);
         } else {
-            // For array elements, if items is a schema and elements are objects, apply nested
-            // defaults per element
-            auto it_items = schema_node.data.find("items");
-            if (it_items != schema_node.data.end() && it_items->second.isDict() &&
-                dataVal.isList()) {
-                const Dictionary* itemSchema = it_items->second.asDict().get();
-                std::vector<Value> outList;
-                for (auto const& el : dataVal.asList()) {
+            auto it_items = schema_node.m_object_map.find("items");
+            if (it_items != schema_node.m_object_map.end() && it_items->second.isMappedObject() && dataVal.isArrayObject()) {
+                const Dictionary* itemSchema = &it_items->second;
+                std::vector<Dictionary> outList;
+                for (auto const& el : dataVal.m_object_array) {
                     outList.push_back(apply_defaults_to_value(el, schema_root, *itemSchema));
                 }
-                return Value(outList);
+                Dictionary arr;
+                arr = outList;
+                return arr;
             }
         }
     }
@@ -140,28 +130,21 @@ static Value apply_defaults_to_value(const Value& dataVal,
 
 Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
     // Use schema as root for $ref resolution in future work; for now pass schema through
-    Value vdata;
-    if (data.scalar)
-        vdata = *data.scalar;
-    else
-        vdata = Value(data);
 
     // Top-level: if schema declares type object, apply object defaults; otherwise if default
     // exists, use it
-    auto it_type = schema.data.find("type");
-    if (it_type != schema.data.end() && it_type->second.isString() &&
+    auto it_type = schema.m_object_map.find("type");
+    if (it_type != schema.m_object_map.end() && it_type->second.type() == Dictionary::String &&
         it_type->second.asString() == "object") {
         Dictionary inObj;
-        if (vdata.isDict()) inObj = *vdata.asDict();
+        if (data.isMappedObject()) inObj = data;
         Dictionary outObj = apply_defaults_to_object(inObj, schema, schema);
         return outObj;
     }
 
-    // If schema has a top-level default and data is empty, return scalar with default
-    if ((!vdata.isDict() && !vdata.isList()) && schema.data.find("default") != schema.data.end()) {
-        Dictionary out;
-        out = schema.data.at("default");
-        return out;
+    // If schema has a top-level default and data is not object/array, return default
+    if ((!data.isMappedObject() && !data.isArrayObject()) && schema.m_object_map.find("default") != schema.m_object_map.end()) {
+        return clone_value(schema.m_object_map.at("default"));
     }
 
     // Otherwise return the input dictionary unchanged
@@ -169,3 +152,4 @@ Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
 }
 
 }  // namespace ps
+

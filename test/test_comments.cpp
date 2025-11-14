@@ -10,8 +10,8 @@ TEST_CASE("parser supports // line comments and /* block comments */") {
         {"a": 1} // trailing comment
         )";
     auto v = parse_json(s);
-    REQUIRE(v.data.at("a").isInt());
-    REQUIRE(v.data.at("a").asInt() == 1);
+    REQUIRE(v.at("a").isInt());
+    REQUIRE(v.at("a").asInt() == 1);
     }
 
     SECTION("block comment") {
@@ -21,13 +21,13 @@ TEST_CASE("parser supports // line comments and /* block comments */") {
         {"b": 2}
         )";
     auto v = parse_json(s);
-    REQUIRE(v.data.at("b").isInt());
-    REQUIRE(v.data.at("b").asInt() == 2);
+    REQUIRE(v.at("b").isInt());
+    REQUIRE(v.at("b").asInt() == 2);
     }
 
     SECTION("inline block comment") {
         std::string s = R"({/*c*/"c":3})";
     auto v = parse_json(s);
-    REQUIRE(v.data.at("c").asInt() == 3);
+    REQUIRE(v.at("c").asInt() == 3);
     }
 }

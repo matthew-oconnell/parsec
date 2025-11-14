@@ -36,7 +36,7 @@ namespace {
             }
         }
 
-        Value parse_string() {
+        Dictionary parse_string() {
             if (get() != '"') throw std::runtime_error("expected string");
             std::string out;
             while (true) {
@@ -52,72 +52,109 @@ namespace {
                 } else
                     out.push_back(c);
             }
-            return Value(std::move(out));
+            Dictionary d;
+            d = std::move(out);
+            return d;
         }
 
-        Value parse_number_or_ident() {
+        Dictionary parse_number_or_ident() {
             size_t start = i;
             while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '.' or
                    peek() == '_' or peek() == '-')
                 get();
             std::string tok = s.substr(start, i - start);
-            if (tok == "null") return Value();
-            if (tok == "true") return Value(true);
-            if (tok == "false") return Value(false);
-            // try integer
+            if (tok == "null") return Dictionary::null();
+            if (tok == "true") { Dictionary d; d = true; return d; }
+            if (tok == "false") { Dictionary d; d = false; return d; }
+            // try integer or double
             std::istringstream ss(tok);
             if (tok.find('.') != std::string::npos) {
-                double d;
-                ss >> d;
-                return Value(d);
+                double dval;
+                ss >> dval;
+                Dictionary d; d = dval; return d;
             }
             int64_t v;
             ss >> v;
-            if (!ss.fail()) return Value(v);
-            return Value(tok);
+            if (!ss.fail()) { Dictionary d; d = v; return d; }
+            Dictionary d; d = tok; return d;
         }
 
-        Value parse_array() {
+        Dictionary parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
-            std::vector<Value> out_values;
-            std::vector<Dictionary> out_dicts;
-            bool all_objects = true;
+            std::vector<Dictionary> out_values;
+            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
-                return Value(std::move(out_values));
+                Dictionary res; res = std::vector<Dictionary>{};
+                return res;
             }
             while (true) {
-                Value v = parse_value();
-                // accumulate
+                Dictionary v = parse_value();
                 out_values.emplace_back(v);
-                if (v.isDict()) {
-                    // safe to dereference shared_ptr
-                    out_dicts.push_back(*v.asDict());
-                } else {
-                    all_objects = false;
+                if (!v.isMappedObject()) allObject = false;
+                switch (v.type()) {
+                    case Dictionary::Integer:
+                        allDouble = false; allString = false; allBool = false; allObject = false; break;
+                    case Dictionary::Double:
+                        allInt = false; allString = false; allBool = false; allObject = false; break;
+                    case Dictionary::String:
+                        allInt = false; allDouble = false; allBool = false; allObject = false; break;
+                    case Dictionary::Boolean:
+                        allInt = false; allDouble = false; allString = false; allObject = false; break;
+                    case Dictionary::Object:
+                        allInt = false; allDouble = false; allString = false; allBool = false; break;
+                    default:
+                        allInt = allDouble = allString = allBool = false; allObject = false; break;
                 }
                 skip_ws();
-                if (peek() == ',') {
-                    get();
-                    skip_ws();
-                    if (peek() == ']') {
-                        get();
-                        break;
-                    }
-                    continue;
-                }
                 if (peek() == ']') {
                     get();
                     break;
                 }
+                if (peek() == ',') {
+                    get();
+                    skip_ws();
+                    continue;
+                }
                 // allow implicit separator
                 continue;
             }
-            if (all_objects) {
-                return Value(std::move(out_dicts));
+            Dictionary res;
+            if (out_values.empty()) {
+                res = std::vector<Dictionary>{};
+                return res;
             }
-            return Value(std::move(out_values));
+            if (allInt) {
+                std::vector<int> iv; iv.reserve(out_values.size());
+                for (auto const &e : out_values) iv.push_back(e.asInt());
+                res = iv;
+                return res;
+            }
+            if (allDouble) {
+                std::vector<double> dv; dv.reserve(out_values.size());
+                for (auto const &e : out_values) dv.push_back(e.asDouble());
+                res = dv;
+                return res;
+            }
+            if (allString) {
+                std::vector<std::string> sv; sv.reserve(out_values.size());
+                for (auto const &e : out_values) sv.push_back(e.asString());
+                res = sv;
+                return res;
+            }
+            if (allBool) {
+                std::vector<bool> bv; bv.reserve(out_values.size());
+                for (auto const &e : out_values) bv.push_back(e.asBool());
+                res = bv;
+                return res;
+            }
+            if (allObject) {
+                res = out_values;
+                return res;
+            }
+            res = out_values;
+            return res;
         }
 
         std::string parse_key() {
@@ -132,13 +169,13 @@ namespace {
             return s.substr(start, i - start);
         }
 
-        Value parse_object() {
+        Dictionary parse_object() {
             if (get() != '{') throw std::runtime_error("expected '{'");
             Dictionary d;
             skip_ws();
             if (peek() == '}') {
                 get();
-                return Value(std::move(d));
+                return d;
             }
             while (true) {
                 std::string key = parse_key();
@@ -155,7 +192,7 @@ namespace {
                     throw std::runtime_error(msg.str());
                 }
                 skip_ws();
-                Value v = parse_value();
+                Dictionary v = parse_value();
                 d[key] = v;
                 skip_ws();
                 if (peek() == ',') {
@@ -174,10 +211,10 @@ namespace {
                 // allow implicit separator
                 continue;
             }
-            return Value(std::move(d));
+            return d;
         }
 
-        Value parse_value() {
+        Dictionary parse_value() {
             skip_ws();
             char c = peek();
             if (c == '{') return parse_object();
@@ -185,7 +222,7 @@ namespace {
             if (c == '"') return parse_string();
             if (std::isalpha(static_cast<unsigned char>(c)) or c == '_' or c == '-' or
                 std::isdigit(static_cast<unsigned char>(c)))
-                return parse_number_or_ident();
+                    return parse_number_or_ident();
             {
                 size_t ctx_s = (i >= 20) ? i - 20 : 0;
                 size_t ctx_e = i + 20;
@@ -219,7 +256,7 @@ Dictionary parse_ron(const std::string& text) {
             else
                 throw std::runtime_error("expected ':' or '=' after key");
             p.skip_ws();
-            Value v = p.parse_value();
+                Dictionary v = p.parse_value();
             root[key] = v;
             p.skip_ws();
             if (p.peek() == ',') {
@@ -233,9 +270,9 @@ Dictionary parse_ron(const std::string& text) {
                 continue;
             break;
         }
-        return *Value(std::move(root)).asDict();
+            return root;
     }
-    return *p.parse_value().asDict();
+        return p.parse_value();
 }
 
 }  // namespace ps

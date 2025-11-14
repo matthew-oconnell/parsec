@@ -40,9 +40,7 @@ struct Dictionary {
     std::vector<Dictionary> m_object_array;
     std::map<std::string, Dictionary> m_object_map;
 
-    Dictionary() {
-        my_type = TYPE::Object;
-    }
+    Dictionary() { my_type = TYPE::Object; }
     Dictionary(const Dictionary& other) {
         my_type = other.my_type;
         switch (my_type) {
@@ -199,6 +197,7 @@ struct Dictionary {
     bool has(const std::string& key) const noexcept { return count(key) == 1; }
     bool contains(const std::string& k) const noexcept { return has(k); }
     int size() const noexcept {
+        // I'm not sure what this should mean for scalar types
         switch (my_type) {
             case TYPE::BoolArray:
             case TYPE::DoubleArray:
@@ -209,10 +208,11 @@ struct Dictionary {
             case TYPE::Object:
                 return m_object_map.size();
             default:
-                throw std::logic_error("Type is not a collection or a list");
+                return 0;
         }
     }
     bool empty() const noexcept {
+        // I'm not sure what this should mean for non-mapped types
         switch (my_type) {
             case TYPE::Object:
                 return m_object_map.empty();
@@ -223,7 +223,7 @@ struct Dictionary {
             case TYPE::ObjectArray:
                 return m_object_array.empty();
             default:
-                throw std::logic_error("Type is not a collection");
+                return false;
         }
     }
     bool erase(const std::string& k) {
@@ -374,6 +374,36 @@ struct Dictionary {
         if (my_type == TYPE::Object) return true;
         return false;
     }
+
+    // Convenience predicates for legacy API compatibility
+    bool isDict() const { return isMappedObject(); }
+    bool isList() const { return isArrayObject(); }
+    bool isInt() const { return my_type == TYPE::Integer; }
+    bool isDouble() const { return my_type == TYPE::Double; }
+    bool isString() const { return my_type == TYPE::String; }
+    bool isBool() const { return my_type == TYPE::Boolean; }
+    bool isNull() const { return my_type == TYPE::Null; }
+
+    // Comparison operators against primitive types for compatibility
+    bool operator==(int rhs) const {
+        if (my_type == TYPE::Integer) return static_cast<int>(m_int) == rhs;
+        if (my_type == TYPE::Double) return static_cast<int>(m_double) == rhs;
+        return false;
+    }
+    bool operator!=(int rhs) const { return not(*this == rhs); }
+
+    bool operator==(double rhs) const {
+        if (my_type == TYPE::Double) return m_double == rhs;
+        if (my_type == TYPE::Integer) return static_cast<double>(m_int) == rhs;
+        return false;
+    }
+    bool operator!=(double rhs) const { return not(*this == rhs); }
+
+    bool operator==(bool rhs) const {
+        if (my_type == TYPE::Boolean) return m_bool == rhs;
+        return false;
+    }
+    bool operator!=(bool rhs) const { return not(*this == rhs); }
 
     std::string dump(int indent = 4, bool compact = true) const;
 
