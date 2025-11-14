@@ -105,7 +105,7 @@ static Value apply_defaults_to_value(const Value &dataVal, const Dictionary &sch
             auto it_items = schema_node.data.find("items");
             if (it_items != schema_node.data.end() && it_items->second.isDict() && dataVal.isList()) {
                 const Dictionary* itemSchema = it_items->second.asDict().get();
-                Value::list_t outList;
+                std::vector<Value> outList;
                 for (auto const &el : dataVal.asList()) {
                     outList.push_back(apply_defaults_to_value(el, schema_root, *itemSchema));
                 }

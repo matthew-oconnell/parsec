@@ -17,11 +17,8 @@ namespace ps {
 struct Dictionary; // forward
 
 struct Value {
-    using list_t = std::vector<Value>;
-    using dict_ptr = std::shared_ptr<Dictionary>;
-    using key_type = std::string;
 
-    std::variant<std::monostate, int64_t, double, bool, std::string, list_t, dict_ptr> v;
+    std::variant<std::monostate, int64_t, double, bool, std::string, std::vector<Value>, std::shared_ptr<Dictionary>> v;
 
     Value() = default;
     Value(int64_t x) : v(x) {}
@@ -31,16 +28,16 @@ struct Value {
     Value(const char* s) : v(std::string(s)) {}
     Value(const std::string& s) : v(s) {}
     Value(std::string&& s) : v(std::move(s)) {}
-    Value(const list_t& l) : v(l) {}
-    Value(list_t&& l) : v(std::move(l)) {}
+    Value(const std::vector<Value>& l) : v(l) {}
+    Value(std::vector<Value>&& l) : v(std::move(l)) {}
     Value(const Dictionary& d);
     Value(Dictionary&& d);
 
     // convenience constructors for common vector types
-    Value(const std::vector<int>& v_) { list_t L; for (auto x: v_) L.emplace_back(int64_t(x)); v = std::move(L); }
-    Value(const std::vector<double>& v_) { list_t L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
-    Value(const std::vector<std::string>& v_) { list_t L; for (auto const &x: v_) L.emplace_back(x); v = std::move(L); }
-    Value(const std::vector<bool>& v_) { list_t L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
+    Value(const std::vector<int>& v_) { std::vector<Value> L; for (auto x: v_) L.emplace_back(int64_t(x)); v = std::move(L); }
+    Value(const std::vector<double>& v_) { std::vector<Value> L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
+    Value(const std::vector<std::string>& v_) { std::vector<Value> L; for (auto const &x: v_) L.emplace_back(x); v = std::move(L); }
+    Value(const std::vector<bool>& v_) { std::vector<Value> L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
     // accept a vector of Dictionary objects (useful for parsers that build object lists)
     Value(const std::vector<Dictionary>& v_);
     Value(std::vector<Dictionary>&& v_);
@@ -49,7 +46,7 @@ struct Value {
     // Note: avoid an initializer_list<std::string> overload to prevent
     // ambiguity with initializer_list<const char*> and initializer_list<Value>.
     Value(std::initializer_list<const char*> init) {
-        list_t L; L.reserve(init.size());
+        std::vector<Value> L; L.reserve(init.size());
         for (auto const &e: init) L.emplace_back(std::string(e));
         v = std::move(L);
     }
@@ -62,8 +59,8 @@ struct Value {
     bool isDouble() const noexcept { return std::holds_alternative<double>(v); }
     bool isBool() const noexcept { return std::holds_alternative<bool>(v); }
     bool isString() const noexcept { return std::holds_alternative<std::string>(v); }
-    bool isList() const noexcept { return std::holds_alternative<list_t>(v); }
-    bool isDict() const noexcept { return std::holds_alternative<dict_ptr>(v); }
+    bool isList() const noexcept { return std::holds_alternative<std::vector<Value>>(v); }
+    bool isDict() const noexcept { return std::holds_alternative<std::shared_ptr<Dictionary>>(v); }
     bool isValueObject() const { return not isList() and not isDict() and not isNull(); }
     bool isArrayObject() const { return isList(); }
 
@@ -99,8 +96,8 @@ struct Value {
     }
 
     // camelCase wrappers for collection accessors (direct variant access)
-    const list_t& asList() const { return std::get<list_t>(v); }
-    const dict_ptr& asDict() const { return std::get<dict_ptr>(v); }
+    const std::vector<Value>& asList() const { return std::get<std::vector<Value>>(v); }
+    const std::shared_ptr<Dictionary>& asDict() const { return std::get<std::shared_ptr<Dictionary>>(v); }
 
     bool operator==(const Value& o) const noexcept { return v == o.v; }
 
@@ -114,12 +111,12 @@ struct Value {
     // indexing and access
     Value& operator[](size_t idx);
     const Value& operator[](size_t idx) const;
-    Value& operator[](const key_type& k);
+    Value& operator[](const std::string& k);
 
     const Value& at(size_t idx) const;
     Value& at(size_t idx);
-    const Value& at(const key_type& k) const;
-    Value& at(const key_type& k);
+    const Value& at(const std::string& k) const;
+    Value& at(const std::string& k);
 
     int size() const noexcept;
 
@@ -129,9 +126,9 @@ struct Value {
     std::string dump(int indent = 4, bool compact = true) const;
     // forward map-like helpers when Value holds a dict
     std::vector<std::string> keys() const;
-    bool has(const key_type &k) const;
-    int count(const key_type &k) const;
-    bool contains(const key_type &k) const;
+    bool has(const std::string &k) const;
+    int count(const std::string &k) const;
+    bool contains(const std::string &k) const;
     // forward merge/override when value is dict
     Dictionary overrideEntries(const Dictionary& cfg) const;
     Dictionary merge(const Dictionary& cfg) const;
@@ -141,10 +138,8 @@ struct Value {
 };
 
 struct Dictionary {
-    using list_t = std::vector<Dictionary>;
-    using key_type = std::string;
     using value_type = Value;
-    using map_type = std::map<key_type, value_type>;
+    using map_type = std::map<std::string, value_type>;
 
     map_type data;
     std::optional<Value> scalar;
@@ -168,31 +163,31 @@ struct Dictionary {
     Dictionary& operator=(int n) { return operator=(int64_t(n)); }
     Dictionary& operator=(double x) { data.clear(); scalar = Value(x); return *this; }
     Dictionary& operator=(const bool& b) { data.clear(); scalar = Value(b); return *this; }
-    Dictionary& operator=(const std::vector<int>& v) { Value::list_t L; for (auto x : v) L.emplace_back(int64_t(x)); data.clear(); scalar = Value(std::move(L)); return *this; }
-    Dictionary& operator=(const std::vector<bool>& v) { Value::list_t L; for (bool x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
-    Dictionary& operator=(const std::vector<double>& v) { Value::list_t L; for (auto x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
-    Dictionary& operator=(const std::vector<std::string>& v) { Value::list_t L; for (auto const &x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(const std::vector<int>& v) { std::vector<Value> L; for (auto x : v) L.emplace_back(int64_t(x)); data.clear(); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(const std::vector<bool>& v) { std::vector<Value> L; for (bool x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(const std::vector<double>& v) { std::vector<Value> L; for (auto x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(const std::vector<std::string>& v) { std::vector<Value> L; for (auto const &x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
     Dictionary& operator=(const std::vector<Dictionary>& v) { data.clear(); // store as scalar list of Values constructed from dictionaries
-        Value::list_t L; L.reserve(v.size()); for (auto const &d: v) L.emplace_back(Value(d)); scalar = Value(std::move(L)); return *this; }
-    Dictionary& operator=(std::vector<Dictionary>&& v) { data.clear(); Value::list_t L; L.reserve(v.size()); for (auto &d: v) L.emplace_back(Value(std::move(d))); scalar = Value(std::move(L)); return *this; }
+        std::vector<Value> L; L.reserve(v.size()); for (auto const &d: v) L.emplace_back(Value(d)); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(std::vector<Dictionary>&& v) { data.clear(); std::vector<Value> L; L.reserve(v.size()); for (auto &d: v) L.emplace_back(Value(std::move(d))); scalar = Value(std::move(L)); return *this; }
     Dictionary& operator=(Value&& obj) { data.clear(); scalar = std::move(obj); return *this; }
     Dictionary& operator=(const Value& obj) { Value tmp = obj; data.clear(); scalar = std::move(tmp); return *this; }
 
     bool operator==(const Dictionary& rhs) const { return data == rhs.data && scalar == rhs.scalar; }
     bool operator!=(const Dictionary& rhs) const { return not (*this == rhs); }
 
-    bool isTrue(const key_type& key) const {
+    bool isTrue(const std::string& key) const {
         auto it = data.find(key);
         if (it == data.end()) return false;
         return it->second.isBool() && it->second.asBool();
     }
-    int count(const key_type& key) const {
+    int count(const std::string& key) const {
         if (data.find(key) != data.end()) return 1;
         if (scalar && scalar->isDict()) return (*scalar->asDict()).count(key);
         return 0;
     }
-    bool has(const key_type& key) const noexcept { return count(key) == 1; }
-    bool contains(const key_type& k) const noexcept { return has(k); }
+    bool has(const std::string& key) const noexcept { return count(key) == 1; }
+    bool contains(const std::string& k) const noexcept { return has(k); }
     int size() const noexcept {
         if (not data.empty()) return data.size();
         if (scalar) {
@@ -202,7 +197,7 @@ struct Dictionary {
         return 0;
     }
     bool empty() const noexcept { return data.empty(); }
-    bool erase(const key_type& k) { return data.erase(k) > 0; }
+    bool erase(const std::string& k) { return data.erase(k) > 0; }
     void clear() noexcept { data.clear(); scalar.reset(); }
 
     TYPE type() const;
@@ -231,8 +226,8 @@ struct Dictionary {
         }
         throw std::logic_error("Not a list");
     }
-    value_type& operator[](const key_type& k) { return data[k]; }
-    const value_type& at(const key_type& k) const {
+    value_type& operator[](const std::string& k) { return data[k]; }
+    const value_type& at(const std::string& k) const {
         auto it = data.find(k);
         if (it != data.end()) return it->second;
         if (scalar && scalar->isDict()) {
@@ -246,7 +241,7 @@ struct Dictionary {
         }
         throw std::out_of_range("key not found");
     }
-    value_type& at(const key_type& k) {
+    value_type& at(const std::string& k) {
         auto it = data.find(k);
         if (it != data.end()) return it->second;
         if (scalar && scalar->isDict()) {
@@ -260,9 +255,9 @@ struct Dictionary {
         throw std::out_of_range("key not found");
     }
 
-    std::vector<key_type> keys() const { std::vector<key_type> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.first); return out; }
+    std::vector<std::string> keys() const { std::vector<std::string> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.first); return out; }
     std::vector<value_type> values() const { std::vector<value_type> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.second); return out; }
-    std::vector<std::pair<key_type, value_type>> items() const { std::vector<std::pair<key_type, value_type>> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p); return out; }
+    std::vector<std::pair<std::string, value_type>> items() const { std::vector<std::pair<std::string, value_type>> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p); return out; }
 
     // scalar accessors - keep old names for tests
     std::string asString() const { if (scalar && scalar->isString()) return scalar->asString(); throw std::runtime_error("not a string"); }
@@ -288,7 +283,7 @@ struct Dictionary {
     Dictionary overrideEntries(const Value& cfg) const;
     Dictionary merge(const Value& cfg) const;
 
-    Dictionary(std::initializer_list<std::pair<const key_type, value_type>> init)
+    Dictionary(std::initializer_list<std::pair<const std::string, value_type>> init)
       : data(init) {}
 
       std::string to_string() const {
@@ -309,12 +304,12 @@ inline Value::Value(std::initializer_list<std::pair<const std::string, Value>> i
 
 // define vector<Dictionary> constructors now that Dictionary is complete
 inline Value::Value(const std::vector<Dictionary>& v_) {
-    list_t L; L.reserve(v_.size());
+    std::vector<Value> L; L.reserve(v_.size());
     for (auto const &d: v_) L.emplace_back(Value(d));
     v = std::move(L);
 }
 inline Value::Value(std::vector<Dictionary>&& v_) {
-    list_t L; L.reserve(v_.size());
+    std::vector<Value> L; L.reserve(v_.size());
     for (auto &d: v_) L.emplace_back(Value(std::move(d)));
     v = std::move(L);
 }
@@ -369,20 +364,20 @@ inline std::vector<Dictionary> Value::asObjects() const {
 }
 
 inline Value& Value::operator[](size_t idx) {
-    if (!isList()) { list_t L; v = std::move(L); }
-    auto &L = std::get<list_t>(v);
+    if (!isList()) { std::vector<Value> L; v = std::move(L); }
+    auto &L = std::get<std::vector<Value>>(v);
     if (idx >= L.size()) L.resize(idx+1);
     return L[idx];
 }
 inline const Value& Value::operator[](size_t idx) const {
     if (!isList()) throw std::out_of_range("not a list");
-    const auto &L = std::get<list_t>(v);
+    const auto &L = std::get<std::vector<Value>>(v);
     if (idx >= L.size()) throw std::out_of_range("index out of range");
     return L[idx];
 }
-inline Value& Value::operator[](const key_type& k) {
-    if (!isDict()) { dict_ptr p = std::make_shared<Dictionary>(); v = p; }
-    auto &p = *std::get<dict_ptr>(v);
+inline Value& Value::operator[](const std::string& k) {
+    if (!isDict()) { std::shared_ptr<Dictionary> p = std::make_shared<Dictionary>(); v = p; }
+    auto &p = *std::get<std::shared_ptr<Dictionary>>(v);
     return p[k];
 }
 
@@ -391,15 +386,15 @@ inline const Value& Value::at(size_t idx) const {
     throw std::out_of_range("not an array");
 }
 inline Value& Value::at(size_t idx) {
-    if (isList()) { auto &L = std::get<list_t>(v); if (idx >= L.size()) throw std::out_of_range("index out of range"); return L[idx]; }
+    if (isList()) { auto &L = std::get<std::vector<Value>>(v); if (idx >= L.size()) throw std::out_of_range("index out of range"); return L[idx]; }
     throw std::out_of_range("not an array");
 }
-inline const Value& Value::at(const key_type& k) const {
+inline const Value& Value::at(const std::string& k) const {
     if (isDict()) { const auto &p = *asDict(); return p.at(k); }
     throw std::out_of_range("not an object");
 }
-inline Value& Value::at(const key_type& k) {
-    if (isDict()) { auto &p = *std::get<dict_ptr>(v); return p.at(k); }
+inline Value& Value::at(const std::string& k) {
+    if (isDict()) { auto &p = *std::get<std::shared_ptr<Dictionary>>(v); return p.at(k); }
     throw std::out_of_range("not an object");
 }
 inline int Value::size() const noexcept {
@@ -578,7 +573,7 @@ inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
 namespace ps {
 
 // Helper: detect homogeneous list type - used by Dictionary::type and Value::type
-inline Dictionary::TYPE detect_list_type(const Value::list_t &L) {
+inline Dictionary::TYPE detect_list_type(const std::vector<Value> &L) {
     if (L.empty()) return Dictionary::ObjectArray;
     bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
     for (auto const &e: L) {
@@ -635,9 +630,9 @@ inline Dictionary::TYPE Dictionary::type() const {
 inline std::string Value::dump(int indent, bool compact) const { if (isDict()) { const auto &p = asDict(); return p ? p->dump(indent, compact) : std::string("null"); } return to_string(); }
 
 inline std::vector<std::string> Value::keys() const { if (isDict()) { const auto &p = asDict(); return p ? p->keys() : std::vector<std::string>{}; } throw std::runtime_error("not an object"); }
-inline bool Value::has(const key_type &k) const { if (isDict()) { const auto &p = asDict(); return p ? p->has(k) : false; } return false; }
-inline int Value::count(const key_type &k) const { if (isDict()) { const auto &p = asDict(); return p ? p->count(k) : 0; } return 0; }
-inline bool Value::contains(const key_type &k) const { return has(k); }
+inline bool Value::has(const std::string &k) const { if (isDict()) { const auto &p = asDict(); return p ? p->has(k) : false; } return false; }
+inline int Value::count(const std::string &k) const { if (isDict()) { const auto &p = asDict(); return p ? p->count(k) : 0; } return 0; }
+inline bool Value::contains(const std::string &k) const { return has(k); }
 
 inline Dictionary Value::overrideEntries(const Dictionary& cfg) const { if (isDict()) { const auto &p = asDict(); return p ? p->overrideEntries(cfg) : Dictionary(); } throw std::runtime_error("not an object"); }
 inline Dictionary Value::merge(const Dictionary& cfg) const { if (isDict()) { const auto &p = asDict(); return p ? p->merge(cfg) : Dictionary(); } throw std::runtime_error("not an object"); }

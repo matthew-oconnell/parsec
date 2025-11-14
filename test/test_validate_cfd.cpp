@@ -19,7 +19,7 @@ TEST_CASE("validate CFD schema minimal pass", "[validate][cfd]") {
     Dictionary hs;
     // Include some keys that appear in the real schema to be reasonable
     hs["states"] = Value(Dictionary());
-    hs["boundary conditions"] = Value(Value::list_t{});
+    hs["boundary conditions"] = Value(std::vector<Value>{});
     cfg["HyperSolve"] = Value(hs);
 
     auto err = validate(cfg, schema);

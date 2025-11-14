@@ -273,7 +273,7 @@ namespace {
             if (get() != '[') throw JsonParseError("expected '['", line, col);
             // push opener for diagnostics
             opener_stack.push_back(Opener{'[', line, col});
-            Value::list_t out_values;
+            std::vector<Value> out_values;
             std::vector<Dictionary> out_dicts;
             bool all_objects = true;
             skip_ws();

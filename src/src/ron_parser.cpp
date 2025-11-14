@@ -58,7 +58,7 @@ namespace {
 
         Value parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
-            Value::list_t out_values;
+            std::vector<Value> out_values;
             std::vector<Dictionary> out_dicts;
             bool all_objects = true;
             skip_ws();

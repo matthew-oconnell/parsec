@@ -98,7 +98,7 @@ TEST_CASE("validate phase1: enum and additionalProperties", "[validate][phase1]"
     Dictionary top; // use full-schema with type/object/properties
     top["type"] = Value("object");
     Dictionary props;
-    Dictionary color; color["type"] = Value("string"); color["enum"] = Value(Value::list_t{ Value(std::string("red")), Value(std::string("green")), Value(std::string("blue")) });
+    Dictionary color; color["type"] = Value("string"); color["enum"] = Value(std::vector<Value>{ Value(std::string("red")), Value(std::string("green")), Value(std::string("blue")) });
     props["color"] = Value(color);
     top["properties"] = Value(props);
     top["additionalProperties"] = Value(false);
@@ -138,19 +138,19 @@ TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase
     top["properties"] = Value(props);
 
     SECTION("array valid sizes") {
-        Dictionary cfg; Value::list_t L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); cfg["nums"] = Value(L);
+        Dictionary cfg; std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); cfg["nums"] = Value(L);
         auto e = validate(cfg, top);
         REQUIRE(!e.has_value());
     }
 
     SECTION("array too few") {
-        Dictionary cfg; Value::list_t L; cfg["nums"] = Value(L);
+        Dictionary cfg; std::vector<Value> L; cfg["nums"] = Value(L);
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
     }
 
     SECTION("array element wrong type") {
-        Dictionary cfg; Value::list_t L; L.emplace_back(std::string("x")); cfg["nums"] = Value(L);
+        Dictionary cfg; std::vector<Value> L; L.emplace_back(std::string("x")); cfg["nums"] = Value(L);
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
     }
@@ -188,7 +188,7 @@ TEST_CASE("validate phase2: oneOf/anyOf/allOf", "[validate][phase2]") {
     // allOf: must be both integer and >= 5
     Dictionary s1; s1["type"] = Value(std::string("integer"));
     Dictionary s2; s2["minimum"] = Value(int64_t(5));
-    Dictionary all; all["allOf"] = Value(Value::list_t{ Value(s1), Value(s2) });
+    Dictionary all; all["allOf"] = Value(std::vector<Value>{ Value(s1), Value(s2) });
 
     SECTION("allOf success") {
         Dictionary d; d.scalar = Value(int64_t(6));
@@ -203,27 +203,27 @@ TEST_CASE("validate phase2: oneOf/anyOf/allOf", "[validate][phase2]") {
     }
 
     // anyOf: either integer or string
-    Dictionary any; any["anyOf"] = Value(Value::list_t{ Value(s1), Value(Dictionary{{"type", Value(std::string("string"))}}) });
+    Dictionary any; any["anyOf"] = Value(std::vector<Value>{ Value(s1), Value(Dictionary{{"type", Value(std::string("string"))}}) });
     SECTION("anyOf match") { Dictionary d; d.scalar = Value(std::string("hi")); REQUIRE(!validate(d, any).has_value()); }
     SECTION("anyOf no match") { Dictionary d; d.scalar = Value(1.23); REQUIRE(validate(d, any).has_value()); }
 
     // oneOf: exactly one alternative
     Dictionary o1; o1["type"] = Value(std::string("integer")); o1["minimum"] = Value(int64_t(0));
     Dictionary o2; o2["type"] = Value(std::string("integer")); o2["maximum"] = Value(int64_t(10));
-    Dictionary one; one["oneOf"] = Value(Value::list_t{ Value(o1), Value(o2) });
+    Dictionary one; one["oneOf"] = Value(std::vector<Value>{ Value(o1), Value(o2) });
     SECTION("oneOf ambiguous") { Dictionary d; d.scalar = Value(int64_t(5)); REQUIRE(validate(d, one).has_value()); }
 }
 
 TEST_CASE("validate phase2: tuple items and additionalItems", "[validate][phase2]") {
     Dictionary schema; schema["type"] = Value(std::string("array"));
     // tuple: [int, string], additionalItems=false
-    Value::list_t tupleSchemas; tupleSchemas.emplace_back(Dictionary{{"type", Value(std::string("integer"))}});
+    std::vector<Value> tupleSchemas; tupleSchemas.emplace_back(Dictionary{{"type", Value(std::string("integer"))}});
     tupleSchemas.emplace_back(Dictionary{{"type", Value(std::string("string"))}});
     schema["items"] = Value(tupleSchemas);
     schema["additionalItems"] = Value(false);
 
-    SECTION("tuple valid") { Value::list_t L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(!e.has_value()); }
-    SECTION("tuple extra item") { Value::list_t L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); L.emplace_back(int64_t(3)); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(e.has_value()); }
+    SECTION("tuple valid") { std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(!e.has_value()); }
+    SECTION("tuple extra item") { std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(std::string("ok")); L.emplace_back(int64_t(3)); Dictionary d; d.scalar = Value(L); auto e = validate(d, schema); REQUIRE(e.has_value()); }
 }
 
 TEST_CASE("validate phase2: uniqueItems and patternProperties", "[validate][phase2]") {
@@ -242,7 +242,7 @@ TEST_CASE("validate phase2: uniqueItems and patternProperties", "[validate][phas
 
     // uniqueItems
     Dictionary arr; arr["type"] = Value(std::string("array")); arr["uniqueItems"] = Value(true);
-    Value::list_t L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); L.emplace_back(int64_t(1)); arr["items"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
+    std::vector<Value> L; L.emplace_back(int64_t(1)); L.emplace_back(int64_t(2)); L.emplace_back(int64_t(1)); arr["items"] = Value(Dictionary{{"type", Value(std::string("integer"))}});
     SECTION("uniqueItems violation") { Dictionary d; d.scalar = Value(L); auto e = validate(d, arr); REQUIRE(e.has_value()); }
 }
 
@@ -303,7 +303,7 @@ TEST_CASE("additionalProperties schema can be an object schema with required fie
     // no explicit properties
     Dictionary addSchema; addSchema["type"] = Value(std::string("object"));
     // additional properties must be objects that contain key 'x'
-        addSchema["required"] = Value(Value::list_t{ Value(std::string("x")) });
+        addSchema["required"] = Value(std::vector<Value>{ Value(std::string("x")) });
     schema["additionalProperties"] = Value(addSchema);
 
     SECTION("extra property missing required field fails") {
