@@ -448,7 +448,15 @@ Dictionary parse_json(const std::string& text) {
         }
         throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
     }
-    return *val.asDict();
+
+    if (val.isList()) {
+        Dictionary dictionary;
+        dictionary.scalar = val;
+        return dictionary;
+    } else {
+        Dictionary dictionary = *val.asDict();
+        return dictionary;
+    }
 }
 
 } // namespace ps

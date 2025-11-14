@@ -186,7 +186,10 @@ struct Dictionary {
     bool contains(const key_type& k) const noexcept { return has(k); }
     int size() const noexcept {
         if (not data.empty()) return data.size();
-        if (scalar && scalar->isDict()) return scalar->asDict()->size();
+        if (scalar) {
+            if (scalar->isDict()) return scalar->asDict()->size();
+            if (scalar->isList()) return scalar->asList().size();
+        }
         return 0;
     }
     bool empty() const noexcept { return data.empty(); }

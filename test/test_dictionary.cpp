@@ -227,16 +227,16 @@ TEST_CASE("Scalar Objects can be converted to arrays of single length") {
 TEST_CASE("Demonstrate how to get a Json object from a dict formatted string") {
     SECTION("Object") {
         std::string settings_string =
-            R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
-    auto dict_object = parse_json(settings_string);
-    REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
+                R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
+        auto dict_object = parse_json(settings_string);
+        REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
     }
     SECTION("Array of objects") {
         std::string settings_string = R"([{"name":"Pikachu"}, {"name":"Mewtwo"}])";
-    auto dict_object = parse_json(settings_string);
+        auto dict_object = parse_json(settings_string);
         REQUIRE(2 == dict_object.size());
-    REQUIRE(dict_object.at(0).at("name").asString() == "Pikachu");
-    REQUIRE(dict_object.at(1).at("name").asString() == "Mewtwo");
+        REQUIRE(dict_object.at(0).at("name").asString() == "Pikachu");
+        REQUIRE(dict_object.at(1).at("name").asString() == "Mewtwo");
     }
 }
 
@@ -262,12 +262,11 @@ TEST_CASE("Prevent precision issues") {
     auto reparse = parse_json(dict.dump());
     REQUIRE_NOTHROW(reparse.dump(4));
     INFO(reparse.dump(4));
-    const auto& array = dict.at("object w/array that get reparsed with int + double members").at("array");
+    const auto &array = dict.at("object w/array that get reparsed with int + double members").at("array");
     REQUIRE(array.type() == Dictionary::DoubleArray);
 }
 
 TEST_CASE("Can merge two JSON objects into a new JSON object") {
-    
     std::string defaults = R"({
     "nested object1": {
         "prop1": "default value",
@@ -316,7 +315,7 @@ TEST_CASE("Can merge two dictionaries including adding new keys") {
 }
 
 TEST_CASE("Can iterate through objects") {
-     std::string config = R"({
+    std::string config = R"({
     "regions": [
         {"type": "sphere", "radius":1.0, "center":[0,0,0]},
         {"type": "sphere", "radius":1.5, "center":[1,0,0]}
@@ -326,7 +325,7 @@ TEST_CASE("Can iterate through objects") {
     auto dict = parse_json(config);
     REQUIRE(dict.keys().size() == 1);
 
-    for (auto r : dict.at("regions").asObjects()) {
+    for (auto r: dict.at("regions").asObjects()) {
         printf("%s\n", r.dump().c_str());
     }
 }
@@ -349,12 +348,12 @@ TEST_CASE("Can easily check if something exists and is true") {
     REQUIRE_FALSE(dict.isTrue("int key"));
 
     dict["bool key"] = false;
-        REQUIRE_FALSE(dict.at("bool key").asBool());
+    REQUIRE_FALSE(dict.at("bool key").asBool());
     REQUIRE_FALSE(dict.isTrue("bool key"));
 
     dict["actually true"] = true;
     REQUIRE(dict.at("actually true").asBool());
-        REQUIRE(dict.at("actually true").asBool());
+    REQUIRE(dict.at("actually true").asBool());
     REQUIRE(dict.isTrue("actually true"));
 }
 
