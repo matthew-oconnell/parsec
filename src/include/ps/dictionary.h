@@ -190,6 +190,15 @@ struct Dictionary {
     };
 
     TYPE my_type = Object;
+    bool m_bool;
+    double m_double;
+    int64_t m_int;
+    std::vector<int64_t> m_int_array;
+    std::vector<double> m_double_array;
+    std::vector<std::string> m_string_array;
+    std::vector<bool> m_bool_array;
+    std::vector<Dictionary> m_object_array;
+    std::map<std::string, Dictionary> m_object_map;
 
     std::map<std::string, Value> data;
     std::optional<Value> scalar;
@@ -201,7 +210,11 @@ struct Dictionary {
     Dictionary(const Dictionary& other) = default;
     Dictionary(Dictionary&& other) noexcept = default;
     Dictionary& operator=(Dictionary&& other) noexcept = default;
-    static Value null() { return Value(); }
+    static Dictionary null() { 
+        Dictionary d;
+        d.my_type = TYPE::Null;
+        return d;
+    }
 
     Dictionary& operator=(const Dictionary& d) {
         data = d.data;
