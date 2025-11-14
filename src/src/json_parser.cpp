@@ -165,7 +165,7 @@ namespace {
             }
         }
 
-        Value parse_value() {
+        Dictionary parse_value() {
             skip_ws();
             char c = peek();
             if (c == 'n') return parse_null();
@@ -209,25 +209,29 @@ namespace {
                         format_error("unexpected token while parsing value", line, col), line, col);
         }
 
-        Value parse_null() {
+        Dictionary parse_null() {
             if (s.compare(i, 4, "null") == 0) {
                 i += 4;
                 col += 4;
-                return Value();
+                return Dictionary::null();
             }
             throw JsonParseError(format_error("invalid literal", line, col), line, col);
         }
 
-        Value parse_bool() {
+        Dictionary parse_bool() {
             if (s.compare(i, 4, "true") == 0) {
                 i += 4;
                 col += 4;
-                return Value(true);
+                Dictionary d;
+                d = true;
+                return d;
             }
             if (s.compare(i, 5, "false") == 0) {
                 i += 5;
                 col += 5;
-                return Value(false);
+                Dictionary d;
+                d = false;
+                return d;
             }
             throw JsonParseError(format_error("invalid literal", line, col), line, col);
         }
@@ -259,7 +263,7 @@ namespace {
             }
         }
 
-        Value parse_string() {
+        Dictionary parse_string() {
             if (get() != '"') throw JsonParseError("expected '\"'", line, col);
             std::string out;
             while (true) {
@@ -317,10 +321,12 @@ namespace {
                     out.push_back(c);
                 }
             }
-            return Value(std::move(out));
+            Dictionary d;
+            d = std::move(out);
+            return d;
         }
 
-        Value parse_number() {
+        Dictionary parse_number() {
             size_t start = i;
             if (peek() == '-') {
                 get();
@@ -346,38 +352,56 @@ namespace {
             }
             std::string token = s.substr(start, i - start);
             if (is_float) {
-                double d;
+                double dv;
                 std::istringstream ss(token);
-                ss >> d;
-                return Value(d);
+                ss >> dv;
+                Dictionary d;
+                d = dv;
+                return d;
             } else {
                 int64_t v;
                 std::istringstream ss(token);
                 ss >> v;
-                return Value(v);
+                Dictionary d;
+                d = v;
+                return d;
             }
         }
 
-        Value parse_array() {
+        Dictionary parse_array() {
             if (get() != '[') throw JsonParseError("expected '['", line, col);
             // push opener for diagnostics
             opener_stack.push_back(Opener{'[', line, col});
-            std::vector<Value> out_values;
-            std::vector<Dictionary> out_dicts;
+            std::vector<Dictionary> out_values;
             bool all_objects = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
                 pop_opener();
-                return Value(std::move(out_values));
+                Dictionary res;
+                res = std::vector<Dictionary>{};
+                return res;
             }
             while (true) {
-                Value v = parse_value();
+                Dictionary v = parse_value();
                 out_values.emplace_back(v);
-                if (v.isDict())
-                    out_dicts.push_back(*v.asDict());
-                else
-                    all_objects = false;
+                if (!v.isMappedObject()) all_objects = false;
+                // detect homogeneous primitive lists
+                switch (v.type()) {
+                    case Dictionary::Integer:
+                        allDouble = false; allString = false; allBool = false; allObject = false; break;
+                    case Dictionary::Double:
+                        allInt = false; allString = false; allBool = false; allObject = false; break;
+                    case Dictionary::String:
+                        allInt = false; allDouble = false; allBool = false; allObject = false; break;
+                    case Dictionary::Boolean:
+                        allInt = false; allDouble = false; allString = false; allObject = false; break;
+                    case Dictionary::Object:
+                        allInt = false; allDouble = false; allString = false; allBool = false; break;
+                    default:
+                        allInt = allDouble = allString = allBool = false; allObject = false; break;
+                }
                 skip_ws();
                 char c = peek();
                 if (c == ']') {
@@ -407,11 +431,48 @@ namespace {
                     throw JsonParseError(msg, line, col);
                 }
             }
-            if (all_objects) return Value(std::move(out_dicts));
-            return Value(std::move(out_values));
+            // if homogeneous primitive arrays, use the vector<T> assignment helpers
+            Dictionary res;
+            if (out_values.empty()) {
+                // empty array: default to object array
+                res = std::vector<Dictionary>{};
+                return res;
+            }
+            if (allInt) {
+                std::vector<int> iv;
+                for (auto const &e : out_values) iv.push_back(e.asInt());
+                res = iv;
+                return res;
+            }
+            if (allDouble) {
+                std::vector<double> dv;
+                for (auto const &e : out_values) dv.push_back(e.asDouble());
+                res = dv;
+                return res;
+            }
+            if (allString) {
+                std::vector<std::string> sv;
+                for (auto const &e : out_values) sv.push_back(e.asString());
+                res = sv;
+                return res;
+            }
+            if (allBool) {
+                std::vector<bool> bv;
+                for (auto const &e : out_values) bv.push_back(e.asBool());
+                res = bv;
+                return res;
+            }
+            if (allObject) {
+                std::vector<Dictionary> ov = out_values;
+                res = ov;
+                return res;
+            }
+            // default: return as object array of heterogeneous Dictionaries
+            res = out_values;
+            return res;
         }
 
-        Value parse_object() {
+        Dictionary parse_object() {
             if (get() != '{') throw JsonParseError("expected '{'", line, col);
             opener_stack.push_back(Opener{'{', line, col});
             Dictionary d;
@@ -419,7 +480,7 @@ namespace {
             if (peek() == '}') {
                 get();
                 pop_opener();
-                return Value(std::move(d));
+                return d;
             }
             while (true) {
                 skip_ws();
@@ -439,14 +500,14 @@ namespace {
                         base += std::string(" — are you missing quotes around '") + ident + "'?";
                     throw JsonParseError(format_error(base, line, col), line, col);
                 }
-                Value k = parse_string();
+                Dictionary k = parse_string();
                 skip_ws();
                 if (get() != ':')
                     throw JsonParseError(format_error("expected ':' after object key", line, col),
                                          line,
                                          col);
                 skip_ws();
-                Value v = parse_value();
+                Dictionary v = parse_value();
                 d[k.asString()] = v;
                 skip_ws();
                 char c = peek();
@@ -572,7 +633,7 @@ namespace {
                     throw JsonParseError(msg, line, col);
                 }
             }
-            return Value(std::move(d));
+            return d;
         }
     };
 }
@@ -610,7 +671,7 @@ Dictionary parse_json(const std::string& text) {
                                                p.col),
                                 p.line,
                                 p.col);
-                Value k = p.parse_string();
+                Dictionary k = p.parse_string();
                 p.skip_ws();
                 if (p.get() != ':')
                     throw JsonParseError(
@@ -618,7 +679,7 @@ Dictionary parse_json(const std::string& text) {
                                 p.line,
                                 p.col);
                 p.skip_ws();
-                Value v = p.parse_value();
+                Dictionary v = p.parse_value();
                 root[k.asString()] = v;
                 p.skip_ws();
                 char c = p.peek();
@@ -634,20 +695,14 @@ Dictionary parse_json(const std::string& text) {
                                      p.line,
                                      p.col);
             }
-            return *Value(std::move(root)).asDict();
+            return root;
         }
         throw JsonParseError(
                     p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
     }
 
-    if (val.isList()) {
-        Dictionary dictionary;
-        dictionary.scalar = val;
-        return dictionary;
-    } else {
-        Dictionary dictionary = *val.asDict();
-        return dictionary;
-    }
+    // Parsed value is already a Dictionary (scalar, object, or array)
+    return val;
 }
 
 }  // namespace ps
