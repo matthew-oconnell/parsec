@@ -15,12 +15,13 @@ target_include_directories(parsec_lib
 
 target_sources(parsec_lib
   PRIVATE
-    src/parsec.cpp
+    src/defaults.cpp
+    src/dictionary.cpp
     src/json_parser.cpp
     src/parse.cpp
+    src/parsec.cpp
     src/ron_parser.cpp
     src/validate.cpp
-    src/defaults.cpp
 )
 
 ## Compiler warning flags
