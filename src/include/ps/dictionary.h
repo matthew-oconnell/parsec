@@ -41,6 +41,9 @@ struct Value {
     Value(const std::vector<double>& v_) { list_t L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
     Value(const std::vector<std::string>& v_) { list_t L; for (auto const &x: v_) L.emplace_back(x); v = std::move(L); }
     Value(const std::vector<bool>& v_) { list_t L; for (auto x: v_) L.emplace_back(x); v = std::move(L); }
+    // accept a vector of Dictionary objects (useful for parsers that build object lists)
+    Value(const std::vector<Dictionary>& v_);
+    Value(std::vector<Dictionary>&& v_);
 
     // initializer-list helpers for convenient braced initialization
     // Note: avoid an initializer_list<std::string> overload to prevent
@@ -138,6 +141,7 @@ struct Value {
 };
 
 struct Dictionary {
+    using list_t = std::vector<Dictionary>;
     using key_type = std::string;
     using value_type = Value;
     using map_type = std::map<key_type, value_type>;
@@ -168,6 +172,9 @@ struct Dictionary {
     Dictionary& operator=(const std::vector<bool>& v) { Value::list_t L; for (bool x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
     Dictionary& operator=(const std::vector<double>& v) { Value::list_t L; for (auto x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
     Dictionary& operator=(const std::vector<std::string>& v) { Value::list_t L; for (auto const &x : v) L.emplace_back(x); data.clear(); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(const std::vector<Dictionary>& v) { data.clear(); // store as scalar list of Values constructed from dictionaries
+        Value::list_t L; L.reserve(v.size()); for (auto const &d: v) L.emplace_back(Value(d)); scalar = Value(std::move(L)); return *this; }
+    Dictionary& operator=(std::vector<Dictionary>&& v) { data.clear(); Value::list_t L; L.reserve(v.size()); for (auto &d: v) L.emplace_back(Value(std::move(d))); scalar = Value(std::move(L)); return *this; }
     Dictionary& operator=(Value&& obj) { data.clear(); scalar = std::move(obj); return *this; }
     Dictionary& operator=(const Value& obj) { Value tmp = obj; data.clear(); scalar = std::move(tmp); return *this; }
 
@@ -298,6 +305,18 @@ inline Value::Value(Dictionary&& d) : v(std::make_shared<Dictionary>(std::move(d
 inline Value::Value(std::initializer_list<std::pair<const std::string, Value>> init) {
     Dictionary d(init);
     v = std::make_shared<Dictionary>(std::move(d));
+}
+
+// define vector<Dictionary> constructors now that Dictionary is complete
+inline Value::Value(const std::vector<Dictionary>& v_) {
+    list_t L; L.reserve(v_.size());
+    for (auto const &d: v_) L.emplace_back(Value(d));
+    v = std::move(L);
+}
+inline Value::Value(std::vector<Dictionary>&& v_) {
+    list_t L; L.reserve(v_.size());
+    for (auto &d: v_) L.emplace_back(Value(std::move(d)));
+    v = std::move(L);
 }
 
 inline std::string Value::to_string() const {

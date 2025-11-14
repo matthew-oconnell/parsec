@@ -27,9 +27,17 @@ static Dictionary apply_defaults_to_object(const Dictionary &input, const Dictio
             // If key present in input, recursively apply defaults into it
             if (out.has(k)) {
                 if (propSchema) {
-                    Value existing = out[k];
-                    Value withDefaults = apply_defaults_to_value(existing, schema_root, *propSchema);
-                    out[k] = withDefaults;
+                    // If the existing value is an object and the schema expects an object,
+                    // operate directly on Dictionary to avoid unnecessary Value roundtrips.
+                    if (out[k].isDict()) {
+                        Dictionary nested = *out[k].asDict();
+                        Dictionary nested_with = apply_defaults_to_object(nested, schema_root, *propSchema);
+                        out[k] = Value(nested_with);
+                    } else {
+                        Value existing = out[k];
+                        Value withDefaults = apply_defaults_to_value(existing, schema_root, *propSchema);
+                        out[k] = withDefaults;
+                    }
                 }
             } else {
                 // Not present: if schema has a default, use it; else if propSchema is an object with nested defaults, we may
@@ -56,9 +64,15 @@ static Dictionary apply_defaults_to_object(const Dictionary &input, const Dictio
             const std::string &k = pd.first;
             if (props && props->data.find(k) != props->data.end()) continue; // covered by properties
             // apply defaults into this additional property
-            Value existing = pd.second;
-            Value withDefaults = apply_defaults_to_value(existing, schema_root, *addSchema);
-            out[k] = withDefaults;
+            if (pd.second.isDict()) {
+                Dictionary nested = *pd.second.asDict();
+                Dictionary nested_with = apply_defaults_to_object(nested, schema_root, *addSchema);
+                out[k] = Value(nested_with);
+            } else {
+                Value existing = pd.second;
+                Value withDefaults = apply_defaults_to_value(existing, schema_root, *addSchema);
+                out[k] = withDefaults;
+            }
         }
     }
 

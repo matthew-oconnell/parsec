@@ -58,18 +58,31 @@ namespace {
 
         Value parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
-            Value::list_t out;
+            Value::list_t out_values;
+            std::vector<Dictionary> out_dicts;
+            bool all_objects = true;
             skip_ws();
-            if (peek() == ']') { get(); return Value(std::move(out)); }
+            if (peek() == ']') { get(); return Value(std::move(out_values)); }
             while (true) {
-                out.emplace_back(parse_value());
+                Value v = parse_value();
+                // accumulate
+                out_values.emplace_back(v);
+                if (v.isDict()) {
+                    // safe to dereference shared_ptr
+                    out_dicts.push_back(*v.asDict());
+                } else {
+                    all_objects = false;
+                }
                 skip_ws();
                 if (peek() == ',') { get(); skip_ws(); if (peek() == ']') { get(); break; } continue; }
                 if (peek() == ']') { get(); break; }
                 // allow implicit separator
                 continue;
             }
-            return Value(std::move(out));
+            if (all_objects) {
+                return Value(std::move(out_dicts));
+            }
+            return Value(std::move(out_values));
         }
 
         std::string parse_key() {

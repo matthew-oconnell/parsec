@@ -84,8 +84,9 @@ static const Dictionary* resolve_local_ref(const Dictionary& root, const std::st
     return cur;
 }
 
-// Forward declaration of recursive validator
+// Forward declarations of recursive validators
 static std::optional<std::string> validate_node(const Value& data, const Dictionary& schema_root, const Dictionary& schema_node, const std::string& path);
+static std::optional<std::string> validate_node(const Dictionary& dataObj, const Dictionary& schema_root, const Dictionary& schema_node, const std::string& path);
 
 // Helper: get a child schema dictionary from a Value that is expected to be an
 // object. Some schema positions allow either a schema object or a string
@@ -208,7 +209,7 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
             if (!subSchema) continue;
             if (auto err = validate_node(data, schema_root, *subSchema, path)) {
                 if (std::getenv("PS_VALIDATE_DEBUG")) {
-                    std::cerr << "allOf subschema failed: data=" << data.dump() << " subschema=" << Value(*subSchema).dump() << " err=" << *err << "\n";
+                    std::cerr << "allOf subschema failed: data=" << data.dump() << " subschema=" << (subSchema?subSchema->dump():std::string("<null>")) << " err=" << *err << "\n";
                 }
                 return err;
             }
@@ -271,8 +272,9 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     const Value &propSchemaVal = p.second;
                     const Dictionary* propSchema = schema_from_value(schema_root, propSchemaVal);
                     std::string childPath = path.empty() ? propName : (path + "." + propName);
-                    if (obj.has(propName)) {
-                        const Value &childVal = obj.data.at(propName);
+                    auto itObj = obj.data.find(propName);
+                    if (itObj != obj.data.end()) {
+                        const Value &childVal = itObj->second;
                         if (propSchema) {
                             if (auto err = validate_node(childVal, schema_root, *propSchema, childPath)) return err;
                         }
@@ -485,9 +487,20 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     else vdata = Value(data);
     auto res = validate_node(vdata, schema, schema, "");
     if (std::getenv("PS_VALIDATE_DEBUG")) {
-        std::cerr << "validate debug: data=" << vdata.dump() << " schema=" << Value(schema).dump() << " result=" << (res?*res:"<ok>") << "\n";
+        std::cerr << "validate debug: data=" << vdata.dump() << " schema=" << schema.dump() << " result=" << (res?*res:"<ok>") << "\n";
     }
     return res;
+}
+
+// Small wrapper overload: accept a Dictionary directly and forward to the
+// Value-based validator. This allows callers to pass a Dictionary without
+// duplicating the conversion logic at call sites during incremental
+// migration.
+static std::optional<std::string> validate_node(const Dictionary& dataObj, const Dictionary& schema_root, const Dictionary& schema_node, const std::string& path) {
+    Value vdata;
+    if (dataObj.scalar) vdata = *dataObj.scalar;
+    else vdata = Value(dataObj);
+    return validate_node(vdata, schema_root, schema_node, path);
 }
 
 } // namespace ps

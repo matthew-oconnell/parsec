@@ -273,11 +273,15 @@ namespace {
             if (get() != '[') throw JsonParseError("expected '['", line, col);
             // push opener for diagnostics
             opener_stack.push_back(Opener{'[', line, col});
-            Value::list_t out;
+            Value::list_t out_values;
+            std::vector<Dictionary> out_dicts;
+            bool all_objects = true;
             skip_ws();
-            if (peek() == ']') { get(); pop_opener(); return Value(std::move(out)); }
+            if (peek() == ']') { get(); pop_opener(); return Value(std::move(out_values)); }
             while (true) {
-                out.emplace_back(parse_value());
+                Value v = parse_value();
+                out_values.emplace_back(v);
+                if (v.isDict()) out_dicts.push_back(*v.asDict()); else all_objects = false;
                 skip_ws();
                 char c = peek();
                 if (c == ']') { get(); pop_opener(); break; }
@@ -289,13 +293,14 @@ namespace {
                 }
                 std::string base;
                 if (c == ':') base = "unexpected ':' after value; found key/value pair inside array";
-                else base = "expected ',' or ']'";
+                else base = "expected ',' or ']';";
                 {
                     std::string msg = format_error(base, line, col);
                     throw JsonParseError(msg, line, col);
                 }
             }
-            return Value(std::move(out));
+            if (all_objects) return Value(std::move(out_dicts));
+            return Value(std::move(out_values));
         }
 
         Value parse_object() {
