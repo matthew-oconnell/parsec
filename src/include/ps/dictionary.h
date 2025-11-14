@@ -189,14 +189,10 @@ struct Dictionary {
         Null
     };
 
+    TYPE my_type = Object;
+
     std::map<std::string, Value> data;
     std::optional<Value> scalar;
-
-    // std::variant<std::monostate, int64_t, double, bool, std::string, std::vector<int>,
-    // std::vector<double>, std::vector<std::string>, std::vector<bool>, std::vector<Dictionary>,
-    // std::map<std::string, Dictionary>> new_data;
-
-    // Keep enum names that tests expect (unscoped enum for direct use as Dictionary::Object etc.)
 
     Dictionary() = default;
     // Explicitly declare copy/move constructors and move assignment to avoid
@@ -210,28 +206,33 @@ struct Dictionary {
     Dictionary& operator=(const Dictionary& d) {
         data = d.data;
         scalar = d.scalar;
+        my_type = d.my_type;
         return *this;
     }
     Dictionary& operator=(const std::string& s) {
         data.clear();
         scalar = Value(s);
+        my_type = TYPE::String;
         return *this;
     }
     Dictionary& operator=(const char* s) { return operator=(std::string(s)); }
     Dictionary& operator=(int64_t n) {
         data.clear();
         scalar = Value(n);
+        my_type = TYPE::Integer;
         return *this;
     }
     Dictionary& operator=(int n) { return operator=(int64_t(n)); }
     Dictionary& operator=(double x) {
         data.clear();
         scalar = Value(x);
+        my_type = TYPE::Double;
         return *this;
     }
     Dictionary& operator=(const bool& b) {
         data.clear();
         scalar = Value(b);
+        my_type = TYPE::Boolean;
         return *this;
     }
     Dictionary& operator=(const std::vector<int>& v) {
@@ -239,6 +240,7 @@ struct Dictionary {
         for (auto x : v) L.emplace_back(int64_t(x));
         data.clear();
         scalar = Value(std::move(L));
+        my_type = TYPE::IntArray;
         return *this;
     }
     Dictionary& operator=(const std::vector<bool>& v) {
@@ -246,6 +248,7 @@ struct Dictionary {
         for (bool x : v) L.emplace_back(x);
         data.clear();
         scalar = Value(std::move(L));
+        my_type = TYPE::BoolArray;
         return *this;
     }
     Dictionary& operator=(const std::vector<double>& v) {
@@ -253,6 +256,7 @@ struct Dictionary {
         for (auto x : v) L.emplace_back(x);
         data.clear();
         scalar = Value(std::move(L));
+        my_type = TYPE::DoubleArray;
         return *this;
     }
     Dictionary& operator=(const std::vector<std::string>& v) {
@@ -260,6 +264,7 @@ struct Dictionary {
         for (auto const& x : v) L.emplace_back(x);
         data.clear();
         scalar = Value(std::move(L));
+        my_type = TYPE::StringArray;
         return *this;
     }
     Dictionary& operator=(const std::vector<Dictionary>& v) {
@@ -268,6 +273,7 @@ struct Dictionary {
         L.reserve(v.size());
         for (auto const& d : v) L.emplace_back(Value(d));
         scalar = Value(std::move(L));
+        my_type = TYPE::ObjectArray;
         return *this;
     }
     Dictionary& operator=(std::vector<Dictionary>&& v) {
@@ -276,17 +282,86 @@ struct Dictionary {
         L.reserve(v.size());
         for (auto& d : v) L.emplace_back(Value(std::move(d)));
         scalar = Value(std::move(L));
+        my_type = TYPE::ObjectArray;
         return *this;
     }
     Dictionary& operator=(Value&& obj) {
         data.clear();
         scalar = std::move(obj);
+        if (scalar) {
+            if (scalar->isList()) {
+                const auto &L = scalar->asList();
+                if (L.empty()) my_type = TYPE::ObjectArray;
+                else {
+                    bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+                    for (auto const &e : L) {
+                        allInt = allInt and e.isInt();
+                        allDouble = allDouble and (e.isDouble() or e.isInt());
+                        allString = allString and e.isString();
+                        allBool = allBool and e.isBool();
+                        allObject = allObject and e.isDict();
+                    }
+                    if (allInt) my_type = TYPE::IntArray;
+                    else if (allDouble) my_type = TYPE::DoubleArray;
+                    else if (allString) my_type = TYPE::StringArray;
+                    else if (allBool) my_type = TYPE::BoolArray;
+                    else if (allObject) my_type = TYPE::ObjectArray;
+                    else my_type = TYPE::ObjectArray;
+                }
+            } else if (scalar->isDict()) {
+                my_type = TYPE::Object;
+            } else if (scalar->isString()) {
+                my_type = TYPE::String;
+            } else if (scalar->isInt()) {
+                my_type = TYPE::Integer;
+            } else if (scalar->isDouble()) {
+                my_type = TYPE::Double;
+            } else if (scalar->isBool()) {
+                my_type = TYPE::Boolean;
+            } else {
+                my_type = TYPE::Null;
+            }
+        } else my_type = TYPE::Null;
         return *this;
     }
     Dictionary& operator=(const Value& obj) {
         Value tmp = obj;
         data.clear();
         scalar = std::move(tmp);
+        if (scalar) {
+            if (scalar->isList()) {
+                const auto &L = scalar->asList();
+                if (L.empty()) my_type = TYPE::ObjectArray;
+                else {
+                    bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+                    for (auto const &e : L) {
+                        allInt = allInt and e.isInt();
+                        allDouble = allDouble and (e.isDouble() or e.isInt());
+                        allString = allString and e.isString();
+                        allBool = allBool and e.isBool();
+                        allObject = allObject and e.isDict();
+                    }
+                    if (allInt) my_type = TYPE::IntArray;
+                    else if (allDouble) my_type = TYPE::DoubleArray;
+                    else if (allString) my_type = TYPE::StringArray;
+                    else if (allBool) my_type = TYPE::BoolArray;
+                    else if (allObject) my_type = TYPE::ObjectArray;
+                    else my_type = TYPE::ObjectArray;
+                }
+            } else if (scalar->isDict()) {
+                my_type = TYPE::Object;
+            } else if (scalar->isString()) {
+                my_type = TYPE::String;
+            } else if (scalar->isInt()) {
+                my_type = TYPE::Integer;
+            } else if (scalar->isDouble()) {
+                my_type = TYPE::Double;
+            } else if (scalar->isBool()) {
+                my_type = TYPE::Boolean;
+            } else {
+                my_type = TYPE::Null;
+            }
+        } else my_type = TYPE::Null;
         return *this;
     }
 
@@ -320,9 +395,12 @@ struct Dictionary {
     void clear() noexcept {
         data.clear();
         scalar.reset();
+        my_type = TYPE::Object;
     }
 
-    TYPE type() const;
+    TYPE type() const {
+        return my_type;
+    }
 
     Value& operator[](int index) {
         if (scalar->isList()) {
@@ -434,7 +512,7 @@ struct Dictionary {
     Dictionary overrideEntries(const Value& cfg) const;
     Dictionary merge(const Value& cfg) const;
 
-    Dictionary(std::initializer_list<std::pair<const std::string, Value>> init) : data(init) {}
+    Dictionary(std::initializer_list<std::pair<const std::string, Value>> init) : data(init) { my_type = TYPE::Object; }
 
     std::string to_string() const {
         if (isValueObject()) return scalar->to_string();
@@ -894,23 +972,6 @@ inline int Value::type() const {
     if (isDouble()) return static_cast<int>(Dictionary::Double);
     if (isBool()) return static_cast<int>(Dictionary::Boolean);
     return static_cast<int>(Dictionary::Null);
-}
-
-inline Dictionary::TYPE Dictionary::type() const {
-    if (!data.empty()) return TYPE::Object;
-    if (scalar.has_value()) {
-        if (scalar->isList()) {
-            const auto& L = scalar->asList();
-            return detect_list_type(L);
-        }
-        if (scalar->isDict()) return TYPE::Object;
-        if (scalar->isString()) return TYPE::String;
-        if (scalar->isInt()) return TYPE::Integer;
-        if (scalar->isDouble()) return TYPE::Double;
-        if (scalar->isBool()) return TYPE::Boolean;
-        return TYPE::Null;
-    }
-    return TYPE::Object;
 }
 
 inline std::string Value::dump(int indent, bool compact) const {
