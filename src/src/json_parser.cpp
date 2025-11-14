@@ -408,7 +408,7 @@ namespace {
     };
 }
 
-Value parse_json(const std::string& text) {
+Dictionary parse_json(const std::string& text) {
     Parser p(text);
     auto val = p.parse_value();
     p.skip_ws();
@@ -444,11 +444,11 @@ Value parse_json(const std::string& text) {
                 if (c == '"') continue;
                 throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
             }
-            return Value(std::move(root));
+            return *Value(std::move(root)).asDict();
         }
         throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
     }
-    return val;
+    return *val.asDict();
 }
 
 } // namespace ps

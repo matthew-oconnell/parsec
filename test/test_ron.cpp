@@ -16,5 +16,8 @@ TEST_CASE("parse simple RON example") {
     REQUIRE(in.good());
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     auto v = ps::parse_ron(content);
-    REQUIRE(v.isDict());
+    REQUIRE(v.has("visualization"));
+    REQUIRE(v.at("visualization").at(0).has("type"));
+    REQUIRE(v.at("visualization").at(0).at("type").isString());
+    REQUIRE(v.at("visualization").at(0).at("type").asString() == "volume");
 }

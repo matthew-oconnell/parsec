@@ -25,25 +25,18 @@ int main(int argc, char** argv) {
         if (!sin) { std::cerr << "error: cannot open schema: " << schema_path << "\n"; return 2; }
         std::string schema_content((std::istreambuf_iterator<char>(sin)), std::istreambuf_iterator<char>());
         try {
-            auto v_schema = ps::parse_json(schema_content);
-            if (!v_schema.isDict()) { std::cerr << "error: schema is not an object\n"; return 2; }
-            ps::Dictionary schema = *v_schema.asDict();
+            auto schema = ps::parse_json(schema_content);
 
             std::ifstream in(data_path);
             if (!in) { std::cerr << "error: cannot open file: " << data_path << "\n"; return 2; }
             std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
             // Try parse as JSON first, then RON
-            ps::Value data;
+            ps::Dictionary data;
             try { data = ps::parse_json(content); }
             catch (...) { data = ps::parse_ron(content); }
 
-            if (!data.isDict()) {
-                std::cerr << "validation error: input file is not a top-level object\n";
-                return 1;
-            }
-
-            auto err = ps::validate(*data.asDict(), schema);
+            auto err = ps::validate(data, schema);
             if (err.has_value()) {
                 std::cerr << "validation error: " << *err << "\n";
                 return 1;
@@ -68,7 +61,7 @@ int main(int argc, char** argv) {
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     try {
         ps::Value v;
-        bool parsed;
+        bool parsed = false;
         std::string used;
 
         if (mode == "--json" or mode == "json") {

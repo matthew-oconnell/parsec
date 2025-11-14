@@ -33,16 +33,12 @@ TEST_CASE("validate medium schema against example check file", "[validate][mediu
     // example check is stored in examples/medium_schema_check.ron
     fs::path checkp = examples / "medium_schema_check.ron";
     std::string check_content = read_file_strip_fence(checkp);
-    auto v_check = ps::parse_ron(check_content);
-    REQUIRE(v_check.isDict());
-    Dictionary cfg = *v_check.asDict();
+    Dictionary cfg = ps::parse_ron(check_content);
 
     // schema is in repository schemas/medium_schema.json (adjacent to examples dir)
     fs::path schemap = examples.parent_path() / "schemas" / "medium_schema.json";
     std::string schema_content = read_file_strip_fence(schemap);
-    auto v_schema = ps::parse(schema_content);
-    REQUIRE(v_schema.isDict());
-    Dictionary schema = *v_schema.asDict();
+    auto schema = ps::parse(schema_content);
 
     auto err = ps::validate(cfg, schema);
     REQUIRE(!err.has_value());

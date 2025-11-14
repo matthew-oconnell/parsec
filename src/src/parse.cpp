@@ -5,7 +5,7 @@
 
 namespace ps {
 
-Value parse(const std::string& text) {
+Dictionary parse(const std::string& text) {
     try {
         return parse_json(text);
     } catch (const std::exception &e1) {

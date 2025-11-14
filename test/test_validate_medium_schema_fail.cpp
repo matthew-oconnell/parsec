@@ -30,15 +30,11 @@ TEST_CASE("validate medium schema fail example", "[validate][medium][fail]") {
     fs::path examples = fs::path(EXAMPLES_DIR);
     fs::path checkp = examples / "medium_schema_fail.ron";
     std::string check_content = read_file_strip_fence(checkp);
-    auto v_check = ps::parse_ron(check_content);
-    REQUIRE(v_check.isDict());
-    Dictionary cfg = *v_check.asDict();
+    Dictionary cfg = ps::parse_ron(check_content);
 
     fs::path schemap = examples.parent_path() / "schemas" / "medium_schema.json";
     std::string schema_content = read_file_strip_fence(schemap);
-    auto v_schema = ps::parse(schema_content);
-    REQUIRE(v_schema.isDict());
-    Dictionary schema = *v_schema.asDict();
+    auto schema = ps::parse(schema_content);
 
     auto err = ps::validate(cfg, schema);
     // This example intentionally violates the schema (version component has leading zero)

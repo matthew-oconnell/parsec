@@ -5,11 +5,11 @@ project(parsec LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(PARSEC_BUILD_TESTS "Build parsec unit tests" OFF)
+option(BUILD_TESTING "Build parsec unit tests" OFF)
 
 add_subdirectory(src)
 
-if(PARSEC_BUILD_TESTS)
+if(BUILD_TESTING)
   enable_testing()
   add_subdirectory(test)
 endif()

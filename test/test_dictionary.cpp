@@ -366,7 +366,7 @@ TEST_CASE("Give available options if the user fails to request a valid key") {
 
 TEST_CASE("Can use _dict and _json literals") {
     using namespace json_literals;
-    auto d = R"({"dog":1})"_dict;
+    auto d = R"({"dog":1})"_json;
     REQUIRE(d.has("dog"));
     REQUIRE(d.at("dog").asInt() == 1);
 
@@ -405,4 +405,14 @@ TEST_CASE("Can check if dictionaries contain the same content") {
     d2["color"] = "blue";
     REQUIRE_FALSE(d1 == d2);
     REQUIRE(d1 != d2);
+}
+
+TEST_CASE("Dictionary array access") {
+    std::string config = R"({
+    "regions": [
+        {"type": "sphere", "radius":1.0, "center":[0,0,0]},
+        {"type": "sphere", "radius":1.5, "center":[1,0,0]}
+    ]
+})";
+    Dictionary d = parse_json(config);
 }

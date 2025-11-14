@@ -5,6 +5,6 @@
 
 namespace ps {
 
-Value parse_ron(const std::string& text);
+Dictionary parse_ron(const std::string& text);
 
 } // namespace ps

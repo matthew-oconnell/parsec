@@ -132,7 +132,7 @@ namespace {
     };
 }
 
-Value parse_ron(const std::string& text) {
+Dictionary parse_ron(const std::string& text) {
     RonParser p(text);
     p.skip_ws();
     // If the first non-ws char is an identifier or quoted string, treat as implicit root object
@@ -153,9 +153,9 @@ Value parse_ron(const std::string& text) {
             if (std::isalpha(static_cast<unsigned char>(p.peek())) || p.peek() == '_' || p.peek() == '"') continue;
             break;
         }
-        return Value(std::move(root));
+        return *Value(std::move(root)).asDict();
     }
-    return p.parse_value();
+    return *p.parse_value().asDict();
 }
 
 } // namespace ps

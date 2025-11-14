@@ -1,4 +1,3 @@
-// ps::Dictionary - a lightweight Python-like dictionary for C++
 #pragma once
 
 #include <cstdint>
@@ -142,7 +141,7 @@ struct Dictionary {
     using map_type = std::map<key_type, value_type>;
 
     map_type data;
-    std::optional<value_type> scalar;
+    std::optional<Value> scalar;
 
     // Keep enum names that tests expect (unscoped enum for direct use as Dictionary::Object etc.)
     enum TYPE { Object, Boolean, String, Integer, Double, IntArray, DoubleArray, StringArray, BoolArray, ObjectArray, Null };
@@ -196,6 +195,30 @@ struct Dictionary {
 
     TYPE type() const;
 
+    value_type& operator[](int index) {
+        if(scalar->isList()) {
+            return (*scalar)[index];
+        }
+        throw std::logic_error("Not a list");
+    }
+    const value_type& operator[](int index) const {
+        if(scalar->isList()) {
+            return (*scalar)[index];
+        }
+        throw std::logic_error("Not a list");
+    }
+    value_type& at(int index) {
+        if(scalar->isList()) {
+            return scalar->at(index);
+        }
+        throw std::logic_error("Not a list");
+    }
+    const value_type at(int index) const {
+        if(scalar->isList()) {
+            return scalar->at(index);
+        }
+        throw std::logic_error("Not a list");
+    }
     value_type& operator[](const key_type& k) { return data[k]; }
     const value_type& at(const key_type& k) const {
         auto it = data.find(k);
@@ -255,6 +278,11 @@ struct Dictionary {
 
     Dictionary(std::initializer_list<std::pair<const key_type, value_type>> init)
       : data(init) {}
+
+      std::string to_string() const {
+          if (isValueObject()) return scalar->to_string();
+          return dump();
+      }
 };
 
 
