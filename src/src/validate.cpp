@@ -99,6 +99,17 @@ static const Dictionary* schema_from_value(const Dictionary& schema_root, const 
     return nullptr;
 }
 
+// Small file-local helpers to centralize conversions between Dictionary and Value.
+static Value make_value_view(const Dictionary &d) {
+    if (d.scalar) return *d.scalar;
+    return Value(d);
+}
+
+static const Dictionary* dict_ptr_from_value(const Value &v) {
+    if (v.isDict()) return v.asDict().get();
+    return nullptr;
+}
+
 // Validate a primitive numeric value against minimum/maximum/exclusive bounds in schema_node
 static std::optional<std::string> check_numeric_constraints(const Value& data, const Dictionary& schema_node, const std::string& path) {
     if (!(data.isInt() || data.isDouble())) return std::nullopt;
@@ -191,8 +202,8 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     continue;
                 }
                 const Value &childVal = itObj->second;
-                if (childVal.isDict()) {
-                    if (auto err = validate_node(*childVal.asDict(), schema_root, propSpec, propName)) return err;
+                if (auto dp = dict_ptr_from_value(childVal)) {
+                    if (auto err = validate_node(*dp, schema_root, propSpec, propName)) return err;
                 } else {
                     if (auto err = validate_node(childVal, schema_root, propSpec, propName)) return err;
                 }
@@ -281,7 +292,11 @@ static std::optional<std::string> validate_node(const Value& data, const Diction
                     if (itObj != obj.data.end()) {
                         const Value &childVal = itObj->second;
                         if (propSchema) {
-                            if (auto err = validate_node(childVal, schema_root, *propSchema, childPath)) return err;
+                            if (auto dp = dict_ptr_from_value(childVal)) {
+                                if (auto err = validate_node(*dp, schema_root, *propSchema, childPath)) return err;
+                            } else {
+                                if (auto err = validate_node(childVal, schema_root, *propSchema, childPath)) return err;
+                            }
                         }
                     }
                 }
