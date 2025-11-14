@@ -18,9 +18,9 @@ add_executable(parsec_tests
   test_ron.cpp
   test_cli_parser_selection.cpp
   test_pretty_print.cpp
-  # test_validate.cpp
-  # test_setdefaults.cpp
-  # test_initializer.cpp
+  test_validate.cpp
+  test_setdefaults.cpp
+  test_initializer.cpp
   test_validate_cfd.cpp
   test_validate_medium_schema.cpp
   test_validate_medium_schema_fail.cpp

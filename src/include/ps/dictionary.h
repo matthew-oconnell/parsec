@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <initializer_list>
 #include <map>
 #include <variant>
 #include <vector>
@@ -12,6 +13,7 @@
 #include <ostream>
 #include <optional>
 #include <functional>
+#include <type_traits>
 
 namespace ps {
 
@@ -41,6 +43,31 @@ struct Dictionary {
     std::map<std::string, Dictionary> m_object_map;
 
     Dictionary() { my_type = TYPE::Object; }
+    // Converting constructors for convenient initializer-list usage
+    Dictionary(const std::string& s) { my_type = TYPE::String; m_string = s; }
+    Dictionary(const char* s) { *this = std::string(s); }
+    Dictionary(int64_t n) { my_type = TYPE::Integer; m_int = n; }
+    Dictionary(int n) { *this = int64_t(n); }
+    Dictionary(double x) { my_type = TYPE::Double; m_double = x; }
+    Dictionary(bool b) { my_type = TYPE::Boolean; m_bool = b; }
+
+    // Construct an object from initializer list of (key, value) pairs
+    Dictionary(std::initializer_list<std::pair<std::string, Dictionary>> init) {
+        my_type = TYPE::Object;
+        for (auto const& p : init) {
+            m_object_map.emplace(p.first, p.second);
+        }
+    }
+
+    // Construct an array from an initializer list of convertible values
+    template <typename T,
+              typename = std::enable_if_t<
+                  !std::is_same<std::decay_t<T>, std::pair<std::string, Dictionary>>::value>>
+    Dictionary(std::initializer_list<T> init) {
+        my_type = TYPE::ObjectArray;
+        m_object_array.reserve(init.size());
+        for (auto const& v : init) m_object_array.emplace_back(v);
+    }
     Dictionary(const Dictionary& other) {
         my_type = other.my_type;
         switch (my_type) {

@@ -10,28 +10,28 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
     Dictionary schema;
     // name: required string
     Dictionary nameSpec;
-    nameSpec["type"] = Value("string");
-    nameSpec["required"] = Value(true);
+    nameSpec["type"] = "string";
+    nameSpec["required"] = true;
     // port: required integer, between 1 and 65535
     Dictionary portSpec;
-    portSpec["type"] = Value("integer");
-    portSpec["required"] = Value(true);
-    portSpec["minimum"] = Value(int64_t(1));
-    portSpec["maximum"] = Value(int64_t(65535));
+    portSpec["type"] = "integer";
+    portSpec["required"] = true;
+    portSpec["minimum"] = int64_t(1);
+    portSpec["maximum"] = int64_t(65535);
     // debug: optional boolean
     Dictionary debugSpec;
-    debugSpec["type"] = Value("boolean");
-    debugSpec["required"] = Value(false);
+    debugSpec["type"] = "boolean";
+    debugSpec["required"] = false;
 
-    schema["name"] = Value(nameSpec);
-    schema["port"] = Value(portSpec);
-    schema["debug"] = Value(debugSpec);
+    schema["name"] = nameSpec;
+    schema["port"] = portSpec;
+    schema["debug"] = debugSpec;
 
     SECTION("valid config") {
         Dictionary cfg;
-        cfg["name"] = Value(std::string("example"));
-        cfg["port"] = Value(int64_t(8080));
-        cfg["debug"] = Value(true);
+        cfg["name"] = std::string("example");
+        cfg["port"] = int64_t(8080);
+        cfg["debug"] = true;
 
         auto err = validate(cfg, schema);
         REQUIRE(!err.has_value());
@@ -39,7 +39,7 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
 
     SECTION("invalid: missing required") {
         Dictionary cfg;
-        cfg["port"] = Value(int64_t(80));
+        cfg["port"] = 80;
         auto err = validate(cfg, schema);
         REQUIRE(err.has_value());
         REQUIRE(err.value().find("missing required") != std::string::npos);
@@ -47,8 +47,8 @@ TEST_CASE("validate: valid and invalid cases", "[validate]") {
 
     SECTION("invalid: wrong type") {
         Dictionary cfg;
-        cfg["name"] = Value(int64_t(123));
-        cfg["port"] = Value(int64_t(80));
+        cfg["name"] = 123;
+        cfg["port"] = 80;
         auto err = validate(cfg, schema);
         REQUIRE(err.has_value());
         REQUIRE(err.value().find("expected type") != std::string::npos);
@@ -94,7 +94,7 @@ TEST_CASE("validate phase1: basic types and numeric bounds", "[validate][phase1]
 
     SECTION("missing required") {
         Dictionary cfg;
-        cfg["b"] = Value(1.0);
+        cfg["b"] = 1.0;
         auto e = validate(cfg, schema);
         REQUIRE(e.has_value());
         REQUIRE(e.value().find("missing required") != std::string::npos);
@@ -432,7 +432,7 @@ TEST_CASE("additionalProperties schema can be an object schema with required fie
     Dictionary addSchema;
     addSchema["type"] = "object";
     // additional properties must be objects that contain key 'x'
-    addSchema["required"] = std::vector<Value>{Value(std::string("x"))};
+    addSchema["required"] = std::vector<Dictionary>{Dictionary("x")};
     schema["additionalProperties"] = addSchema;
 
     SECTION("extra property missing required field fails") {
