@@ -138,8 +138,7 @@ struct Value {
 };
 
 struct Dictionary {
-    using value_type = Value;
-    using map_type = std::map<std::string, value_type>;
+    using map_type = std::map<std::string, Value>;
 
     map_type data;
     std::optional<Value> scalar;
@@ -202,32 +201,32 @@ struct Dictionary {
 
     TYPE type() const;
 
-    value_type& operator[](int index) {
+    Value& operator[](int index) {
         if(scalar->isList()) {
             return (*scalar)[index];
         }
         throw std::logic_error("Not a list");
     }
-    const value_type& operator[](int index) const {
+    const Value& operator[](int index) const {
         if(scalar->isList()) {
             return (*scalar)[index];
         }
         throw std::logic_error("Not a list");
     }
-    value_type& at(int index) {
+    Value& at(int index) {
         if(scalar->isList()) {
             return scalar->at(index);
         }
         throw std::logic_error("Not a list");
     }
-    const value_type at(int index) const {
+    const Value at(int index) const {
         if(scalar->isList()) {
             return scalar->at(index);
         }
         throw std::logic_error("Not a list");
     }
-    value_type& operator[](const std::string& k) { return data[k]; }
-    const value_type& at(const std::string& k) const {
+    Value& operator[](const std::string& k) { return data[k]; }
+    const Value& at(const std::string& k) const {
         auto it = data.find(k);
         if (it != data.end()) return it->second;
         if (scalar && scalar->isDict()) {
@@ -241,7 +240,7 @@ struct Dictionary {
         }
         throw std::out_of_range("key not found");
     }
-    value_type& at(const std::string& k) {
+    Value& at(const std::string& k) {
         auto it = data.find(k);
         if (it != data.end()) return it->second;
         if (scalar && scalar->isDict()) {
@@ -256,8 +255,8 @@ struct Dictionary {
     }
 
     std::vector<std::string> keys() const { std::vector<std::string> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.first); return out; }
-    std::vector<value_type> values() const { std::vector<value_type> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.second); return out; }
-    std::vector<std::pair<std::string, value_type>> items() const { std::vector<std::pair<std::string, value_type>> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p); return out; }
+    std::vector<Value> values() const { std::vector<Value> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p.second); return out; }
+    std::vector<std::pair<std::string, Value>> items() const { std::vector<std::pair<std::string, Value>> out; out.reserve(data.size()); for (auto const &p: data) out.push_back(p); return out; }
 
     // scalar accessors - keep old names for tests
     std::string asString() const { if (scalar && scalar->isString()) return scalar->asString(); throw std::runtime_error("not a string"); }
@@ -283,7 +282,7 @@ struct Dictionary {
     Dictionary overrideEntries(const Value& cfg) const;
     Dictionary merge(const Value& cfg) const;
 
-    Dictionary(std::initializer_list<std::pair<const std::string, value_type>> init)
+    Dictionary(std::initializer_list<std::pair<const std::string, Value>> init)
       : data(init) {}
 
       std::string to_string() const {
@@ -429,8 +428,6 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         ss << '}';
         return ss.str();
     }
-
-    // (list-type detection moved to a shared helper)
 
     // produce a one-line pretty-compact representation (spaces after colons and commas)
     std::function<std::string(const Dictionary&)> make_pretty_compact;
