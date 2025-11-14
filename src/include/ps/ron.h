@@ -7,4 +7,4 @@ namespace ps {
 
 Dictionary parse_ron(const std::string& text);
 
-} // namespace ps
+}  // namespace ps

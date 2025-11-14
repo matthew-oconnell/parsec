@@ -17,4 +17,4 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
 // nested object schemas, and `items` for arrays).
 Dictionary setDefaults(const Dictionary& data, const Dictionary& schema);
 
-} // namespace ps
+}  // namespace ps

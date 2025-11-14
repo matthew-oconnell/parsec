@@ -13,4 +13,4 @@ Dictionary parse(const std::string& text);
 Dictionary parse_json(const std::string& text);
 Dictionary parse_ron(const std::string& text);
 
-} // namespace ps
+}  // namespace ps
