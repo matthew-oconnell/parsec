@@ -138,9 +138,8 @@ struct Value {
 };
 
 struct Dictionary {
-    using map_type = std::map<std::string, Value>;
 
-    map_type data;
+    std::map<std::string, Value> data;
     std::optional<Value> scalar;
 
     // Keep enum names that tests expect (unscoped enum for direct use as Dictionary::Object etc.)
