@@ -61,6 +61,8 @@ struct Value {
     bool isString() const noexcept { return std::holds_alternative<std::string>(v); }
     bool isList() const noexcept { return std::holds_alternative<list_t>(v); }
     bool isDict() const noexcept { return std::holds_alternative<dict_ptr>(v); }
+    bool isValueObject() const { return not isList() and not isDict() and not isNull(); }
+    bool isArrayObject() const { return isList(); }
 
     // underscore-style accessors removed. Use camelCase methods below.
 
@@ -268,8 +270,8 @@ struct Dictionary {
     std::vector<Dictionary> asObjects() const;
 
     bool isValueObject() const { return scalar.has_value() and not scalar->isList() and not scalar->isDict(); }
-    bool isMappedObject() const { return !data.empty(); }
     bool isArrayObject() const { return scalar.has_value() && scalar->isList(); }
+    bool isMappedObject() const { return !data.empty(); }
 
     std::string dump(int indent = 4, bool compact = true) const;
 
