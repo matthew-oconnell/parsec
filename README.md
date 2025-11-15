@@ -138,15 +138,13 @@ The core library target is `parsec` and public headers are under `src/include/ps
 Minimal usage example (C++):
 
 ```cpp
-#include <ps/dictionary.hpp>
+#include <ps/parsec.h>
 
 int main() {
-		std::string content = "{ foo: 1, bar: [true, false] }";
-		auto v = ps::parse_ron(content); // or ps::parse_json(content)
-		if (v.isDict()) {
-				auto d = *v.asDict();
-				int foo = d.at("foo").asInt();
-		}
+    std::string content = "{ foo: 1, bar: [true, false] }";
+    // The parser returns a ps::Dictionary directly
+    ps::Dictionary d = ps::parse_ron(content); // or ps::parse_json(content)
+    int foo = d.at("foo").asInt();
 }
 ```
 
@@ -171,7 +169,7 @@ The library supports concise initializer-list construction that relies on implic
 Example (exact form used in `test/test_initializer.cpp`):
 
 ```cpp
-#include <ps/parsec.hpp>
+#include <ps/parsec.h>
 
 using namespace ps;
 
@@ -181,7 +179,7 @@ Dictionary dict = {
 	{"key3", {{"obj key", true}}}
 };
 
-// Access like a normal Dictionary/Value
+// Access like a normal Dictionary
 REQUIRE(dict.at("key").asString() == "value");
 ```
 
@@ -206,17 +204,15 @@ Minimal usage examples:
 Validate a parsed file against a schema:
 
 ```cpp
-#include <ps/parsec.hpp>
-#include <ps/validate.hpp>
+#include <ps/parsec.h>
+#include <ps/validate.h>
 
 // parse content (JSON or RON) and validate against a JSON schema (loaded as JSON)
 std::string schema_json = "{ \"type\": \"object\", \"properties\": { \"port\": { \"type\": \"integer\", \"required\": true } } }";
-auto s = ps::parse_json(schema_json);
-ps::Dictionary schema = *s.asDict();
+ps::Dictionary schema = ps::parse_json(schema_json);
 
 std::string data_ron = "{ port: 8080 }";
-ps::Value v = ps::parse_ron(data_ron);
-ps::Dictionary data = *v.asDict();
+ps::Dictionary data = ps::parse_ron(data_ron);
 
 auto err = ps::validate(data, schema);
 if (err.has_value()) std::cerr << "validation error: " << *err << '\n';
@@ -241,3 +237,19 @@ ps::Dictionary completed = ps::setDefaults(input, schema);
 ```
 
 If you'd like edits to the README style or different examples (more complex RON features, or showing how to produce machine-readable diffs), tell me which examples you prefer and I will update the file.
+
+## Notes on the `ps::Dictionary` API (recent changes)
+
+A few small, developer-facing changes were introduced to `ps::Dictionary` that are useful to be aware of when upgrading code or writing tests:
+
+- Single-include: prefer `#include <ps/parsec.h>` which pulls in the commonly used headers (`dictionary.h`, `parse.h`, `validate.h`).
+
+- `dump(int indent = 4, bool compact = true) const`: the pretty-printer supports a "tight" compact form when `indent == 0 && compact == true` — this produces a single-line JSON-like string with no spaces after commas or colons (many tests depend on this exact formatting). When `compact` is true the printer will also prefer one-line representations for small structures (uses an 80-character heuristic).
+
+- `operator[](int index)`: that's now a convenience for building arrays in-place. If a `ps::Dictionary` is currently an empty mapped object, using `dict["arr"][0] = 5;` will automatically convert the mapped object into an array and resize it to accommodate the indexed access. If the object already contains keys (i.e., is being used as a map) this will throw.
+
+- `asInts()`, `asDoubles()`, `asStrings()`, `asBools()`, `asObjects()`: these helpers return a vector and will accept either a corresponding array type or a scalar, returning a single-element vector for scalars. For example, a `Dictionary` holding the integer `3` will make `asInts()` return `{3}`. `asObjects()` will return a single-element vector containing the object when called on an object value.
+
+- `overrideEntries(const Dictionary&)` and `merge(const Dictionary&)`: small helpers that merge/overlay object entries. `overrideEntries` applies entries from the argument over the receiver, while `merge` returns a deep-merged result. These are convenient for composing configurations and are used by the library's defaults/validation helpers.
+
+These changes are intentionally small and backward-compatible for most code, but they make some common test and construction idioms easier (especially builder-style `dict["arr"][0] = ...` usage and the pretty-printer's deterministic one-line output).
