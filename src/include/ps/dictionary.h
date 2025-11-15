@@ -267,9 +267,17 @@ struct Dictionary {
     TYPE type() const { return my_type; }
 
     Dictionary& operator[](int index) {
+        // If this is an object that has never been used as a mapped object,
+        // allow converting it to an array on first integer-index access so
+        // usage like dict["arr"][0] = 5 works naturally.
+        if (my_type == TYPE::Object && m_object_map.empty()) {
+            my_type = TYPE::ObjectArray;
+            m_object_array.clear();
+        }
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
             my_type == TYPE::DoubleArray || my_type == TYPE::StringArray ||
             my_type == TYPE::BoolArray) {
+            if (static_cast<size_t>(index) >= m_object_array.size()) m_object_array.resize(static_cast<size_t>(index) + 1);
             return m_object_array[index];
         }
         throw std::logic_error("Not a list");
@@ -308,12 +316,26 @@ struct Dictionary {
     const Dictionary& at(const std::string& k) const {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
-        throw std::out_of_range("key not found");
+        std::ostringstream ss;
+        bool first = true;
+        for (auto const &p : m_object_map) {
+            if (!first) ss << ",";
+            first = false;
+            ss << '"' << p.first << '"';
+        }
+        throw std::out_of_range(ss.str());
     }
     Dictionary& at(const std::string& k) {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
-        throw std::out_of_range("key not found");
+        std::ostringstream ss;
+        bool first = true;
+        for (auto const &p : m_object_map) {
+            if (!first) ss << ",";
+            first = false;
+            ss << '"' << p.first << '"';
+        }
+        throw std::out_of_range(ss.str());
     }
 
     std::vector<std::string> keys() const {
@@ -348,6 +370,9 @@ struct Dictionary {
 
     std::string asString() const {
         if (my_type == TYPE::String) return m_string;
+        if (my_type == TYPE::Integer) return std::to_string(m_int);
+        if (my_type == TYPE::Double) { std::ostringstream ss; ss << m_double; return ss.str(); }
+        if (my_type == TYPE::Boolean) return m_bool ? "true" : "false";
         throw std::runtime_error("not a string");
     }
     int asInt() const {
@@ -473,6 +498,11 @@ inline std::vector<int> Dictionary::asInts() const {
         for (auto const& e : m_object_array) out.push_back(static_cast<int>(e.asDouble()));
         return out;
     }
+    if (my_type == TYPE::ObjectArray) {
+        std::vector<int> out;
+        for (auto const& e : m_object_array) out.push_back(e.asInt());
+        return out;
+    }
     throw std::runtime_error("not an int list");
 }
 inline std::vector<double> Dictionary::asDoubles() const {
@@ -492,6 +522,11 @@ inline std::vector<double> Dictionary::asDoubles() const {
         for (auto const& e : m_object_array) out.push_back(static_cast<double>(e.asInt()));
         return out;
     }
+    if (my_type == TYPE::ObjectArray) {
+        std::vector<double> out;
+        for (auto const& e : m_object_array) out.push_back(e.asDouble());
+        return out;
+    }
     throw std::runtime_error("not a double list");
 }
 inline std::vector<std::string> Dictionary::asStrings() const {
@@ -499,6 +534,11 @@ inline std::vector<std::string> Dictionary::asStrings() const {
         return std::vector<std::string>{m_string};
     }
     if (my_type == TYPE::StringArray) {
+        std::vector<std::string> out;
+        for (auto const& e : m_object_array) out.push_back(e.asString());
+        return out;
+    }
+    if (my_type == TYPE::ObjectArray) {
         std::vector<std::string> out;
         for (auto const& e : m_object_array) out.push_back(e.asString());
         return out;
@@ -514,17 +554,139 @@ inline std::vector<bool> Dictionary::asBools() const {
         for (auto const& e : m_object_array) out.push_back(e.asBool());
         return out;
     }
+    if (my_type == TYPE::ObjectArray) {
+        std::vector<bool> out;
+        for (auto const& e : m_object_array) out.push_back(e.asBool());
+        return out;
+    }
     throw std::runtime_error("not a bool list");
 }
 inline std::vector<Dictionary> Dictionary::asObjects() const {
     if (my_type == TYPE::ObjectArray) {
         return m_object_array;
     }
+    if (my_type == TYPE::Object) {
+        return std::vector<Dictionary>{*this};
+    }
     throw std::runtime_error("not an object list");
 }
 
 inline std::string Dictionary::dump(int indent, bool compact) const {
-    // TODO implement
+    // If indent == 0 and compact == true we want a "tight" compact form
+    // (no spaces after commas or colons) because many tests expect that
+    // exact formatting when requesting a zero-indent dump (dump(0)).
+    bool tight = (indent == 0 && compact);
+
+    // Produce a compact one-line representation used as a heuristic to decide
+    // whether to keep small structures on one line.
+    std::function<std::string(const Dictionary&)> make_pretty_compact;
+    make_pretty_compact = [&](const Dictionary &d) -> std::string {
+        switch (d.my_type) {
+            case TYPE::Null: return "null";
+            case TYPE::Boolean: return d.m_bool ? "true" : "false";
+            case TYPE::Integer: return std::to_string(d.m_int);
+            case TYPE::Double: { std::ostringstream ss; ss << d.m_double; return ss.str(); }
+            case TYPE::String: return std::string("\"") + d.m_string + std::string("\"");
+            case TYPE::IntArray:
+            case TYPE::DoubleArray:
+            case TYPE::StringArray:
+            case TYPE::BoolArray:
+            case TYPE::ObjectArray: {
+                std::ostringstream ss; ss << '[';
+                bool first = true;
+                for (auto const &el : d.m_object_array) {
+                    if (!first) ss << (tight ? "," : ", ");
+                    first = false;
+                    ss << make_pretty_compact(el);
+                }
+                ss << ']';
+                return ss.str();
+            }
+            case TYPE::Object: {
+                if (d.m_object_map.empty()) return std::string("{}");
+                std::ostringstream ss;
+                if (tight) ss << '{'; else ss << "{ ";
+                bool first = true;
+                for (auto const &p : d.m_object_map) {
+                    if (!first) ss << (tight ? "," : ", ");
+                    first = false;
+                    ss << '"' << p.first << '"' << (tight ? ":" : ": ") << make_pretty_compact(p.second);
+                }
+                if (tight) ss << '}'; else ss << " }";
+                return ss.str();
+            }
+        }
+        return std::string();
+    };
+
+    bool force_expand = false;
+    if (compact) {
+        std::string one = make_pretty_compact(*this);
+        if (one.size() > 80) force_expand = true;
+        if (!force_expand && one.size() <= 80) return one;
+    }
+
+    std::ostringstream out;
+
+    std::function<void(const Dictionary&, int)> dumpValue;
+    std::function<void(const Dictionary&, int)> dumpObject;
+
+    dumpValue = [&](const Dictionary &val, int level) {
+        switch (val.my_type) {
+            case TYPE::Null: out << "null"; return;
+            case TYPE::Boolean: out << (val.m_bool ? "true" : "false"); return;
+            case TYPE::Integer: out << val.m_int; return;
+            case TYPE::Double: { std::ostringstream ss; ss << val.m_double; out << ss.str(); return; }
+            case TYPE::String: out << '"' << val.m_string << '"'; return;
+            case TYPE::IntArray:
+            case TYPE::DoubleArray:
+            case TYPE::StringArray:
+            case TYPE::BoolArray:
+            case TYPE::ObjectArray: {
+                const auto &L = val.m_object_array;
+                if (L.empty()) { out << "[]"; return; }
+                if (compact) {
+                    out << '[';
+                    for (size_t i = 0; i < L.size(); ++i) {
+                        if (i) out << (tight ? "," : ", ");
+                        out << make_pretty_compact(L[i]);
+                    }
+                    out << ']';
+                    return;
+                }
+                out << "[\n";
+                for (size_t i = 0; i < L.size(); ++i) {
+                    out << std::string(static_cast<size_t>(level + indent), ' ');
+                    dumpValue(L[i], level + indent);
+                    if (i + 1 < L.size()) out << ",\n"; else out << "\n";
+                }
+                out << std::string(static_cast<size_t>(level), ' ') << "]";
+                return;
+            }
+            case TYPE::Object: dumpObject(val, level); return;
+        }
+    };
+
+    dumpObject = [&](const Dictionary &d, int level) {
+        if (d.m_object_map.empty()) { out << "{}"; return; }
+        if (compact && !force_expand) {
+            std::string one = make_pretty_compact(d);
+            if (one.size() <= 80) { out << one; return; }
+        }
+        out << "{\n";
+        auto items = d.items();
+        for (size_t i = 0; i < items.size(); ++i) {
+            out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first << '"' << ": ";
+            dumpValue(items[i].second, level + indent);
+            if (i + 1 < items.size()) out << ",\n"; else out << "\n";
+        }
+        out << std::string(static_cast<size_t>(level), ' ') << "}";
+    };
+
+    dumpObject(*this, 0);
+    return out.str();
+
+
 
     // // compact == true and indent == 0 produces a single-line compact JSON
     // if (indent == 0) {
@@ -675,8 +837,19 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
 }
 
 inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
-    // TODO implement
-    return Dictionary();
+    // Create a copy of this dictionary and apply entries from config,
+    // overriding values where provided. If both values are objects, recurse.
+    Dictionary out = *this;
+    if (config.my_type != TYPE::Object) return out;
+    for (auto const &p : config.m_object_map) {
+        auto it = out.m_object_map.find(p.first);
+        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object && p.second.my_type == TYPE::Object) {
+            it->second = it->second.overrideEntries(p.second);
+        } else {
+            out.m_object_map[p.first] = p.second;
+        }
+    }
+    return out;
     // Dictionary out = *this;
     // for (auto const& p : config.data) {
     //     auto it = out.data.find(p.first);
@@ -693,21 +866,20 @@ inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
 }
 
 inline Dictionary Dictionary::merge(const Dictionary& config) const {
-    // TODO implement
-    // Dictionary out = *this;
-    // for (auto const& p : config.data) {
-    //     auto it = out.data.find(p.first);
-    //     if (it != out.data.end() && it->second.isDict() && p.second.isDict()) {
-    //         Dictionary merged = *it->second.asDict();
-    //         merged = merged.merge(*p.second.asDict());
-    //         out.data[p.first] = Value(merged);
-    //     } else {
-    //         out.data[p.first] = p.second;
-    //     }
-    // }
-    // if (config.scalar) out.scalar = config.scalar;
-    // return out;
-    return Dictionary();
+    // Similar to overrideEntries: return a new Dictionary with entries from
+    // this merged with config; config values overwrite or are added. Nested
+    // objects are merged recursively.
+    Dictionary out = *this;
+    if (config.my_type != TYPE::Object) return out;
+    for (auto const &p : config.m_object_map) {
+        auto it = out.m_object_map.find(p.first);
+        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object && p.second.my_type == TYPE::Object) {
+            it->second = it->second.merge(p.second);
+        } else {
+            out.m_object_map[p.first] = p.second;
+        }
+    }
+    return out;
 }
 
 inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
