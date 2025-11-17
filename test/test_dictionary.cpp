@@ -4,7 +4,6 @@
 
 using namespace ps;
 using Catch::Approx;
-// don't import Contains into global scope; call Catch::Contains explicitly when needed
 
 TEST_CASE("Dictionary basic operations") {
     Dictionary d;
@@ -227,7 +226,7 @@ TEST_CASE("Scalar Objects can be converted to arrays of single length") {
 TEST_CASE("Demonstrate how to get a Json object from a dict formatted string") {
     SECTION("Object") {
         std::string settings_string =
-                R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
+            R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
         auto dict_object = parse_json(settings_string);
         REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
     }
@@ -262,7 +261,7 @@ TEST_CASE("Prevent precision issues") {
     auto reparse = parse_json(dict.dump());
     REQUIRE_NOTHROW(reparse.dump(4));
     INFO(reparse.dump(4));
-    const auto &array = dict.at("object w/array that get reparsed with int + double members").at("array");
+    const auto& array = dict.at("object w/array that get reparsed with int + double members").at("array");
     REQUIRE(array.type() == Dictionary::DoubleArray);
 }
 
@@ -325,7 +324,7 @@ TEST_CASE("Can iterate through objects") {
     auto dict = parse_json(config);
     REQUIRE(dict.keys().size() == 1);
 
-    for (auto r: dict.at("regions").asObjects()) {
+    for (auto r : dict.at("regions").asObjects()) {
         printf("%s\n", r.dump().c_str());
     }
 }
@@ -414,4 +413,12 @@ TEST_CASE("Dictionary array access") {
     ]
 })";
     Dictionary d = parse_json(config);
+}
+
+TEST_CASE("Dictionary can return a point") {
+    Dictionary dict = std::vector<double>{3.14, 1.59, -9.81};
+    std::array<double, 3> point = dict.asPoint();
+    REQUIRE(point[0] == 3.14);
+    REQUIRE(point[1] == 1.59);
+    REQUIRE(point[2] == -9.81);
 }
