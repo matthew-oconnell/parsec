@@ -312,6 +312,14 @@ struct Dictionary {
 
     TYPE type() const { return my_type; }
 
+    template <typename DefaultValue>
+    Dictionary get(const std::string& key, const DefaultValue& default_value) const {
+        if (has(key)) return at(key);
+        Dictionary result;
+        result = default_value;
+        return result;
+    }
+
     Dictionary& operator[](int index) {
         // If this is an object that has never been used as a mapped object,
         // allow converting it to an array on first integer-index access so

@@ -422,3 +422,10 @@ TEST_CASE("Dictionary can return a point") {
     REQUIRE(point[1] == 1.59);
     REQUIRE(point[2] == -9.81);
 }
+
+TEST_CASE("Dictionary can get") {
+    Dictionary dict;
+    REQUIRE(dict.get("color", "brown").asString() == "brown");
+    dict["color"] = "red";
+    REQUIRE(dict.get("color", "brown").asString() == "red");
+}
