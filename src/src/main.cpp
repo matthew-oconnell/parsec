@@ -13,8 +13,7 @@
 // Remove these once the full migration is complete and proper implementations
 // are available in the library.
 namespace ps {
-inline std::optional<std::string> validate(const Dictionary& /*data*/,
-                                           const Dictionary& /*schema*/) {
+inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dictionary& /*schema*/) {
     // conservative default: indicate success (no validation errors). This is
     // a temporary shim to allow linking; proper validation logic lives in
     // `validate.cpp` and should be used when available.
@@ -42,8 +41,7 @@ int main(int argc, char** argv) {
             std::cerr << "error: cannot open schema: " << schema_path << "\n";
             return 2;
         }
-        std::string schema_content((std::istreambuf_iterator<char>(sin)),
-                                   std::istreambuf_iterator<char>());
+        std::string schema_content((std::istreambuf_iterator<char>(sin)), std::istreambuf_iterator<char>());
         try {
             auto schema = ps::parse_json(schema_content);
 
@@ -52,8 +50,7 @@ int main(int argc, char** argv) {
                 std::cerr << "error: cannot open file: " << data_path << "\n";
                 return 2;
             }
-            std::string content((std::istreambuf_iterator<char>(in)),
-                                std::istreambuf_iterator<char>());
+            std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
             // Try parse as JSON first, then RON
             ps::Dictionary data;
@@ -92,16 +89,13 @@ int main(int argc, char** argv) {
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     try {
         ps::Dictionary v;
-        bool parsed = false;
         std::string used;
 
         if (mode == "--json" or mode == "json") {
             v = ps::parse_json(content);
-            parsed = true;
             used = "JSON";
         } else if (mode == "--ron" or mode == "ron") {
             v = ps::parse_ron(content);
-            parsed = true;
             used = "RON";
         } else {
             // auto mode: let ps::parse decide between JSON and RON
@@ -112,7 +106,6 @@ int main(int argc, char** argv) {
                 used = "RON";
             else
                 used = "JSON_or_RON";
-            parsed = true;
         }
         auto shorten = [](const std::string& s, size_t n = 40) {
             if (s.size() <= n) return s;
@@ -127,8 +120,7 @@ int main(int argc, char** argv) {
                 size_t shown = 0;
                 for (auto const& p : val.items()) {
                     if (shown++ >= 3) break;
-                    ss << (shown == 1 ? " " : ", ") << p.first << "="
-                       << shorten(p.second.to_string());
+                    ss << (shown == 1 ? " " : ", ") << p.first << "=" << shorten(p.second.to_string());
                 }
                 if (n > 3) ss << ", ...";
                 return ss.str();
