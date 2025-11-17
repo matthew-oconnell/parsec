@@ -423,9 +423,25 @@ TEST_CASE("Dictionary can return a point") {
     REQUIRE(point[2] == -9.81);
 }
 
-TEST_CASE("Dictionary can get") {
+TEST_CASE("Dictionary can get with default") {
     Dictionary dict;
     REQUIRE(dict.get("color", "brown").asString() == "brown");
     dict["color"] = "red";
     REQUIRE(dict.get("color", "brown").asString() == "red");
+}
+
+TEST_CASE("Dictionary can get* ") {
+    Dictionary dict;
+    SECTION("double") {
+        dict["my_double"] = 3.14;
+        REQUIRE(dict.getDouble("my_double") == 3.14);
+    }
+    SECTION("int") {
+        dict["dog"] = 3;
+        REQUIRE(dict.getInt("dog") == 3);
+    }
+    SECTION("string") {
+        dict["dog"] = "woof";
+        REQUIRE(dict.getString("dog") == "woof");
+    }
 }

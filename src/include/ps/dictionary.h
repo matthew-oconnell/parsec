@@ -16,7 +16,6 @@
 #include <type_traits>
 
 namespace ps {
-
 struct Dictionary {
     enum TYPE {
         Object,
@@ -43,54 +42,64 @@ struct Dictionary {
     std::map<std::string, Dictionary> m_object_map;
 
     Dictionary() { my_type = TYPE::Object; }
-    // Converting constructors for convenient initializer-list usage
-    Dictionary(const std::string& s) {
+
+    explicit Dictionary(const std::string& s) {
         my_type = TYPE::String;
         m_string = s;
     }
-    Dictionary(const char* s) { *this = std::string(s); }
-    Dictionary(int64_t n) {
+
+    explicit Dictionary(const char* s) { *this = std::string(s); }
+
+    explicit Dictionary(int64_t n) {
         my_type = TYPE::Integer;
         m_int = n;
     }
-    Dictionary(int n) { *this = int64_t(n); }
-    Dictionary(double x) {
+
+    explicit Dictionary(int n) { *this = int64_t(n); }
+
+    explicit Dictionary(double x) {
         my_type = TYPE::Double;
         m_double = x;
     }
-    Dictionary(bool b) {
+
+    explicit Dictionary(bool b) {
         my_type = TYPE::Boolean;
         m_bool = b;
     }
-    Dictionary(const std::vector<double>& v) {
+
+    explicit Dictionary(const std::vector<double>& v) {
         m_object_array.reserve(v.size());
         my_type = TYPE::DoubleArray;
         for (auto d : v) {
             m_object_array.emplace_back(d);
         }
     }
-    Dictionary(const std::vector<int>& v) {
+
+    explicit Dictionary(const std::vector<int>& v) {
         m_object_array.reserve(v.size());
         my_type = TYPE::IntArray;
         for (auto d : v) {
             m_object_array.emplace_back(d);
         }
     }
-    Dictionary(const std::vector<std::string>& v) {
+
+    explicit Dictionary(const std::vector<std::string>& v) {
         m_object_array.reserve(v.size());
         my_type = TYPE::StringArray;
         for (auto d : v) {
             m_object_array.emplace_back(d);
         }
     }
-    Dictionary(const std::vector<bool>& v) {
+
+    explicit Dictionary(const std::vector<bool>& v) {
         m_object_array.reserve(v.size());
         my_type = TYPE::BoolArray;
         for (bool d : v) {
             m_object_array.emplace_back(d);
         }
     }
-    Dictionary(const std::vector<Dictionary>& v) {
+
+    explicit Dictionary(const std::vector<Dictionary>& v) {
         m_object_array.reserve(v.size());
         my_type = TYPE::ObjectArray;
         for (auto d : v) {
@@ -99,7 +108,7 @@ struct Dictionary {
     }
 
     // Construct an object from initializer list of (key, value) pairs
-    Dictionary(std::initializer_list<std::pair<std::string, Dictionary>> init) {
+    Dictionary(std::initializer_list<std::pair<std::string, Dictionary> > init) {
         my_type = TYPE::Object;
         for (auto const& p : init) {
             m_object_map.emplace(p.first, p.second);
@@ -108,12 +117,13 @@ struct Dictionary {
 
     // Construct an array from an initializer list of convertible values
     template <typename T,
-              typename = std::enable_if_t<!std::is_same<std::decay_t<T>, std::pair<std::string, Dictionary>>::value>>
-    Dictionary(std::initializer_list<T> init) {
+              typename = std::enable_if_t<!std::is_same<std::decay_t<T>, std::pair<std::string, Dictionary> >::value> >
+    explicit Dictionary(std::initializer_list<T> init) {
         my_type = TYPE::ObjectArray;
         m_object_array.reserve(init.size());
         for (auto const& v : init) m_object_array.emplace_back(v);
     }
+
     Dictionary(const Dictionary& other) {
         my_type = other.my_type;
         switch (my_type) {
@@ -146,7 +156,9 @@ struct Dictionary {
     }
 
     Dictionary(Dictionary&& other) noexcept = default;
+
     Dictionary& operator=(Dictionary&& other) noexcept = default;
+
     static Dictionary null() {
         Dictionary d;
         d.my_type = TYPE::Null;
@@ -157,28 +169,35 @@ struct Dictionary {
         *this = Dictionary(d);
         return *this;
     }
+
     Dictionary& operator=(const std::string& s) {
         my_type = TYPE::String;
         m_string = s;
         return *this;
     }
+
     Dictionary& operator=(const char* s) { return operator=(std::string(s)); }
+
     Dictionary& operator=(int64_t n) {
         m_int = n;
         my_type = TYPE::Integer;
         return *this;
     }
+
     Dictionary& operator=(int n) { return operator=(int64_t(n)); }
+
     Dictionary& operator=(double x) {
         m_double = x;
         my_type = TYPE::Double;
         return *this;
     }
+
     Dictionary& operator=(const bool& b) {
         m_bool = b;
         my_type = TYPE::Boolean;
         return *this;
     }
+
     Dictionary& operator=(const std::vector<int>& v) {
         std::vector<Dictionary> L;
         for (auto x : v) {
@@ -189,6 +208,7 @@ struct Dictionary {
         my_type = TYPE::IntArray;
         return *this;
     }
+
     Dictionary& operator=(const std::vector<bool>& v) {
         std::vector<Dictionary> L;
         for (bool x : v) {
@@ -199,6 +219,7 @@ struct Dictionary {
         my_type = TYPE::BoolArray;
         return *this;
     }
+
     Dictionary& operator=(const std::vector<double>& v) {
         std::vector<Dictionary> L;
         for (auto x : v) {
@@ -209,6 +230,7 @@ struct Dictionary {
         my_type = TYPE::DoubleArray;
         return *this;
     }
+
     Dictionary& operator=(const std::vector<std::string>& v) {
         std::vector<Dictionary> L;
         for (auto const& x : v) {
@@ -219,11 +241,13 @@ struct Dictionary {
         my_type = TYPE::StringArray;
         return *this;
     }
+
     Dictionary& operator=(const std::vector<Dictionary>& v) {
         m_object_array = v;
         my_type = TYPE::ObjectArray;
         return *this;
     }
+
     Dictionary& operator=(std::vector<Dictionary>&& v) {
         m_object_array = std::move(v);
         my_type = TYPE::ObjectArray;
@@ -255,6 +279,7 @@ struct Dictionary {
         }
         return false;
     }
+
     bool operator!=(const Dictionary& rhs) const { return not(*this == rhs); }
 
     bool isTrue(const std::string& key) const {
@@ -263,12 +288,15 @@ struct Dictionary {
         if (it == m_object_map.end()) return false;
         return it->second.type() == TYPE::Boolean && it->second.asBool();
     }
+
     int count(const std::string& key) const {
         if (my_type != TYPE::Object) return 0;
         return m_object_map.count(key);
     }
+
     bool has(const std::string& key) const noexcept { return count(key) == 1; }
     bool contains(const std::string& k) const noexcept { return has(k); }
+
     int size() const noexcept {
         // I'm not sure what this should mean for scalar types
         switch (my_type) {
@@ -284,6 +312,7 @@ struct Dictionary {
                 return 0;
         }
     }
+
     bool empty() const noexcept {
         // I'm not sure what this should mean for non-mapped types
         switch (my_type) {
@@ -299,10 +328,14 @@ struct Dictionary {
                 return false;
         }
     }
-    bool erase(const std::string& k) {
-        if (my_type == TYPE::Object) return m_object_map.erase(k) > 0;
-        throw std::logic_error("Not an object");
+
+    Dictionary& erase(const std::string& k) {
+        if (my_type == TYPE::Object) {
+            m_object_map.erase(k);
+        }
+        return *this;
     }
+
     void clear() noexcept {
         m_object_map.clear();
         m_object_array.clear();
@@ -311,6 +344,33 @@ struct Dictionary {
     }
 
     TYPE type() const { return my_type; }
+
+    std::string typeString() const {
+        switch (my_type) {
+            case TYPE::Boolean:
+                return "Boolean";
+            case TYPE::Double:
+                return "Double";
+            case TYPE::Integer:
+                return "Integer";
+            case TYPE::String:
+                return "String";
+            case TYPE::BoolArray:
+                return "BoolArray";
+            case TYPE::DoubleArray:
+                return "DoubleArray";
+            case TYPE::IntArray:
+                return "IntArray";
+            case TYPE::StringArray:
+                return "StringArray";
+            case TYPE::ObjectArray:
+                return "ObjectArray";
+            case TYPE::Null:
+                return "Null";
+            default:
+                throw std::logic_error("Not a valid type");
+        }
+    }
 
     template <typename DefaultValue>
     Dictionary get(const std::string& key, const DefaultValue& default_value) const {
@@ -336,6 +396,7 @@ struct Dictionary {
         }
         throw std::logic_error("Not a list");
     }
+
     const Dictionary& operator[](int index) const {
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
             my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
@@ -343,20 +404,7 @@ struct Dictionary {
         }
         throw std::logic_error("Not a list");
     }
-    Dictionary& at(int index) {
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            return m_object_array.at(index);
-        }
-        throw std::logic_error("Not a list");
-    }
-    const Dictionary& at(int index) const {
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            return m_object_array.at(index);
-        }
-        throw std::logic_error("Not a list");
-    }
+
     Dictionary& operator[](const std::string& k) {
         if (my_type != TYPE::Object) {
             my_type = TYPE::Object;
@@ -364,6 +412,25 @@ struct Dictionary {
         }
         return m_object_map[k];
     }
+
+    const Dictionary& operator[](const std::string& k) const { return m_object_map.at(k); }
+
+    Dictionary& at(int index) {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
+            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+            return m_object_array.at(index);
+        }
+        throw std::logic_error("Not a list");
+    }
+
+    const Dictionary& at(int index) const {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
+            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+            return m_object_array.at(index);
+        }
+        throw std::logic_error("Not a list");
+    }
+
     const Dictionary& at(const std::string& k) const {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
@@ -376,6 +443,7 @@ struct Dictionary {
         }
         throw std::out_of_range(ss.str());
     }
+
     Dictionary& at(const std::string& k) {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
@@ -398,6 +466,7 @@ struct Dictionary {
         for (auto const& p : m_object_map) out.push_back(p.first);
         return out;
     }
+
     std::vector<Dictionary> values() const {
         if (my_type != TYPE::Object) {
             throw std::logic_error("Cannot get values of non-object type");
@@ -407,11 +476,12 @@ struct Dictionary {
         for (auto const& p : m_object_map) out.push_back(p.second);
         return out;
     }
-    std::vector<std::pair<std::string, Dictionary>> items() const {
+
+    std::vector<std::pair<std::string, Dictionary> > items() const {
         if (my_type != TYPE::Object) {
             throw std::logic_error("Cannot get items of non-object type");
         }
-        std::vector<std::pair<std::string, Dictionary>> out;
+        std::vector<std::pair<std::string, Dictionary> > out;
         out.reserve(m_object_map.size());
         for (auto [key, value] : m_object_map) {
             out.push_back({key, value});
@@ -430,6 +500,7 @@ struct Dictionary {
         if (my_type == TYPE::Boolean) return m_bool ? "true" : "false";
         throw std::runtime_error("not a string");
     }
+
     std::array<double, 3> asPoint() const {
         if (my_type == TYPE::IntArray or my_type == TYPE::DoubleArray) {
             if (m_object_array.size() == 3) {
@@ -442,25 +513,41 @@ struct Dictionary {
         }
         throw std::runtime_error("not a 3 element number array for asPoint()");
     }
+
+    bool getBool(const std::string& key) const { return at(key).asBool(); }
+    int getInt(const std::string& key) const { return at(key).asInt(); }
+    double getDouble(const std::string& key) const { return at(key).asDouble(); }
+    std::string getString(const std::string& key) const { return at(key).asString(); }
+    std::vector<int> getInts(const std::string& key) const { return at(key).asInts(); }
+    std::vector<double> getDoubles(const std::string& key) const { return at(key).asDoubles(); }
+    std::vector<std::string> getStrings(const std::string& key) const { return at(key).asStrings(); }
+    std::vector<bool> getBools(const std::string& key) const { return at(key).asBools(); }
+
     int asInt() const {
         if (my_type == TYPE::Integer) return static_cast<int>(m_int);
         if (my_type == TYPE::Double) return static_cast<int>(m_double);
         throw std::runtime_error("not an int");
     }
+
     double asDouble() const {
         if (my_type == TYPE::Double) return m_double;
         if (my_type == TYPE::Integer) return static_cast<double>(m_int);
         throw std::runtime_error("not a double");
     }
+
     bool asBool() const {
         if (my_type == TYPE::Boolean) return m_bool;
         throw std::runtime_error("not a bool");
     }
 
     std::vector<int> asInts() const;
+
     std::vector<double> asDoubles() const;
+
     std::vector<std::string> asStrings() const;
+
     std::vector<bool> asBools() const;
+
     std::vector<Dictionary> asObjects() const;
 
     bool isValueObject() const {
@@ -477,6 +564,7 @@ struct Dictionary {
                 return true;
         }
     }
+
     bool isArrayObject() const {
         switch (my_type) {
             case TYPE::BoolArray:
@@ -489,6 +577,7 @@ struct Dictionary {
                 return false;
         }
     }
+
     bool isMappedObject() const {
         if (my_type == TYPE::Object) return true;
         return false;
@@ -509,6 +598,7 @@ struct Dictionary {
         if (my_type == TYPE::Double) return static_cast<int>(m_double) == rhs;
         return false;
     }
+
     bool operator!=(int rhs) const { return not(*this == rhs); }
 
     bool operator==(double rhs) const {
@@ -516,18 +606,24 @@ struct Dictionary {
         if (my_type == TYPE::Integer) return static_cast<double>(m_int) == rhs;
         return false;
     }
+
     bool operator!=(double rhs) const { return not(*this == rhs); }
 
     bool operator==(bool rhs) const {
         if (my_type == TYPE::Boolean) return m_bool == rhs;
         return false;
     }
+
     bool operator!=(bool rhs) const { return not(*this == rhs); }
 
     std::string dump(int indent = 4, bool compact = true) const;
 
     Dictionary overrideEntries(const Dictionary& config) const;
+
     Dictionary merge(const Dictionary& config) const;
+
+    Dictionary removeCommonEntries(const Dictionary& config) const;
+
     // convenience overloads that accept Value
 
     std::string to_string() const {
@@ -572,6 +668,7 @@ inline std::vector<int> Dictionary::asInts() const {
     }
     throw std::runtime_error("not an int list");
 }
+
 inline std::vector<double> Dictionary::asDoubles() const {
     if (my_type == TYPE::Double) {
         return std::vector<double>{m_double};
@@ -596,6 +693,7 @@ inline std::vector<double> Dictionary::asDoubles() const {
     }
     throw std::runtime_error("not a double list");
 }
+
 inline std::vector<std::string> Dictionary::asStrings() const {
     if (my_type == TYPE::String) {
         return std::vector<std::string>{m_string};
@@ -612,6 +710,7 @@ inline std::vector<std::string> Dictionary::asStrings() const {
     }
     throw std::runtime_error("not a string list");
 }
+
 inline std::vector<bool> Dictionary::asBools() const {
     if (my_type == TYPE::Boolean) {
         return std::vector<bool>{m_bool};
@@ -628,6 +727,7 @@ inline std::vector<bool> Dictionary::asBools() const {
     }
     throw std::runtime_error("not a bool list");
 }
+
 inline std::vector<Dictionary> Dictionary::asObjects() const {
     if (my_type == TYPE::ObjectArray) {
         return m_object_array;
@@ -975,6 +1075,80 @@ inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
     // return out;
 }
 
+Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults, const Dictionary& user_options);
+
+inline Dictionary removeDefaultsFromObjectArray(const Dictionary& defaults, const Dictionary& user_options) {
+    if (user_options.type() != Dictionary::ObjectArray) {
+        throw std::logic_error(std::string("expected array object in user options but got a " +
+                                           user_options.typeString() + " <" + user_options.dump() + ">"));
+    }
+
+    if (not defaults.isArrayObject()) {
+        throw std::logic_error(std::string("expected array object in defaults but got a " + defaults.typeString() +
+                                           " <" + defaults.dump() + ">"));
+    }
+
+    Dictionary result;
+    for (int i = 0; i < user_options.size(); ++i) {
+        const auto& opt = user_options[i];
+        if (i >= defaults.size()) {
+            result[i] = opt;
+        } else if (opt.isValueObject()) {
+            if (opt != defaults[i]) result[i] = opt;
+        } else if (opt.isMappedObject()) {
+            result[i] = removeDefaultsFromMappedObject(defaults[i], opt);
+        } else if (opt.type() == Dictionary::ObjectArray) {
+            result[i] = removeDefaultsFromObjectArray(defaults[i], opt);
+        } else if (opt.isArrayObject()) {
+            if (opt != defaults[i]) result[i] = opt;
+        }
+    }
+
+    return result;
+}
+
+inline Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults, const Dictionary& user_options) {
+    if (not user_options.isMappedObject()) {
+        throw std::logic_error(std::string("user options are not a mapped object: " + user_options.typeString()));
+    }
+    if (not defaults.isMappedObject()) {
+        throw std::logic_error(std::string("defaults are not a mapped object: " + defaults.typeString()));
+    }
+
+    Dictionary result;
+    for (const auto& key : user_options.keys()) {
+        const auto& opt = user_options[key];
+        if (not defaults.has(key)) {
+            result[key] = opt;
+        } else if (opt.isValueObject()) {
+            if (opt != defaults[key]) result[key] = opt;
+        } else if (opt.isMappedObject()) {
+            result[key] = removeDefaultsFromMappedObject(defaults[key], opt);
+        } else if (opt.type() == Dictionary::ObjectArray) {
+            result[key] = removeDefaultsFromObjectArray(defaults[key], opt);
+        } else if (opt.isArrayObject()) {
+            if (opt != defaults[key]) result[key] = opt;
+        }
+        if (result[key].isMappedObject() and result[key].size() == 0) {
+            result.erase(key);
+        }
+    }
+
+    return result;
+}
+
+inline Dictionary Dictionary::removeCommonEntries(const Dictionary& config) const {
+    Dictionary result;
+    if (isMappedObject()) {
+        result = removeDefaultsFromMappedObject(config, *this);
+    } else if (type() == ObjectArray) {
+        result = removeDefaultsFromObjectArray(config, *this);
+    } else if (isArrayObject()) {
+        if (*this != config) result = *this;
+    }
+    return result;
+}
+
 inline Dictionary Dictionary::merge(const Dictionary& config) const {
     // Similar to overrideEntries: return a new Dictionary with entries from
     // this merged with config; config values overwrite or are added. Nested
@@ -996,5 +1170,4 @@ inline std::ostream& operator<<(std::ostream& os, const Dictionary& d) {
     os << d.dump();
     return os;
 }
-
 }  // namespace ps
