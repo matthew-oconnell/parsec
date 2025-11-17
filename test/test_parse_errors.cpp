@@ -14,7 +14,8 @@ TEST_CASE("parse reports line and column in error messages") {
     } catch (const std::runtime_error& e) {
         std::string msg = e.what();
         // message should mention line/column info or at least include 'unexpected end'
-    REQUIRE((msg.find("unexpected end") != std::string::npos || msg.find(":") != std::string::npos));
+        REQUIRE((msg.find("unexpected end") != std::string::npos ||
+                 msg.find(":") != std::string::npos));
     }
 }
 
@@ -27,7 +28,7 @@ TEST_CASE("unmatched opener includes opener location") {
     } catch (const std::runtime_error& e) {
         std::string msg = e.what();
         // the parser includes opener location in messages for arrays/objects
-    REQUIRE((msg.find("opened at") != std::string::npos));
+        REQUIRE((msg.find("opened at") != std::string::npos));
     }
 }
 
@@ -38,6 +39,6 @@ TEST_CASE("extra data after value is reported") {
         FAIL("expected parse to throw");
     } catch (const std::runtime_error& e) {
         std::string msg = e.what();
-    REQUIRE((msg.find("extra data after JSON value") != std::string::npos));
+        REQUIRE((msg.find("extra data after JSON value") != std::string::npos));
     }
 }

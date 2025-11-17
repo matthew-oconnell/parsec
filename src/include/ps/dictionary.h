@@ -117,7 +117,9 @@ struct Dictionary {
 
     // Construct an array from an initializer list of convertible values
     template <typename T,
-              typename = std::enable_if_t<!std::is_same<std::decay_t<T>, std::pair<std::string, Dictionary> >::value> >
+              typename = std::enable_if_t<
+                          !std::is_same<std::decay_t<T>,
+                                        std::pair<std::string, Dictionary> >::value> >
     explicit Dictionary(std::initializer_list<T> init) {
         my_type = TYPE::ObjectArray;
         m_object_array.reserve(init.size());
@@ -388,8 +390,9 @@ struct Dictionary {
             my_type = TYPE::ObjectArray;
             m_object_array.clear();
         }
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
+            my_type == TYPE::DoubleArray || my_type == TYPE::StringArray ||
+            my_type == TYPE::BoolArray) {
             if (static_cast<size_t>(index) >= m_object_array.size())
                 m_object_array.resize(static_cast<size_t>(index) + 1);
             return m_object_array[index];
@@ -398,8 +401,9 @@ struct Dictionary {
     }
 
     const Dictionary& operator[](int index) const {
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
+            my_type == TYPE::DoubleArray || my_type == TYPE::StringArray ||
+            my_type == TYPE::BoolArray) {
             return m_object_array[index];
         }
         throw std::logic_error("Not a list");
@@ -416,16 +420,18 @@ struct Dictionary {
     const Dictionary& operator[](const std::string& k) const { return m_object_map.at(k); }
 
     Dictionary& at(int index) {
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
+            my_type == TYPE::DoubleArray || my_type == TYPE::StringArray ||
+            my_type == TYPE::BoolArray) {
             return m_object_array.at(index);
         }
         throw std::logic_error("Not a list");
     }
 
     const Dictionary& at(int index) const {
-        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
-            my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
+        if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
+            my_type == TYPE::DoubleArray || my_type == TYPE::StringArray ||
+            my_type == TYPE::BoolArray) {
             return m_object_array.at(index);
         }
         throw std::logic_error("Not a list");
@@ -520,7 +526,9 @@ struct Dictionary {
     std::string getString(const std::string& key) const { return at(key).asString(); }
     std::vector<int> getInts(const std::string& key) const { return at(key).asInts(); }
     std::vector<double> getDoubles(const std::string& key) const { return at(key).asDoubles(); }
-    std::vector<std::string> getStrings(const std::string& key) const { return at(key).asStrings(); }
+    std::vector<std::string> getStrings(const std::string& key) const {
+        return at(key).asStrings();
+    }
     std::vector<bool> getBools(const std::string& key) const { return at(key).asBools(); }
 
     int asInt() const {
@@ -789,7 +797,8 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 for (auto const& p : d.m_object_map) {
                     if (!first) ss << (tight ? "," : ", ");
                     first = false;
-                    ss << '"' << p.first << '"' << (tight ? ":" : ": ") << make_pretty_compact(p.second);
+                    ss << '"' << p.first << '"' << (tight ? ":" : ": ")
+                       << make_pretty_compact(p.second);
                 }
                 if (tight)
                     ss << '}';
@@ -885,7 +894,8 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         out << "{\n";
         auto items = d.items();
         for (size_t i = 0; i < items.size(); ++i) {
-            out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first << '"' << ": ";
+            out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first
+                << '"' << ": ";
             dumpValue(items[i].second, level + indent);
             if (i + 1 < items.size())
                 out << ",\n";
@@ -1053,7 +1063,8 @@ inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
     if (config.my_type != TYPE::Object) return out;
     for (auto const& p : config.m_object_map) {
         auto it = out.m_object_map.find(p.first);
-        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object && p.second.my_type == TYPE::Object) {
+        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object &&
+            p.second.my_type == TYPE::Object) {
             it->second = it->second.overrideEntries(p.second);
         } else {
             out.m_object_map[p.first] = p.second;
@@ -1075,17 +1086,20 @@ inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
     // return out;
 }
 
-Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults, const Dictionary& user_options);
+Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults,
+                                          const Dictionary& user_options);
 
-inline Dictionary removeDefaultsFromObjectArray(const Dictionary& defaults, const Dictionary& user_options) {
+inline Dictionary removeDefaultsFromObjectArray(const Dictionary& defaults,
+                                                const Dictionary& user_options) {
     if (user_options.type() != Dictionary::ObjectArray) {
         throw std::logic_error(std::string("expected array object in user options but got a " +
-                                           user_options.typeString() + " <" + user_options.dump() + ">"));
+                                           user_options.typeString() + " <" + user_options.dump() +
+                                           ">"));
     }
 
     if (not defaults.isArrayObject()) {
-        throw std::logic_error(std::string("expected array object in defaults but got a " + defaults.typeString() +
-                                           " <" + defaults.dump() + ">"));
+        throw std::logic_error(std::string("expected array object in defaults but got a " +
+                                           defaults.typeString() + " <" + defaults.dump() + ">"));
     }
 
     Dictionary result;
@@ -1107,12 +1121,15 @@ inline Dictionary removeDefaultsFromObjectArray(const Dictionary& defaults, cons
     return result;
 }
 
-inline Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults, const Dictionary& user_options) {
+inline Dictionary removeDefaultsFromMappedObject(const Dictionary& defaults,
+                                                 const Dictionary& user_options) {
     if (not user_options.isMappedObject()) {
-        throw std::logic_error(std::string("user options are not a mapped object: " + user_options.typeString()));
+        throw std::logic_error(std::string("user options are not a mapped object: " +
+                                           user_options.typeString()));
     }
     if (not defaults.isMappedObject()) {
-        throw std::logic_error(std::string("defaults are not a mapped object: " + defaults.typeString()));
+        throw std::logic_error(
+                    std::string("defaults are not a mapped object: " + defaults.typeString()));
     }
 
     Dictionary result;
@@ -1157,7 +1174,8 @@ inline Dictionary Dictionary::merge(const Dictionary& config) const {
     if (config.my_type != TYPE::Object) return out;
     for (auto const& p : config.m_object_map) {
         auto it = out.m_object_map.find(p.first);
-        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object && p.second.my_type == TYPE::Object) {
+        if (it != out.m_object_map.end() && it->second.my_type == TYPE::Object &&
+            p.second.my_type == TYPE::Object) {
             it->second = it->second.merge(p.second);
         } else {
             out.m_object_map[p.first] = p.second;

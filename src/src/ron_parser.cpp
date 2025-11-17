@@ -64,29 +64,47 @@ namespace {
                 get();
             std::string tok = s.substr(start, i - start);
             if (tok == "null") return Dictionary::null();
-            if (tok == "true") { Dictionary d; d = true; return d; }
-            if (tok == "false") { Dictionary d; d = false; return d; }
+            if (tok == "true") {
+                Dictionary d;
+                d = true;
+                return d;
+            }
+            if (tok == "false") {
+                Dictionary d;
+                d = false;
+                return d;
+            }
             // try integer or double
             std::istringstream ss(tok);
             if (tok.find('.') != std::string::npos) {
                 double dval;
                 ss >> dval;
-                Dictionary d; d = dval; return d;
+                Dictionary d;
+                d = dval;
+                return d;
             }
             int64_t v;
             ss >> v;
-            if (!ss.fail()) { Dictionary d; d = v; return d; }
-            Dictionary d; d = tok; return d;
+            if (!ss.fail()) {
+                Dictionary d;
+                d = v;
+                return d;
+            }
+            Dictionary d;
+            d = tok;
+            return d;
         }
 
         Dictionary parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
             std::vector<Dictionary> out_values;
-            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true,
+                 allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
-                Dictionary res; res = std::vector<Dictionary>{};
+                Dictionary res;
+                res = std::vector<Dictionary>{};
                 return res;
             }
             while (true) {
@@ -95,17 +113,39 @@ namespace {
                 if (!v.isMappedObject()) allObject = false;
                 switch (v.type()) {
                     case Dictionary::Integer:
-                        allDouble = false; allString = false; allBool = false; allObject = false; break;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Double:
-                        allInt = false; allString = false; allBool = false; allObject = false; break;
+                        allInt = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::String:
-                        allInt = false; allDouble = false; allBool = false; allObject = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Boolean:
-                        allInt = false; allDouble = false; allString = false; allObject = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Object:
-                        allInt = false; allDouble = false; allString = false; allBool = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
+                        break;
                     default:
-                        allInt = allDouble = allString = allBool = false; allObject = false; break;
+                        allInt = allDouble = allString = allBool = false;
+                        allObject = false;
+                        break;
                 }
                 skip_ws();
                 if (peek() == ']') {
@@ -126,26 +166,30 @@ namespace {
                 return res;
             }
             if (allInt) {
-                std::vector<int> iv; iv.reserve(out_values.size());
-                for (auto const &e : out_values) iv.push_back(e.asInt());
+                std::vector<int> iv;
+                iv.reserve(out_values.size());
+                for (auto const& e : out_values) iv.push_back(e.asInt());
                 res = iv;
                 return res;
             }
             if (allDouble) {
-                std::vector<double> dv; dv.reserve(out_values.size());
-                for (auto const &e : out_values) dv.push_back(e.asDouble());
+                std::vector<double> dv;
+                dv.reserve(out_values.size());
+                for (auto const& e : out_values) dv.push_back(e.asDouble());
                 res = dv;
                 return res;
             }
             if (allString) {
-                std::vector<std::string> sv; sv.reserve(out_values.size());
-                for (auto const &e : out_values) sv.push_back(e.asString());
+                std::vector<std::string> sv;
+                sv.reserve(out_values.size());
+                for (auto const& e : out_values) sv.push_back(e.asString());
                 res = sv;
                 return res;
             }
             if (allBool) {
-                std::vector<bool> bv; bv.reserve(out_values.size());
-                for (auto const &e : out_values) bv.push_back(e.asBool());
+                std::vector<bool> bv;
+                bv.reserve(out_values.size());
+                for (auto const& e : out_values) bv.push_back(e.asBool());
                 res = bv;
                 return res;
             }
@@ -222,7 +266,7 @@ namespace {
             if (c == '"') return parse_string();
             if (std::isalpha(static_cast<unsigned char>(c)) or c == '_' or c == '-' or
                 std::isdigit(static_cast<unsigned char>(c)))
-                    return parse_number_or_ident();
+                return parse_number_or_ident();
             {
                 size_t ctx_s = (i >= 20) ? i - 20 : 0;
                 size_t ctx_e = i + 20;
@@ -256,7 +300,7 @@ Dictionary parse_ron(const std::string& text) {
             else
                 throw std::runtime_error("expected ':' or '=' after key");
             p.skip_ws();
-                Dictionary v = p.parse_value();
+            Dictionary v = p.parse_value();
             root[key] = v;
             p.skip_ws();
             if (p.peek() == ',') {
@@ -270,9 +314,9 @@ Dictionary parse_ron(const std::string& text) {
                 continue;
             break;
         }
-            return root;
+        return root;
     }
-        return p.parse_value();
+    return p.parse_value();
 }
 
 }  // namespace ps

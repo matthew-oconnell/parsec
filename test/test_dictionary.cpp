@@ -226,7 +226,7 @@ TEST_CASE("Scalar Objects can be converted to arrays of single length") {
 TEST_CASE("Demonstrate how to get a Json object from a dict formatted string") {
     SECTION("Object") {
         std::string settings_string =
-            R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
+                    R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
         auto dict_object = parse_json(settings_string);
         REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
     }
@@ -256,12 +256,14 @@ TEST_CASE("Pretty print Json") {
 }
 
 TEST_CASE("Prevent precision issues") {
-    std::string c = R"({"object w/array that get reparsed with int + double members":{"array":[1.0,1.0e+200]}})";
+    std::string c =
+                R"({"object w/array that get reparsed with int + double members":{"array":[1.0,1.0e+200]}})";
     auto dict = parse_json(c);
     auto reparse = parse_json(dict.dump());
     REQUIRE_NOTHROW(reparse.dump(4));
     INFO(reparse.dump(4));
-    const auto& array = dict.at("object w/array that get reparsed with int + double members").at("array");
+    const auto& array =
+                dict.at("object w/array that get reparsed with int + double members").at("array");
     REQUIRE(array.type() == Dictionary::DoubleArray);
 }
 
@@ -310,7 +312,8 @@ TEST_CASE("Can merge two dictionaries including adding new keys") {
     REQUIRE(merged_pet.at("diet").at("lunch").asString() == "no");
     REQUIRE(merged_pet.at("diet").at("dinner").asString() == "stolen table scraps");
     REQUIRE(merged_pet.at("name").asString() == "spot");
-    REQUIRE(merged_pet.at("toys").asStrings() == std::vector<std::string>{"blue kong", "tire", "duck", "ball"});
+    REQUIRE(merged_pet.at("toys").asStrings() ==
+            std::vector<std::string>{"blue kong", "tire", "duck", "ball"});
 }
 
 TEST_CASE("Can iterate through objects") {

@@ -175,7 +175,7 @@ TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase
 
     SECTION("array valid sizes") {
         Dictionary cfg;
-        std::vector<int> L{1,2};
+        std::vector<int> L{1, 2};
         cfg["nums"] = L;
         auto e = validate(cfg, top);
         REQUIRE(!e.has_value());
@@ -202,10 +202,8 @@ TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase
 TEST_CASE("validate phase1: $ref resolution (local)", "[validate][phase1]") {
     // Build a schema that uses local definitions and $ref
     Dictionary schema;
-    schema["definitions"] =
-                Dictionary{{"PositiveInt",
-                                  Dictionary{{"type", "integer"},
-                                                   {"minimum", int64_t(1)}}}};
+    schema["definitions"] = Dictionary{
+                {"PositiveInt", Dictionary{{"type", "integer"}, {"minimum", int64_t(1)}}}};
     Dictionary top;
     top["type"] = "object";
     Dictionary props;
@@ -264,8 +262,7 @@ TEST_CASE("validate phase2: oneOf/anyOf/allOf", "[validate][phase2]") {
 
     // anyOf: either integer or string
     Dictionary any;
-    any["anyOf"] = std::vector<Dictionary>{
-                s1, Dictionary{{"type", "string"}}};
+    any["anyOf"] = std::vector<Dictionary>{s1, Dictionary{{"type", "string"}}};
     SECTION("anyOf match") {
         Dictionary d;
         d = std::string("hi");

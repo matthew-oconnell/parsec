@@ -7,9 +7,12 @@ using namespace ps;
 TEST_CASE("validate CFD schema minimal pass", "[validate][cfd]") {
     // Build a minimal schema capturing the top-level required keys from cfd_schema.json
     Dictionary schema;
-    Dictionary meshSpec; meshSpec["type"] = "string"; 
+    Dictionary meshSpec;
+    meshSpec["type"] = "string";
     meshSpec["required"] = true;
-    Dictionary hsSpec; hsSpec["type"] = "object"; hsSpec["required"] = true;
+    Dictionary hsSpec;
+    hsSpec["type"] = "object";
+    hsSpec["required"] = true;
 
     schema["mesh filename"] = meshSpec;
     schema["HyperSolve"] = hsSpec;

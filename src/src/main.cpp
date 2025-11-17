@@ -13,13 +13,14 @@
 // Remove these once the full migration is complete and proper implementations
 // are available in the library.
 namespace ps {
-inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dictionary& /*schema*/) {
+inline std::optional<std::string> validate(const Dictionary& /*data*/,
+                                           const Dictionary& /*schema*/) {
     // conservative default: indicate success (no validation errors). This is
     // a temporary shim to allow linking; proper validation logic lives in
     // `validate.cpp` and should be used when available.
     return std::nullopt;
 }
-} // namespace ps
+}  // namespace ps
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -126,7 +127,8 @@ int main(int argc, char** argv) {
                 size_t shown = 0;
                 for (auto const& p : val.items()) {
                     if (shown++ >= 3) break;
-                    ss << (shown == 1 ? " " : ", ") << p.first << "=" << shorten(p.second.to_string());
+                    ss << (shown == 1 ? " " : ", ") << p.first << "="
+                       << shorten(p.second.to_string());
                 }
                 if (n > 3) ss << ", ...";
                 return ss.str();

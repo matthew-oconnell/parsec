@@ -374,7 +374,8 @@ namespace {
             opener_stack.push_back(Opener{'[', line, col});
             std::vector<Dictionary> out_values;
             bool all_objects = true;
-            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true,
+                 allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
@@ -390,17 +391,39 @@ namespace {
                 // detect homogeneous primitive lists
                 switch (v.type()) {
                     case Dictionary::Integer:
-                        allDouble = false; allString = false; allBool = false; allObject = false; break;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Double:
-                        allInt = false; allString = false; allBool = false; allObject = false; break;
+                        allInt = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::String:
-                        allInt = false; allDouble = false; allBool = false; allObject = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allBool = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Boolean:
-                        allInt = false; allDouble = false; allString = false; allObject = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allObject = false;
+                        break;
                     case Dictionary::Object:
-                        allInt = false; allDouble = false; allString = false; allBool = false; break;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
+                        break;
                     default:
-                        allInt = allDouble = allString = allBool = false; allObject = false; break;
+                        allInt = allDouble = allString = allBool = false;
+                        allObject = false;
+                        break;
                 }
                 skip_ws();
                 char c = peek();
@@ -440,25 +463,25 @@ namespace {
             }
             if (allInt) {
                 std::vector<int> iv;
-                for (auto const &e : out_values) iv.push_back(e.asInt());
+                for (auto const& e : out_values) iv.push_back(e.asInt());
                 res = iv;
                 return res;
             }
             if (allDouble) {
                 std::vector<double> dv;
-                for (auto const &e : out_values) dv.push_back(e.asDouble());
+                for (auto const& e : out_values) dv.push_back(e.asDouble());
                 res = dv;
                 return res;
             }
             if (allString) {
                 std::vector<std::string> sv;
-                for (auto const &e : out_values) sv.push_back(e.asString());
+                for (auto const& e : out_values) sv.push_back(e.asString());
                 res = sv;
                 return res;
             }
             if (allBool) {
                 std::vector<bool> bv;
-                for (auto const &e : out_values) bv.push_back(e.asBool());
+                for (auto const& e : out_values) bv.push_back(e.asBool());
                 res = bv;
                 return res;
             }

@@ -40,9 +40,11 @@ TEST_CASE("Pretty print works on nested objects") {
     REQUIRE(expected == dict.dump(4));
 }
 
-TEST_CASE("Pretty print compact will eventually use indentation if the line would go beyond 80 characters") {
+TEST_CASE("Pretty print compact will eventually use indentation if the line would go beyond 80 "
+          "characters") {
     Dictionary dict;
-    dict["level1"]["level2"]["level3"]["level4"]["level5"]["level6"]["level7"]["level8"]["level9"]["value"] = 42;
+    dict["level1"]["level2"]["level3"]["level4"]["level5"]["level6"]["level7"]["level8"]["level9"]
+        ["value"] = 42;
     std::string expected = R"({
   "level1": {
     "level2": {

@@ -9,7 +9,7 @@
 namespace fs = std::filesystem;
 using namespace ps;
 
-static std::string read_file_strip_fence(const fs::path &p) {
+static std::string read_file_strip_fence(const fs::path& p) {
     std::ifstream in(p);
     REQUIRE(in.good());
     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
