@@ -59,8 +59,7 @@ namespace {
 
         Dictionary parse_number_or_ident() {
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '.' or
-                   peek() == '_' or peek() == '-')
+            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '.' or peek() == '_' or peek() == '-')
                 get();
             std::string tok = s.substr(start, i - start);
             if (tok == "null") return Dictionary::null();
@@ -98,8 +97,7 @@ namespace {
         Dictionary parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
             std::vector<Dictionary> out_values;
-            bool allInt = true, allDouble = true, allString = true, allBool = true,
-                 allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
@@ -237,6 +235,10 @@ namespace {
                 }
                 skip_ws();
                 Dictionary v = parse_value();
+                // Detect duplicate keys and report an error
+                if (d.m_object_map.find(key) != d.m_object_map.end()) {
+                    throw std::runtime_error(std::string("duplicate key '") + key + "'");
+                }
                 d[key] = v;
                 skip_ws();
                 if (peek() == ',') {
@@ -277,8 +279,7 @@ namespace {
                 if (pc == '\0')
                     msg << "unexpected end of input in RON";
                 else
-                    msg << "unexpected token in RON at index " << i << " ('" << pc << "') near '"
-                        << snippet << "'";
+                    msg << "unexpected token in RON at index " << i << " ('" << pc << "') near '" << snippet << "'";
                 throw std::runtime_error(msg.str());
             }
         }
@@ -301,6 +302,10 @@ Dictionary parse_ron(const std::string& text) {
                 throw std::runtime_error("expected ':' or '=' after key");
             p.skip_ws();
             Dictionary v = p.parse_value();
+            // Detect duplicate keys in implicit root object
+            if (root.m_object_map.find(key) != root.m_object_map.end()) {
+                throw std::runtime_error(std::string("duplicate key '") + key + "'");
+            }
             root[key] = v;
             p.skip_ws();
             if (p.peek() == ',') {
@@ -309,9 +314,7 @@ Dictionary parse_ron(const std::string& text) {
                 continue;
             }
             // allow implicit separator
-            if (std::isalpha(static_cast<unsigned char>(p.peek())) || p.peek() == '_' ||
-                p.peek() == '"')
-                continue;
+            if (std::isalpha(static_cast<unsigned char>(p.peek())) || p.peek() == '_' || p.peek() == '"') continue;
             break;
         }
         return root;

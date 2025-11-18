@@ -202,8 +202,7 @@ TEST_CASE("validate phase1: arrays, items, minItems/maxItems", "[validate][phase
 TEST_CASE("validate phase1: $ref resolution (local)", "[validate][phase1]") {
     // Build a schema that uses local definitions and $ref
     Dictionary schema;
-    schema["definitions"] = Dictionary{
-                {"PositiveInt", Dictionary{{"type", "integer"}, {"minimum", int64_t(1)}}}};
+    schema["definitions"] = Dictionary{{"PositiveInt", Dictionary{{"type", "integer"}, {"minimum", int64_t(1)}}}};
     Dictionary top;
     top["type"] = "object";
     Dictionary props;

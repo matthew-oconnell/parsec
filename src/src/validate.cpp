@@ -83,8 +83,7 @@ static const Dictionary* resolve_local_ref(const Dictionary& root, const std::st
     size_t pos = 0;
     while (pos < path.size()) {
         size_t next = path.find('/', pos);
-        std::string token =
-                    (next == std::string::npos) ? path.substr(pos) : path.substr(pos, next - pos);
+        std::string token = (next == std::string::npos) ? path.substr(pos) : path.substr(pos, next - pos);
         pos = (next == std::string::npos) ? path.size() : next + 1;
         auto it = cur->m_object_map.find(token);
         if (it == cur->m_object_map.end()) return nullptr;
@@ -118,57 +117,47 @@ static const Dictionary* schema_from_value(const Dictionary& schema_root, const 
 static std::optional<std::string> check_numeric_constraints(const Dictionary& data,
                                                             const Dictionary& schema_node,
                                                             const std::string& path) {
-    if (!(data.type() == Dictionary::Integer || data.type() == Dictionary::Double))
-        return std::nullopt;
-    double val = (data.type() == Dictionary::Integer) ? static_cast<double>(data.asInt())
-                                                      : data.asDouble();
+    if (!(data.type() == Dictionary::Integer || data.type() == Dictionary::Double)) return std::nullopt;
+    double val = (data.type() == Dictionary::Integer) ? static_cast<double>(data.asInt()) : data.asDouble();
     // minimum
     auto itmin = schema_node.m_object_map.find("minimum");
     if (itmin != schema_node.m_object_map.end()) {
         const Dictionary& minv = itmin->second;
         if (minv.type() == Dictionary::Integer || minv.type() == Dictionary::Double) {
-            double m = (minv.type() == Dictionary::Integer) ? static_cast<double>(minv.asInt())
-                                                            : minv.asDouble();
+            double m = (minv.type() == Dictionary::Integer) ? static_cast<double>(minv.asInt()) : minv.asDouble();
             if (val < m)
-                return std::optional<std::string>("property '" + path + "' value " +
-                                                  std::to_string(val) + " below minimum " +
-                                                  std::to_string(m));
+                return std::optional<std::string>("property '" + path + "' value " + std::to_string(val) +
+                                                  " below minimum " + std::to_string(m));
         }
     }
     auto itexmin = schema_node.m_object_map.find("exclusiveMinimum");
     if (itexmin != schema_node.m_object_map.end()) {
         const Dictionary& minv = itexmin->second;
         if (minv.type() == Dictionary::Integer || minv.type() == Dictionary::Double) {
-            double m = (minv.type() == Dictionary::Integer) ? static_cast<double>(minv.asInt())
-                                                            : minv.asDouble();
+            double m = (minv.type() == Dictionary::Integer) ? static_cast<double>(minv.asInt()) : minv.asDouble();
             if (val <= m)
-                return std::optional<std::string>("property '" + path + "' value " +
-                                                  std::to_string(val) + " <= exclusiveMinimum " +
-                                                  std::to_string(m));
+                return std::optional<std::string>("property '" + path + "' value " + std::to_string(val) +
+                                                  " <= exclusiveMinimum " + std::to_string(m));
         }
     }
     auto itmax = schema_node.m_object_map.find("maximum");
     if (itmax != schema_node.m_object_map.end()) {
         const Dictionary& maxv = itmax->second;
         if (maxv.type() == Dictionary::Integer || maxv.type() == Dictionary::Double) {
-            double M = (maxv.type() == Dictionary::Integer) ? static_cast<double>(maxv.asInt())
-                                                            : maxv.asDouble();
+            double M = (maxv.type() == Dictionary::Integer) ? static_cast<double>(maxv.asInt()) : maxv.asDouble();
             if (val > M)
-                return std::optional<std::string>("property '" + path + "' value " +
-                                                  std::to_string(val) + " above maximum " +
-                                                  std::to_string(M));
+                return std::optional<std::string>("property '" + path + "' value " + std::to_string(val) +
+                                                  " above maximum " + std::to_string(M));
         }
     }
     auto itexmax = schema_node.m_object_map.find("exclusiveMaximum");
     if (itexmax != schema_node.m_object_map.end()) {
         const Dictionary& maxv = itexmax->second;
         if (maxv.type() == Dictionary::Integer || maxv.type() == Dictionary::Double) {
-            double M = (maxv.type() == Dictionary::Integer) ? static_cast<double>(maxv.asInt())
-                                                            : maxv.asDouble();
+            double M = (maxv.type() == Dictionary::Integer) ? static_cast<double>(maxv.asInt()) : maxv.asDouble();
             if (val >= M)
-                return std::optional<std::string>("property '" + path + "' value " +
-                                                  std::to_string(val) + " >= exclusiveMaximum " +
-                                                  std::to_string(M));
+                return std::optional<std::string>("property '" + path + "' value " + std::to_string(val) +
+                                                  " >= exclusiveMaximum " + std::to_string(M));
         }
     }
     return std::nullopt;
@@ -194,8 +183,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const std::string& path) {
     // Minimal validator: primarily checks declared "type", numeric constraints and enum.
     if (std::getenv("PS_VALIDATE_DEBUG")) {
-        std::cerr << "validate_node enter: path='" << path << "' data=" << data.dump()
-                  << " schema_keys={";
+        std::cerr << "validate_node enter: path='" << path << "' data=" << data.dump() << " schema_keys={";
         bool firstk = true;
         for (auto const& p : schema_node.items()) {
             if (!firstk) std::cerr << ",";
@@ -262,8 +250,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 ++matches;
             }
         }
-        if (matches != 1)
-            return std::optional<std::string>("oneOf did not match exactly one schema");
+        if (matches != 1) return std::optional<std::string>("oneOf did not match exactly one schema");
     }
 
     // type check
@@ -274,9 +261,9 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             // Validate mapped object: properties, required, additionalProperties,
             // patternProperties, minProperties/maxProperties
             if (!data.isMappedObject())
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'object' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(limit_line_length("expected type 'object' at '" + display_path(path) +
+                                                                    "' but found '" + value_type_name(data) +
+                                                                    "' (value: " + value_preview(data) + ")"));
 
             // gather property schemas
             const Dictionary* properties = nullptr;
@@ -325,16 +312,14 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             if (itminp != schema_node.m_object_map.end()) {
                 if (itminp->second.type() == Dictionary::Integer) {
                     if (static_cast<int>(data.m_object_map.size()) < itminp->second.asInt())
-                        return std::optional<std::string>(
-                                    "object has fewer properties than minProperties");
+                        return std::optional<std::string>("object has fewer properties than minProperties");
                 }
             }
             auto itmaxp = schema_node.m_object_map.find("maxProperties");
             if (itmaxp != schema_node.m_object_map.end()) {
                 if (itmaxp->second.type() == Dictionary::Integer) {
                     if (static_cast<int>(data.m_object_map.size()) > itmaxp->second.asInt())
-                        return std::optional<std::string>(
-                                    "object has more properties than maxProperties");
+                        return std::optional<std::string>("object has more properties than maxProperties");
                 }
             }
 
@@ -348,23 +333,19 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     // per-property required as boolean
                     auto itreq = propSchema.m_object_map.find("required");
                     if (!has) {
-                        if (itreq != propSchema.m_object_map.end() &&
-                            itreq->second.type() == Dictionary::Boolean && itreq->second.asBool())
-                            return std::optional<std::string>("missing required property '" + key +
-                                                              "'");
+                        if (itreq != propSchema.m_object_map.end() && itreq->second.type() == Dictionary::Boolean &&
+                            itreq->second.asBool())
+                            return std::optional<std::string>("missing required property '" + key + "'");
                         if (required_names.find(key) != required_names.end())
-                            return std::optional<std::string>("missing required property '" + key +
-                                                              "'");
+                            return std::optional<std::string>("missing required property '" + key + "'");
                         continue;
                     }
                     // validate present property
                     const Dictionary& subSchemaValue = propSchema;
                     const Dictionary* subSchema = schema_from_value(schema_root, subSchemaValue);
                     if (subSchema) {
-                        if (auto err = validate_node(itdata->second,
-                                                     schema_root,
-                                                     *subSchema,
-                                                     path.empty() ? key : path + "." + key))
+                        if (auto err = validate_node(
+                                itdata->second, schema_root, *subSchema, path.empty() ? key : path + "." + key))
                             return err;
                     }
                 }
@@ -374,8 +355,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             for (auto const& dprop : data.m_object_map) {
                 const std::string& key = dprop.first;
                 bool handled = false;
-                if (properties &&
-                    properties->m_object_map.find(key) != properties->m_object_map.end()) {
+                if (properties && properties->m_object_map.find(key) != properties->m_object_map.end()) {
                     handled = true;
                 }
                 // check patternProperties
@@ -387,10 +367,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                 const Dictionary* sub = schema_from_value(schema_root, pp.second);
                                 if (sub) {
                                     if (auto err = validate_node(
-                                                    dprop.second,
-                                                    schema_root,
-                                                    *sub,
-                                                    path.empty() ? key : path + "." + key))
+                                            dprop.second, schema_root, *sub, path.empty() ? key : path + "." + key))
                                         return err;
                                 }
                                 handled = true;
@@ -416,10 +393,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 } else {
                     const Dictionary* sub = schema_from_value(schema_root, ap);
                     if (sub) {
-                        if (auto err = validate_node(dprop.second,
-                                                     schema_root,
-                                                     *sub,
-                                                     path.empty() ? key : path + "." + key))
+                        if (auto err =
+                                validate_node(dprop.second, schema_root, *sub, path.empty() ? key : path + "." + key))
                             return err;
                     }
                 }
@@ -428,34 +403,29 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             return std::nullopt;
         } else if (t == "array") {
             if (!data.isArrayObject())
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'array' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(limit_line_length("expected type 'array' at '" + display_path(path) +
+                                                                    "' but found '" + value_type_name(data) +
+                                                                    "' (value: " + value_preview(data) + ")"));
 
             const auto& L = data.m_object_array;
             // minItems / maxItems
             auto itmin = schema_node.m_object_map.find("minItems");
-            if (itmin != schema_node.m_object_map.end() &&
-                itmin->second.type() == Dictionary::Integer) {
-                if ((int)L.size() < itmin->second.asInt())
-                    return std::optional<std::string>("array too few items");
+            if (itmin != schema_node.m_object_map.end() && itmin->second.type() == Dictionary::Integer) {
+                if ((int)L.size() < itmin->second.asInt()) return std::optional<std::string>("array too few items");
             }
             auto itmax = schema_node.m_object_map.find("maxItems");
-            if (itmax != schema_node.m_object_map.end() &&
-                itmax->second.type() == Dictionary::Integer) {
-                if ((int)L.size() > itmax->second.asInt())
-                    return std::optional<std::string>("array too many items");
+            if (itmax != schema_node.m_object_map.end() && itmax->second.type() == Dictionary::Integer) {
+                if ((int)L.size() > itmax->second.asInt()) return std::optional<std::string>("array too many items");
             }
 
             // uniqueItems
             auto ituniq = schema_node.m_object_map.find("uniqueItems");
-            if (ituniq != schema_node.m_object_map.end() &&
-                ituniq->second.type() == Dictionary::Boolean && ituniq->second.asBool()) {
+            if (ituniq != schema_node.m_object_map.end() && ituniq->second.type() == Dictionary::Boolean &&
+                ituniq->second.asBool()) {
                 std::set<std::string> seen;
                 for (auto const& el : L) {
                     std::string key = el.dump();
-                    if (seen.find(key) != seen.end())
-                        return std::optional<std::string>("array has duplicate items");
+                    if (seen.find(key) != seen.end()) return std::optional<std::string>("array has duplicate items");
                     seen.insert(key);
                 }
             }
@@ -470,13 +440,10 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     auto itadd = schema_node.m_object_map.find("additionalItems");
                     for (size_t i = 0; i < L.size(); ++i) {
                         if (i < nSchemas) {
-                            const Dictionary* sub =
-                                        schema_from_value(schema_root, itemsVal.m_object_array[i]);
+                            const Dictionary* sub = schema_from_value(schema_root, itemsVal.m_object_array[i]);
                             if (sub) {
-                                if (auto err = validate_node(L[i],
-                                                             schema_root,
-                                                             *sub,
-                                                             path + "[" + std::to_string(i) + "]"))
+                                if (auto err =
+                                        validate_node(L[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                     return err;
                             }
                         } else {
@@ -484,17 +451,12 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             if (itadd != schema_node.m_object_map.end()) {
                                 if (itadd->second.type() == Dictionary::Boolean) {
                                     if (!itadd->second.asBool())
-                                        return std::optional<std::string>(
-                                                    "additional tuple items not allowed");
+                                        return std::optional<std::string>("additional tuple items not allowed");
                                 } else {
-                                    const Dictionary* sub =
-                                                schema_from_value(schema_root, itadd->second);
+                                    const Dictionary* sub = schema_from_value(schema_root, itadd->second);
                                     if (sub) {
                                         if (auto err = validate_node(
-                                                        L[i],
-                                                        schema_root,
-                                                        *sub,
-                                                        path + "[" + std::to_string(i) + "]"))
+                                                L[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                             return err;
                                     }
                                 }
@@ -505,10 +467,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     const Dictionary* sub = schema_from_value(schema_root, itemsVal);
                     if (sub) {
                         for (size_t i = 0; i < L.size(); ++i) {
-                            if (auto err = validate_node(L[i],
-                                                         schema_root,
-                                                         *sub,
-                                                         path + "[" + std::to_string(i) + "]"))
+                            if (auto err = validate_node(L[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                 return err;
                         }
                     }
@@ -518,26 +477,23 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             return std::nullopt;
         } else if (t == "string") {
             if (data.type() != Dictionary::String)
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'string' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(limit_line_length("expected type 'string' at '" + display_path(path) +
+                                                                    "' but found '" + value_type_name(data) +
+                                                                    "' (value: " + value_preview(data) + ")"));
             // minLength / maxLength
             auto itmin = schema_node.m_object_map.find("minLength");
-            if (itmin != schema_node.m_object_map.end() &&
-                itmin->second.type() == Dictionary::Integer) {
+            if (itmin != schema_node.m_object_map.end() && itmin->second.type() == Dictionary::Integer) {
                 if ((int)data.asString().size() < itmin->second.asInt())
                     return std::optional<std::string>("string shorter than minLength");
             }
             auto itmax = schema_node.m_object_map.find("maxLength");
-            if (itmax != schema_node.m_object_map.end() &&
-                itmax->second.type() == Dictionary::Integer) {
+            if (itmax != schema_node.m_object_map.end() && itmax->second.type() == Dictionary::Integer) {
                 if ((int)data.asString().size() > itmax->second.asInt())
                     return std::optional<std::string>("string longer than maxLength");
             }
             // pattern
             auto itpat = schema_node.m_object_map.find("pattern");
-            if (itpat != schema_node.m_object_map.end() &&
-                itpat->second.type() == Dictionary::String) {
+            if (itpat != schema_node.m_object_map.end() && itpat->second.type() == Dictionary::String) {
                 try {
                     std::regex rx(itpat->second.asString());
                     if (!std::regex_match(data.asString(), rx)) {
@@ -550,23 +506,23 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             return std::nullopt;
         } else if (t == "integer") {
             if (data.type() != Dictionary::Integer)
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'integer' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(
+                    limit_line_length("expected type 'integer' at '" + display_path(path) + "' but found '" +
+                                      value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
         } else if (t == "number") {
             if (!(data.type() == Dictionary::Double || data.type() == Dictionary::Integer))
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'number' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(limit_line_length("expected type 'number' at '" + display_path(path) +
+                                                                    "' but found '" + value_type_name(data) +
+                                                                    "' (value: " + value_preview(data) + ")"));
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
         } else if (t == "boolean") {
             if (data.type() != Dictionary::Boolean)
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'boolean' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+                return std::optional<std::string>(
+                    limit_line_length("expected type 'boolean' at '" + display_path(path) + "' but found '" +
+                                      value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             return std::nullopt;
         }
     }

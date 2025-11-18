@@ -14,8 +14,24 @@ TEST_CASE("parse reports line and column in error messages") {
     } catch (const std::runtime_error& e) {
         std::string msg = e.what();
         // message should mention line/column info or at least include 'unexpected end'
-        REQUIRE((msg.find("unexpected end") != std::string::npos ||
-                 msg.find(":") != std::string::npos));
+        REQUIRE((msg.find("unexpected end") != std::string::npos || msg.find(":") != std::string::npos));
+    }
+}
+
+TEST_CASE("parse reports if a key is duplicated", "[duplicate_keys]") {
+    std::string s = R"(
+    {
+        "key1": 1,
+        "key2": 2,
+        "key1": 3
+    }
+    )";
+    try {
+        parse_json(s);
+        FAIL("expected parse to throw");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        REQUIRE((msg.find("duplicate key") != std::string::npos));
     }
 }
 

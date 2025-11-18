@@ -516,7 +516,12 @@ namespace {
                     throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
                 skip_ws();
                 Dictionary v = parse_value();
-                d[k.asString()] = v;
+                const std::string keystr = k.asString();
+                // Detect duplicate keys and provide a helpful error with location
+                if (d.m_object_map.find(keystr) != d.m_object_map.end()) {
+                    throw JsonParseError(format_error(std::string("duplicate key '") + keystr + "'", line, col), line, col);
+                }
+                d[keystr] = v;
                 skip_ws();
                 char c = peek();
                 if (c == '}') {
@@ -671,7 +676,11 @@ Dictionary parse_json(const std::string& text) {
                     throw JsonParseError(p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
                 p.skip_ws();
                 Dictionary v = p.parse_value();
-                root[k.asString()] = v;
+                const std::string keystr = k.asString();
+                if (root.m_object_map.find(keystr) != root.m_object_map.end()) {
+                    throw JsonParseError(p.format_error(std::string("duplicate key '") + keystr + "'", p.line, p.col), p.line, p.col);
+                }
+                root[keystr] = v;
                 p.skip_ws();
                 char c = p.peek();
                 if (c == ',') {

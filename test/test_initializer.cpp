@@ -4,9 +4,7 @@
 using namespace ps;
 
 TEST_CASE("Dictionary initializer-list construction", "[init]") {
-    Dictionary dict = {{"key", "value"},
-                       {"key2", {"my", "array", "is", "cool"}},
-                       {"key3", {{"obj key", true}}}};
+    Dictionary dict = {{"key", "value"}, {"key2", {"my", "array", "is", "cool"}}, {"key3", {{"obj key", true}}}};
 
     REQUIRE(dict.has("key"));
     REQUIRE(dict.at("key").asString() == "value");

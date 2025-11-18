@@ -21,3 +21,20 @@ TEST_CASE("parse simple RON example") {
     REQUIRE(v.at("visualization").at(0).at("type").isString());
     REQUIRE(v.at("visualization").at(0).at("type").asString() == "volume");
 }
+
+TEST_CASE("parse ron reports if a key is duplicated", "[duplicate_keys]") {
+    std::string s = R"(
+    {
+        key1: 1,
+        key2: 2,
+        key1: 3
+    }
+    )";
+    try {
+        ps::parse_ron(s);
+        FAIL("expected parse to throw");
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        REQUIRE((msg.find("duplicate key") != std::string::npos));
+    }
+}

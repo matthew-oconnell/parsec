@@ -14,8 +14,7 @@ Dictionary parse(const std::string& text) {
             return parse_ron(text);
         } catch (const std::exception& e2) {
             std::string err2 = e2.what();
-            throw std::runtime_error(std::string("JSON parse error: ") + err1 +
-                                     "\n---\nRON parse error: " + err2);
+            throw std::runtime_error(std::string("JSON parse error: ") + err1 + "\n---\nRON parse error: " + err2);
         }
     }
 }
