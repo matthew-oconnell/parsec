@@ -16,7 +16,7 @@ TEST_CASE("Pretty print produces stable indentation for indent=2 and indent=4") 
         std::string expected = R"({
   "empty array": [],
   "empty object": {},
-  "some array": [5, 6],
+  "some array": [5,6],
   "some value": 1e+200
 })";
         REQUIRE(expected == dict.dump(2));
@@ -26,7 +26,7 @@ TEST_CASE("Pretty print produces stable indentation for indent=2 and indent=4") 
         std::string expected = R"({
     "empty array": [],
     "empty object": {},
-    "some array": [5, 6],
+    "some array": [5,6],
     "some value": 1e+200
 })";
         REQUIRE(expected == dict.dump(4));
@@ -36,7 +36,23 @@ TEST_CASE("Pretty print produces stable indentation for indent=2 and indent=4") 
 TEST_CASE("Pretty print works on nested objects") {
     Dictionary dict;
     dict["level1"]["level2"]["level3"]["value"] = 42;
-    std::string expected = R"({ "level1": { "level2": { "level3": { "value": 42 } } } })";
+    std::string expected = R"({"level1":{"level2":{"level3":{"value":42}}}})";
+    REQUIRE(expected == dict.dump());
+}
+
+TEST_CASE("Pretty print Json", "[dump]") {
+    Dictionary dict;
+    dict["some array"][0] = 5;
+    dict["some array"][1] = 6;
+    dict["some value"] = double(1e200);
+    dict["empty array"] = std::vector<double>{};
+    dict["empty object"] = Dictionary();
+    std::string expected = R"({
+    "empty array": [],
+    "empty object": {},
+    "some array": [5,6],
+    "some value": 1e+200
+})";
     REQUIRE(expected == dict.dump(4));
 }
 

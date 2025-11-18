@@ -22,14 +22,21 @@ TEST_CASE("parse simple RON example") {
     REQUIRE(v.at("visualization").at(0).at("type").asString() == "volume");
 }
 
-TEST_CASE("parse ron reports if a key is duplicated", "[duplicate_keys]") {
+TEST_CASE("parse RON for empty object") {
+    std::string ron_text = "{}";
+    auto v = ps::parse_ron(ron_text);
+    REQUIRE(v.isDict());
+    REQUIRE(v.size() == 0);
+}
+
+TEST_CASE("Duplicate keys throw an exception for ron parsing") {
     std::string s = R"(
-    {
-        key1: 1,
-        key2: 2,
-        key1: 3
-    }
-    )";
+{
+  key1: "value1"
+  key2: "value2"
+  key1: "value3"
+}
+)";
     try {
         ps::parse_ron(s);
         FAIL("expected parse to throw");

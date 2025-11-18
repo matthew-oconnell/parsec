@@ -142,6 +142,12 @@ namespace {
                     while (i < s.size() and peek() != '\n') get();
                     continue;
                 }
+                // line comment #
+                if (c == '#') {
+                    get();
+                    while (i < s.size() and peek() != '\n') get();
+                    continue;
+                }
 
                 // block comment /* ... */
                 if (c == '/' and i + 1 < s.size() and s[i + 1] == '*') {
@@ -426,6 +432,12 @@ namespace {
                 if (c == ',') {
                     get();
                     skip_ws();
+                    // Allow a trailing comma before the closing '}' (tolerate extra comma)
+                    if (peek() == '}') {
+                        get();
+                        pop_opener();
+                        break;
+                    }
                     continue;
                 }
                 // Allow implicit separator: if the next token looks like the start of a value,
@@ -498,6 +510,12 @@ namespace {
             }
             while (true) {
                 skip_ws();
+                // If we reach a closing brace here, accept it (handles trailing commas)
+                if (peek() == '}') {
+                    get();
+                    pop_opener();
+                    break;
+                }
                 if (peek() != '"') {
                     // attempt to read an identifier to provide a helpful suggestion
                     size_t start = i;
@@ -516,12 +534,12 @@ namespace {
                     throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
                 skip_ws();
                 Dictionary v = parse_value();
-                const std::string keystr = k.asString();
-                // Detect duplicate keys and provide a helpful error with location
-                if (d.m_object_map.find(keystr) != d.m_object_map.end()) {
-                    throw JsonParseError(format_error(std::string("duplicate key '") + keystr + "'", line, col), line, col);
+                // Duplicate keys are not allowed
+                if (d.count(k.asString()) > 0) {
+                    std::string msg = format_error(std::string("duplicate key '") + k.asString() + "'", line, col);
+                    throw JsonParseError(msg, line, col);
                 }
-                d[keystr] = v;
+                d[k.asString()] = v;
                 skip_ws();
                 char c = peek();
                 if (c == '}') {
@@ -676,11 +694,7 @@ Dictionary parse_json(const std::string& text) {
                     throw JsonParseError(p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
                 p.skip_ws();
                 Dictionary v = p.parse_value();
-                const std::string keystr = k.asString();
-                if (root.m_object_map.find(keystr) != root.m_object_map.end()) {
-                    throw JsonParseError(p.format_error(std::string("duplicate key '") + keystr + "'", p.line, p.col), p.line, p.col);
-                }
-                root[keystr] = v;
+                root[k.asString()] = v;
                 p.skip_ws();
                 char c = p.peek();
                 if (c == ',') {

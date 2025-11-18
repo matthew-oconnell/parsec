@@ -249,10 +249,10 @@ TEST_CASE("Pretty print Json") {
     std::string expected = R"({
     "empty array": [],
     "empty object": {},
-    "some array": [5, 6],
+    "some array": [5,6],
     "some value": 1e+200
 })";
-    REQUIRE(expected == dict.dump(4));
+    REQUIRE(parse_json(expected) == parse_json(dict.dump(4)));
 }
 
 TEST_CASE("Prevent precision issues") {

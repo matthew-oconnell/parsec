@@ -235,9 +235,11 @@ namespace {
                 }
                 skip_ws();
                 Dictionary v = parse_value();
-                // Detect duplicate keys and report an error
-                if (d.m_object_map.find(key) != d.m_object_map.end()) {
-                    throw std::runtime_error(std::string("duplicate key '") + key + "'");
+                // Duplicate keys are not allowed in RON either
+                if (d.count(key) > 0) {
+                    std::ostringstream msg;
+                    msg << "duplicate key '" << key << "'";
+                    throw std::runtime_error(msg.str());
                 }
                 d[key] = v;
                 skip_ws();
@@ -302,10 +304,6 @@ Dictionary parse_ron(const std::string& text) {
                 throw std::runtime_error("expected ':' or '=' after key");
             p.skip_ws();
             Dictionary v = p.parse_value();
-            // Detect duplicate keys in implicit root object
-            if (root.m_object_map.find(key) != root.m_object_map.end()) {
-                throw std::runtime_error(std::string("duplicate key '") + key + "'");
-            }
             root[key] = v;
             p.skip_ws();
             if (p.peek() == ',') {

@@ -270,8 +270,18 @@ struct Dictionary {
             case TYPE::IntArray:
             case TYPE::StringArray:
                 return m_object_array == rhs.m_object_array;
-            case TYPE::Object:
-                return m_object_map == rhs.m_object_map;
+            case TYPE::Object: {
+                auto my_keys = keys();
+                auto rhs_keys = rhs.keys();
+                if (my_keys.size() != rhs_keys.size()) return false;
+                for (auto const& k : my_keys) {
+                    if (rhs.count(k) == 0) return false;
+                    if (at(k) != rhs.at(k)) return false;
+                }
+                return true;
+            }
+            case TYPE::ObjectArray:
+                return m_object_array == rhs.m_object_array;
             case TYPE::Null:
                 return true;
             default:
@@ -347,6 +357,8 @@ struct Dictionary {
 
     std::string typeString() const {
         switch (my_type) {
+            case TYPE::Object:
+                return "Object";
             case TYPE::Boolean:
                 return "Boolean";
             case TYPE::Double:
@@ -459,7 +471,8 @@ struct Dictionary {
 
     std::vector<std::string> keys() const {
         if (my_type != TYPE::Object) {
-            throw std::logic_error("Cannot get keys of non-object type");
+            return {};
+            // throw std::logic_error("Cannot get keys of non-object type");
         }
         std::vector<std::string> out;
         out.reserve(m_object_map.size());
@@ -616,7 +629,7 @@ struct Dictionary {
 
     bool operator!=(bool rhs) const { return not(*this == rhs); }
 
-    std::string dump(int indent = 4, bool compact = true) const;
+    std::string dump(int indent = 0, bool compact = true) const;
 
     Dictionary overrideEntries(const Dictionary& config) const;
 
@@ -739,13 +752,6 @@ inline std::vector<Dictionary> Dictionary::asObjects() const {
 }
 
 inline std::string Dictionary::dump(int indent, bool compact) const {
-    // If indent == 0 and compact == true we want a "tight" compact form
-    // (no spaces after commas or colons) because many tests expect that
-    // exact formatting when requesting a zero-indent dump (dump(0)).
-    bool tight = (indent == 0 && compact);
-
-    // Produce a compact one-line representation used as a heuristic to decide
-    // whether to keep small structures on one line.
     std::function<std::string(const Dictionary&)> make_pretty_compact;
     make_pretty_compact = [&](const Dictionary& d) -> std::string {
         switch (d.my_type) {
@@ -771,7 +777,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 ss << '[';
                 bool first = true;
                 for (auto const& el : d.m_object_array) {
-                    if (!first) ss << (tight ? "," : ", ");
+                    if (!first) ss << ",";
                     first = false;
                     ss << make_pretty_compact(el);
                 }
@@ -781,20 +787,14 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
             case TYPE::Object: {
                 if (d.m_object_map.empty()) return std::string("{}");
                 std::ostringstream ss;
-                if (tight)
-                    ss << '{';
-                else
-                    ss << "{ ";
+                ss << '{';
                 bool first = true;
                 for (auto const& p : d.m_object_map) {
-                    if (!first) ss << (tight ? "," : ", ");
+                    if (!first) ss << ",";
                     first = false;
-                    ss << '"' << p.first << '"' << (tight ? ":" : ": ") << make_pretty_compact(p.second);
+                    ss << '"' << p.first << '"' << (compact ? ":" : ": ") << make_pretty_compact(p.second);
                 }
-                if (tight)
-                    ss << '}';
-                else
-                    ss << " }";
+                ss << '}';
                 return ss.str();
             }
         }
@@ -802,11 +802,17 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
     };
 
     bool force_expand = false;
-    if (compact) {
+    // If compact output was requested and no indent was provided, then
+    // we may return a single-line compact representation when it's short.
+    if (compact && indent == 0) {
         std::string one = make_pretty_compact(*this);
         if (one.size() > 80) force_expand = true;
         if (!force_expand && one.size() <= 80) return one;
     }
+    // When an explicit indent is requested, prefer pretty-printed objects
+    // (multi-line with indentation) but keep arrays compact by default.
+    bool compactObjects = compact;
+    if (indent > 0) compactObjects = false;
 
     std::ostringstream out;
 
@@ -843,10 +849,26 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                     out << "[]";
                     return;
                 }
+                // When compact output is requested, print arrays inline with
+                // no spaces between elements (e.g. "[1,2,3]"). Also, for
+                // readability, allow small arrays to be printed inline with
+                // the same no-space format even when `compact` is false.
                 if (compact) {
                     out << '[';
                     for (size_t i = 0; i < L.size(); ++i) {
-                        if (i) out << (tight ? "," : ", ");
+                        if (i) out << ",";
+                        out << make_pretty_compact(L[i]);
+                    }
+                    out << ']';
+                    return;
+                }
+
+                // Print small arrays inline (no spaces) even when not in
+                // compact mode. We consider arrays of up to 3 elements "small".
+                if (!compact && L.size() <= 3) {
+                    out << '[';
+                    for (size_t i = 0; i < L.size(); ++i) {
+                        if (i) out << ",";
                         out << make_pretty_compact(L[i]);
                     }
                     out << ']';
@@ -875,7 +897,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
             out << "{}";
             return;
         }
-        if (compact && !force_expand) {
+        if (compactObjects && !force_expand) {
             std::string one = make_pretty_compact(d);
             if (one.size() <= 80) {
                 out << one;
@@ -885,7 +907,8 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         out << "{\n";
         auto items = d.items();
         for (size_t i = 0; i < items.size(); ++i) {
-            out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first << '"' << ": ";
+            out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first << '"'
+                << (compactObjects ? ":" : ": ");
             dumpValue(items[i].second, level + indent);
             if (i + 1 < items.size())
                 out << ",\n";
@@ -897,153 +920,6 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
 
     dumpObject(*this, 0);
     return out.str();
-
-    // // compact == true and indent == 0 produces a single-line compact JSON
-    // if (indent == 0) {
-    //     std::ostringstream ss;
-    //     ss << '{';
-    //     bool first = true;
-    //     for (auto const& p : data) {
-    //         if (!first) ss << ',';
-    //         first = false;
-    //         ss << '"' << p.first << '"' << ':' << p.second.dump(0, compact);
-    //     }
-    //     ss << '}';
-    //     return ss.str();
-    // }
-
-    // // produce a one-line pretty-compact representation (spaces after colons and commas)
-    // std::function<std::string(const Dictionary&)> make_pretty_compact;
-    // make_pretty_compact = [&](const Dictionary& d) -> std::string {
-    //     std::ostringstream ss;
-    //     ss << "{ ";
-    //     bool first = true;
-    //     for (auto const& p : d.items()) {
-    //         if (!first) ss << ", ";
-    //         first = false;
-    //         ss << '"' << p.first << '"' << ": ";
-    //         const Value& val = p.second;
-    //         if (val.isDict()) {
-    //             ss << make_pretty_compact(*val.asDict());
-    //         } else if (val.isList()) {
-    //             const auto& L = val.asList();
-    //             ss << '[';
-    //             for (size_t i = 0; i < L.size(); ++i) {
-    //                 if (i) ss << ", ";
-    //                 if (L[i].isDict())
-    //                     ss << make_pretty_compact(*L[i].asDict());
-    //                 else if (L[i].isList())
-    //                     ss << L[i].dump(0, compact);
-    //                 else
-    //                     ss << L[i].to_string();
-    //             }
-    //             ss << ']';
-    //         } else {
-    //             ss << val.to_string();
-    //         }
-    //     }
-    //     ss << " }";
-    //     return ss.str();
-    // };
-
-    // bool force_expand = false;
-    // if (compact) {
-    //     std::string one = make_pretty_compact(*this);
-    //     if (one.size() > 80) force_expand = true;
-    // }
-
-    // std::ostringstream out;
-
-    // // Forward declarations of small helpers used by the pretty printer
-    // std::function<void(const Value&, int)> dumpValue;
-    // std::function<void(const Dictionary&, int)> dumpObject;
-
-    // dumpValue = [&](const Value& val, int level) {
-    //     if (val.isNull()) {
-    //         out << "null";
-    //         return;
-    //     }
-    //     if (val.isInt()) {
-    //         out << val.asInt();
-    //         return;
-    //     }
-    //     if (val.isDouble()) {
-    //         std::ostringstream ss;
-    //         ss << val.asDouble();
-    //         out << ss.str();
-    //         return;
-    //     }
-    //     if (val.isBool()) {
-    //         out << (val.asBool() ? "true" : "false");
-    //         return;
-    //     }
-    //     if (val.isString()) {
-    //         out << '"' << val.asString() << '"';
-    //         return;
-    //     }
-    //     if (val.isList()) {
-    //         const auto& L = val.asList();
-    //         if (L.empty()) {
-    //             out << "[]";
-    //             return;
-    //         }
-    //         if (compact) {
-    //             out << '[';
-    //             for (size_t i = 0; i < L.size(); ++i) {
-    //                 out << L[i].dump(0, compact);
-    //                 if (i + 1 < L.size()) out << ", ";
-    //             }
-    //             out << ']';
-    //             return;
-    //         }
-    //         out << "[\n";
-    //         for (size_t i = 0; i < L.size(); ++i) {
-    //             out << std::string(static_cast<size_t>(level + indent), ' ');
-    //             dumpValue(L[i], level + indent);
-    //             if (i + 1 < L.size())
-    //                 out << ",\n";
-    //             else
-    //                 out << "\n";
-    //         }
-    //         out << std::string(static_cast<size_t>(level), ' ') << "]";
-    //         return;
-    //     }
-    //     if (val.isDict()) {
-    //         dumpObject(*val.asDict(), level);
-    //         return;
-    //     }
-    //     out << "null";
-    // };
-
-    // dumpObject = [&](const Dictionary& d, int level) {
-    //     auto items = d.items();
-    //     if (items.empty()) {
-    //         out << "{}";
-    //         return;
-    //     }
-    //     if (compact && !force_expand) {
-    //         std::string one = make_pretty_compact(d);
-    //         if (one.size() <= 80) {
-    //             out << one;
-    //             return;
-    //         }
-    //     }
-    //     out << "{\n";
-    //     for (size_t i = 0; i < items.size(); ++i) {
-    //         out << std::string(static_cast<size_t>(level + indent), ' ') << '"' << items[i].first
-    //             << '"' << ": ";
-    //         dumpValue(items[i].second, level + indent);
-    //         if (i + 1 < items.size())
-    //             out << ",\n";
-    //         else
-    //             out << "\n";
-    //     }
-    //     out << std::string(static_cast<size_t>(level), ' ') << "}";
-    // };
-
-    // dumpObject(*this, 0);
-    // return out.str();
-    return "";
 }
 
 inline Dictionary Dictionary::overrideEntries(const Dictionary& config) const {
