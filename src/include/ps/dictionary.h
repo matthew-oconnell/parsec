@@ -16,6 +16,13 @@
 #include <type_traits>
 
 namespace ps {
+
+struct DictionaryScalarImpl {
+    bool m_bool = false;
+    double m_double = 0.0;
+    int64_t m_int = 0;
+    std::string m_string = "";
+};
 struct Dictionary {
     enum TYPE {
         Object,
@@ -33,12 +40,10 @@ struct Dictionary {
 
   private:
     TYPE my_type = Object;
-    bool m_bool = false;
-    double m_double = 0.0;
-    int64_t m_int = 0;
-    std::string m_string = "";
+    std::shared_ptr<DictionaryScalarImpl> scalar = std::make_shared<DictionaryScalarImpl>();
+    // DictionaryScalarImpl scalar;
 
-    std::vector<Dictionary> m_object_array;
+    std::map<int, Dictionary> m_array_map;
     std::map<std::string, Dictionary> m_object_map;
 
   public:
@@ -47,66 +52,52 @@ struct Dictionary {
 
     Dictionary(const std::string& s) {
         my_type = TYPE::String;
-        m_string = s;
+        scalar->m_string = s;
     }
 
     Dictionary(const char* s) { *this = std::string(s); }
 
     Dictionary(int64_t n) {
         my_type = TYPE::Integer;
-        m_int = n;
+        scalar->m_int = n;
     }
 
     Dictionary(int n) { *this = int64_t(n); }
 
     Dictionary(double x) {
         my_type = TYPE::Double;
-        m_double = x;
+        scalar->m_double = x;
     }
 
     Dictionary(bool b) {
         my_type = TYPE::Boolean;
-        m_bool = b;
+        scalar->m_bool = b;
     }
 
     Dictionary(const std::vector<double>& v) {
-        m_object_array.reserve(v.size());
         my_type = TYPE::DoubleArray;
-        for (auto d : v) {
-            m_object_array.emplace_back(d);
-        }
+        for (size_t i = 0; i < v.size(); ++i) m_array_map.emplace(static_cast<int>(i), Dictionary(v[i]));
     }
 
     Dictionary(const std::vector<int>& v) {
-        m_object_array.reserve(v.size());
         my_type = TYPE::IntArray;
-        for (auto d : v) {
-            m_object_array.emplace_back(d);
-        }
+        for (size_t i = 0; i < v.size(); ++i)
+            m_array_map.emplace(static_cast<int>(i), Dictionary(static_cast<int64_t>(v[i])));
     }
 
     Dictionary(const std::vector<std::string>& v) {
-        m_object_array.reserve(v.size());
         my_type = TYPE::StringArray;
-        for (auto d : v) {
-            m_object_array.emplace_back(d);
-        }
+        for (size_t i = 0; i < v.size(); ++i) m_array_map.emplace(static_cast<int>(i), Dictionary(v[i]));
     }
 
     Dictionary(const std::vector<bool>& v) {
-        m_object_array.reserve(v.size());
         my_type = TYPE::BoolArray;
-        for (bool d : v) {
-            m_object_array.emplace_back(d);
-        }
+        for (size_t i = 0; i < v.size(); ++i) m_array_map.emplace(static_cast<int>(i), Dictionary(v[i]));
     }
 
     Dictionary(const std::vector<Dictionary>& v) {
-        m_object_array.reserve(v.size());
         my_type = TYPE::ObjectArray;
-        for (auto d : v) {
-            m_object_array.emplace_back(d);
-        }
+        for (size_t i = 0; i < v.size(); ++i) m_array_map.emplace(static_cast<int>(i), Dictionary(v[i]));
     }
 
     // Construct an object from initializer list of (key, value) pairs
@@ -122,37 +113,30 @@ struct Dictionary {
               typename = std::enable_if_t<!std::is_same<std::decay_t<T>, std::pair<std::string, Dictionary> >::value> >
     Dictionary(std::initializer_list<T> init) {
         my_type = TYPE::ObjectArray;
-        m_object_array.reserve(init.size());
-        for (auto const& v : init) m_object_array.emplace_back(v);
+        int i = 0;
+        for (auto const& v : init) m_array_map.emplace(i++, Dictionary(v));
     }
 
     Dictionary(const Dictionary& other) {
         my_type = other.my_type;
+        // Ensure scalar is copied (deep copy of the pointed-to value)
+        scalar = std::make_shared<DictionaryScalarImpl>(*other.scalar);
         switch (my_type) {
             case TYPE::Object:
                 m_object_map = other.m_object_map;
-                break;
-            case TYPE::Boolean:
-                m_bool = other.m_bool;
-                break;
-            case TYPE::Double:
-                m_double = other.m_double;
-                break;
-            case TYPE::Integer:
-                m_int = other.m_int;
-                break;
-            case TYPE::String:
-                m_string = other.m_string;
                 break;
             case TYPE::ObjectArray:
             case TYPE::IntArray:
             case TYPE::DoubleArray:
             case TYPE::StringArray:
             case TYPE::BoolArray:
-                m_object_array = other.m_object_array;
+                m_array_map = other.m_array_map;
                 break;
             case TYPE::Null:
-                // nothing to copy
+                // nothing extra to copy
+                break;
+            default:
+                // scalar already copied above for scalar types
                 break;
         }
     }
@@ -174,14 +158,14 @@ struct Dictionary {
 
     Dictionary& operator=(const std::string& s) {
         my_type = TYPE::String;
-        m_string = s;
+        scalar->m_string = s;
         return *this;
     }
 
     Dictionary& operator=(const char* s) { return operator=(std::string(s)); }
 
     Dictionary& operator=(int64_t n) {
-        m_int = n;
+        scalar->m_int = n;
         my_type = TYPE::Integer;
         return *this;
     }
@@ -189,69 +173,61 @@ struct Dictionary {
     Dictionary& operator=(int n) { return operator=(int64_t(n)); }
 
     Dictionary& operator=(double x) {
-        m_double = x;
+        scalar->m_double = x;
         my_type = TYPE::Double;
         return *this;
     }
 
     Dictionary& operator=(const bool& b) {
-        m_bool = b;
+        scalar->m_bool = b;
         my_type = TYPE::Boolean;
         return *this;
     }
 
     Dictionary& operator=(const std::vector<int>& v) {
-        std::vector<Dictionary> L;
-        for (auto x : v) {
-            L.emplace_back();
-            L.back() = int64_t(x);
-        }
-        m_object_array = std::move(L);
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), Dictionary(int64_t(v[i])));
+        m_array_map = std::move(M);
         my_type = TYPE::IntArray;
         return *this;
     }
 
     Dictionary& operator=(const std::vector<bool>& v) {
-        std::vector<Dictionary> L;
-        for (bool x : v) {
-            L.emplace_back();
-            L.back() = x;
-        }
-        m_object_array = std::move(L);
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), Dictionary(v[i]));
+        m_array_map = std::move(M);
         my_type = TYPE::BoolArray;
         return *this;
     }
 
     Dictionary& operator=(const std::vector<double>& v) {
-        std::vector<Dictionary> L;
-        for (auto x : v) {
-            L.emplace_back();
-            L.back() = x;
-        }
-        m_object_array = std::move(L);
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), Dictionary(v[i]));
+        m_array_map = std::move(M);
         my_type = TYPE::DoubleArray;
         return *this;
     }
 
     Dictionary& operator=(const std::vector<std::string>& v) {
-        std::vector<Dictionary> L;
-        for (auto const& x : v) {
-            L.emplace_back();
-            L.back() = x;
-        }
-        m_object_array = std::move(L);
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), Dictionary(v[i]));
+        m_array_map = std::move(M);
         my_type = TYPE::StringArray;
         return *this;
     }
 
     Dictionary& operator=(const std::vector<Dictionary>& v) {
-        m_object_array = v;
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), v[i]);
+        m_array_map = std::move(M);
         my_type = TYPE::ObjectArray;
         return *this;
     }
 
     Dictionary& operator=(std::vector<Dictionary>&& v) {
-        m_object_array = std::move(v);
+        std::map<int, Dictionary> M;
+        for (size_t i = 0; i < v.size(); ++i) M.emplace(static_cast<int>(i), std::move(v[i]));
+        m_array_map = std::move(M);
         my_type = TYPE::ObjectArray;
         return *this;
     }
@@ -260,18 +236,18 @@ struct Dictionary {
         if (my_type != rhs.my_type) return false;
         switch (my_type) {
             case TYPE::Boolean:
-                return m_bool == rhs.m_bool;
+                return scalar->m_bool == rhs.scalar->m_bool;
             case TYPE::Double:
-                return m_double == rhs.m_double;
+                return scalar->m_double == rhs.scalar->m_double;
             case TYPE::Integer:
-                return m_int == rhs.m_int;
+                return scalar->m_int == rhs.scalar->m_int;
             case TYPE::String:
-                return m_string == rhs.m_string;
+                return scalar->m_string == rhs.scalar->m_string;
             case TYPE::BoolArray:
             case TYPE::DoubleArray:
             case TYPE::IntArray:
             case TYPE::StringArray:
-                return m_object_array == rhs.m_object_array;
+                return m_array_map == rhs.m_array_map;
             case TYPE::Object: {
                 auto my_keys = keys();
                 auto rhs_keys = rhs.keys();
@@ -283,7 +259,7 @@ struct Dictionary {
                 return true;
             }
             case TYPE::ObjectArray:
-                return m_object_array == rhs.m_object_array;
+                return m_array_map == rhs.m_array_map;
             case TYPE::Null:
                 return true;
             default:
@@ -317,7 +293,7 @@ struct Dictionary {
             case TYPE::IntArray:
             case TYPE::StringArray:
             case TYPE::ObjectArray:
-                return m_object_array.size();
+                return static_cast<int>(m_array_map.size());
             case TYPE::Object:
                 return m_object_map.size();
             default:
@@ -335,7 +311,7 @@ struct Dictionary {
             case TYPE::IntArray:
             case TYPE::StringArray:
             case TYPE::ObjectArray:
-                return m_object_array.empty();
+                return m_array_map.empty();
             default:
                 return false;
         }
@@ -350,7 +326,7 @@ struct Dictionary {
 
     void clear() noexcept {
         m_object_map.clear();
-        m_object_array.clear();
+        m_array_map.clear();
         my_type = TYPE::Object;
     }
 
@@ -399,13 +375,15 @@ struct Dictionary {
         // usage like dict["arr"][0] = 5 works naturally.
         if (my_type == TYPE::Object && m_object_map.empty()) {
             my_type = TYPE::ObjectArray;
-            m_object_array.clear();
+            m_array_map.clear();
         }
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
             my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            if (static_cast<size_t>(index) >= m_object_array.size())
-                m_object_array.resize(static_cast<size_t>(index) + 1);
-            return m_object_array[index];
+            if (index < 0) throw std::logic_error("Negative index");
+            for (int i = 0; i <= index; ++i) {
+                if (m_array_map.find(i) == m_array_map.end()) m_array_map.emplace(i, Dictionary());
+            }
+            return m_array_map[index];
         }
         throw std::logic_error("Not a list");
     }
@@ -413,7 +391,7 @@ struct Dictionary {
     const Dictionary& operator[](int index) const {
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
             my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            return m_object_array[index];
+            return m_array_map.at(index);
         }
         throw std::logic_error("Not a list");
     }
@@ -431,7 +409,7 @@ struct Dictionary {
     Dictionary& at(int index) {
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
             my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            return m_object_array.at(index);
+            return m_array_map.at(index);
         }
         throw std::logic_error("Not a list");
     }
@@ -439,7 +417,7 @@ struct Dictionary {
     const Dictionary& at(int index) const {
         if (my_type == TYPE::ObjectArray || my_type == TYPE::IntArray || my_type == TYPE::DoubleArray ||
             my_type == TYPE::StringArray || my_type == TYPE::BoolArray) {
-            return m_object_array.at(index);
+            return m_array_map.at(index);
         }
         throw std::logic_error("Not a list");
     }
@@ -504,24 +482,24 @@ struct Dictionary {
     }
 
     std::string asString() const {
-        if (my_type == TYPE::String) return m_string;
-        if (my_type == TYPE::Integer) return std::to_string(m_int);
+        if (my_type == TYPE::String) return scalar->m_string;
+        if (my_type == TYPE::Integer) return std::to_string(scalar->m_int);
         if (my_type == TYPE::Double) {
             std::ostringstream ss;
-            ss << m_double;
+            ss << scalar->m_double;
             return ss.str();
         }
-        if (my_type == TYPE::Boolean) return m_bool ? "true" : "false";
+        if (my_type == TYPE::Boolean) return scalar->m_bool ? "true" : "false";
         throw std::runtime_error("not a string");
     }
 
     std::array<double, 3> asPoint() const {
         if (my_type == TYPE::IntArray or my_type == TYPE::DoubleArray) {
-            if (m_object_array.size() == 3) {
+            if (m_array_map.size() == 3) {
                 std::array<double, 3> out;
-                out[0] = m_object_array.at(0).asDouble();
-                out[1] = m_object_array.at(1).asDouble();
-                out[2] = m_object_array.at(2).asDouble();
+                out[0] = m_array_map.at(0).asDouble();
+                out[1] = m_array_map.at(1).asDouble();
+                out[2] = m_array_map.at(2).asDouble();
                 return out;
             }
         }
@@ -538,19 +516,19 @@ struct Dictionary {
     std::vector<bool> getBools(const std::string& key) const { return at(key).asBools(); }
 
     int asInt() const {
-        if (my_type == TYPE::Integer) return static_cast<int>(m_int);
-        if (my_type == TYPE::Double) return static_cast<int>(m_double);
+        if (my_type == TYPE::Integer) return static_cast<int>(scalar->m_int);
+        if (my_type == TYPE::Double) return static_cast<int>(scalar->m_double);
         throw std::runtime_error("not an int");
     }
 
     double asDouble() const {
-        if (my_type == TYPE::Double) return m_double;
-        if (my_type == TYPE::Integer) return static_cast<double>(m_int);
+        if (my_type == TYPE::Double) return scalar->m_double;
+        if (my_type == TYPE::Integer) return static_cast<double>(scalar->m_int);
         throw std::runtime_error("not a double");
     }
 
     bool asBool() const {
-        if (my_type == TYPE::Boolean) return m_bool;
+        if (my_type == TYPE::Boolean) return scalar->m_bool;
         throw std::runtime_error("not a bool");
     }
 
@@ -608,23 +586,23 @@ struct Dictionary {
 
     // Comparison operators against primitive types for compatibility
     bool operator==(int rhs) const {
-        if (my_type == TYPE::Integer) return static_cast<int>(m_int) == rhs;
-        if (my_type == TYPE::Double) return static_cast<int>(m_double) == rhs;
+        if (my_type == TYPE::Integer) return static_cast<int>(scalar->m_int) == rhs;
+        if (my_type == TYPE::Double) return static_cast<int>(scalar->m_double) == rhs;
         return false;
     }
 
     bool operator!=(int rhs) const { return not(*this == rhs); }
 
     bool operator==(double rhs) const {
-        if (my_type == TYPE::Double) return m_double == rhs;
-        if (my_type == TYPE::Integer) return static_cast<double>(m_int) == rhs;
+        if (my_type == TYPE::Double) return scalar->m_double == rhs;
+        if (my_type == TYPE::Integer) return static_cast<double>(scalar->m_int) == rhs;
         return false;
     }
 
     bool operator!=(double rhs) const { return not(*this == rhs); }
 
     bool operator==(bool rhs) const {
-        if (my_type == TYPE::Boolean) return m_bool == rhs;
+        if (my_type == TYPE::Boolean) return scalar->m_bool == rhs;
         return false;
     }
 
@@ -645,11 +623,11 @@ struct Dictionary {
             case TYPE::Null:
                 return "null";
             case TYPE::Boolean:
-                return m_bool ? "true" : "false";
+                return scalar->m_bool ? "true" : "false";
             case TYPE::Integer:
-                return std::to_string(m_int);
+                return std::to_string(scalar->m_int);
             case TYPE::Double:
-                return std::to_string(m_double);
+                return std::to_string(scalar->m_double);
             default:
                 break;
         }
@@ -659,25 +637,28 @@ struct Dictionary {
 
 inline std::vector<int> Dictionary::asInts() const {
     if (my_type == TYPE::Integer) {
-        return std::vector<int>{static_cast<int>(m_int)};
+        return std::vector<int>{static_cast<int>(scalar->m_int)};
     }
     if (my_type == TYPE::Double) {
-        return std::vector<int>{static_cast<int>(m_double)};
+        return std::vector<int>{static_cast<int>(scalar->m_double)};
     }
     if (my_type == TYPE::IntArray) {
         std::vector<int> out;
-        for (auto const& e : m_object_array) out.push_back(e.asInt());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asInt());
         return out;
     }
     if (my_type == TYPE::DoubleArray) {
         // TODO warn if double isn't approx an int
         std::vector<int> out;
-        for (auto const& e : m_object_array) out.push_back(static_cast<int>(e.asDouble()));
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(static_cast<int>(kv.second.asDouble()));
         return out;
     }
     if (my_type == TYPE::ObjectArray) {
         std::vector<int> out;
-        for (auto const& e : m_object_array) out.push_back(e.asInt());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asInt());
         return out;
     }
     throw std::runtime_error("not an int list");
@@ -685,24 +666,27 @@ inline std::vector<int> Dictionary::asInts() const {
 
 inline std::vector<double> Dictionary::asDoubles() const {
     if (my_type == TYPE::Double) {
-        return std::vector<double>{m_double};
+        return std::vector<double>{scalar->m_double};
     }
     if (my_type == TYPE::Integer) {
-        return std::vector<double>{static_cast<double>(m_int)};
+        return std::vector<double>{static_cast<double>(scalar->m_int)};
     }
     if (my_type == TYPE::DoubleArray) {
         std::vector<double> out;
-        for (auto const& e : m_object_array) out.push_back(e.asDouble());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asDouble());
         return out;
     }
     if (my_type == TYPE::IntArray) {
         std::vector<double> out;
-        for (auto const& e : m_object_array) out.push_back(static_cast<double>(e.asInt()));
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(static_cast<double>(kv.second.asInt()));
         return out;
     }
     if (my_type == TYPE::ObjectArray) {
         std::vector<double> out;
-        for (auto const& e : m_object_array) out.push_back(e.asDouble());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asDouble());
         return out;
     }
     throw std::runtime_error("not a double list");
@@ -710,16 +694,18 @@ inline std::vector<double> Dictionary::asDoubles() const {
 
 inline std::vector<std::string> Dictionary::asStrings() const {
     if (my_type == TYPE::String) {
-        return std::vector<std::string>{m_string};
+        return std::vector<std::string>{scalar->m_string};
     }
     if (my_type == TYPE::StringArray) {
         std::vector<std::string> out;
-        for (auto const& e : m_object_array) out.push_back(e.asString());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asString());
         return out;
     }
     if (my_type == TYPE::ObjectArray) {
         std::vector<std::string> out;
-        for (auto const& e : m_object_array) out.push_back(e.asString());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asString());
         return out;
     }
     throw std::runtime_error("not a string list");
@@ -727,16 +713,18 @@ inline std::vector<std::string> Dictionary::asStrings() const {
 
 inline std::vector<bool> Dictionary::asBools() const {
     if (my_type == TYPE::Boolean) {
-        return std::vector<bool>{m_bool};
+        return std::vector<bool>{scalar->m_bool};
     }
     if (my_type == TYPE::BoolArray) {
         std::vector<bool> out;
-        for (auto const& e : m_object_array) out.push_back(e.asBool());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asBool());
         return out;
     }
     if (my_type == TYPE::ObjectArray) {
         std::vector<bool> out;
-        for (auto const& e : m_object_array) out.push_back(e.asBool());
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second.asBool());
         return out;
     }
     throw std::runtime_error("not a bool list");
@@ -744,7 +732,10 @@ inline std::vector<bool> Dictionary::asBools() const {
 
 inline std::vector<Dictionary> Dictionary::asObjects() const {
     if (my_type == TYPE::ObjectArray) {
-        return m_object_array;
+        std::vector<Dictionary> out;
+        out.reserve(m_array_map.size());
+        for (auto const& kv : m_array_map) out.push_back(kv.second);
+        return out;
     }
     if (my_type == TYPE::Object) {
         return std::vector<Dictionary>{*this};
@@ -759,16 +750,16 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
             case TYPE::Null:
                 return "null";
             case TYPE::Boolean:
-                return d.m_bool ? "true" : "false";
+                return d.scalar->m_bool ? "true" : "false";
             case TYPE::Integer:
-                return std::to_string(d.m_int);
+                return std::to_string(d.scalar->m_int);
             case TYPE::Double: {
                 std::ostringstream ss;
-                ss << d.m_double;
+                ss << d.scalar->m_double;
                 return ss.str();
             }
             case TYPE::String:
-                return std::string("\"") + d.m_string + std::string("\"");
+                return std::string("\"") + d.scalar->m_string + std::string("\"");
             case TYPE::IntArray:
             case TYPE::DoubleArray:
             case TYPE::StringArray:
@@ -777,7 +768,10 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 std::ostringstream ss;
                 ss << '[';
                 bool first = true;
-                for (auto const& el : d.m_object_array) {
+                std::vector<Dictionary> elems;
+                elems.reserve(d.m_array_map.size());
+                for (auto const& kv : d.m_array_map) elems.push_back(kv.second);
+                for (auto const& el : elems) {
                     if (!first) ss << ",";
                     first = false;
                     ss << make_pretty_compact(el);
@@ -826,26 +820,28 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 out << "null";
                 return;
             case TYPE::Boolean:
-                out << (val.m_bool ? "true" : "false");
+                out << (val.scalar->m_bool ? "true" : "false");
                 return;
             case TYPE::Integer:
-                out << val.m_int;
+                out << val.scalar->m_int;
                 return;
             case TYPE::Double: {
                 std::ostringstream ss;
-                ss << val.m_double;
+                ss << val.scalar->m_double;
                 out << ss.str();
                 return;
             }
             case TYPE::String:
-                out << '"' << val.m_string << '"';
+                out << '"' << val.scalar->m_string << '"';
                 return;
             case TYPE::IntArray:
             case TYPE::DoubleArray:
             case TYPE::StringArray:
             case TYPE::BoolArray:
             case TYPE::ObjectArray: {
-                const auto& L = val.m_object_array;
+                std::vector<Dictionary> L;
+                L.reserve(val.m_array_map.size());
+                for (auto const& kv : val.m_array_map) L.push_back(kv.second);
                 if (L.empty()) {
                     out << "[]";
                     return;

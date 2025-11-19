@@ -17,7 +17,8 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 
     // properties
     const Dictionary* props = nullptr;
-    if (schema_node.has("properties") && schema_node.at("properties").isMappedObject()) props = &schema_node.at("properties");
+    if (schema_node.has("properties") && schema_node.at("properties").isMappedObject())
+        props = &schema_node.at("properties");
 
     if (props) {
         for (auto const& p : props->items()) {
@@ -129,7 +130,8 @@ Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
 
     // Top-level: if schema declares type object, apply object defaults; otherwise if default
     // exists, use it
-    if (schema.has("type") && schema.at("type").type() == Dictionary::String && schema.at("type").asString() == "object") {
+    if (schema.has("type") && schema.at("type").type() == Dictionary::String &&
+        schema.at("type").asString() == "object") {
         Dictionary inObj;
         if (data.isMappedObject()) inObj = data;
         Dictionary outObj = apply_defaults_to_object(inObj, schema, schema);

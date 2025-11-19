@@ -43,13 +43,6 @@ static std::string display_path(const std::string& path) {
     return out;
 }
 
-// Safe lookup helper: return pointer to value for key if present, else nullptr
-static const Dictionary* dict_find(const Dictionary& d, const std::string& key) {
-    if (!d.isMappedObject()) return nullptr;
-    if (!d.has(key)) return nullptr;
-    return &d.at(key);
-}
-
 static std::string value_type_name(const Dictionary& d) {
     if (d.isMappedObject()) return "object";
     if (d.isArrayObject()) return "array";
@@ -336,7 +329,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     const Dictionary& subSchemaValue = propSchema;
                     const Dictionary* subSchema = schema_from_value(schema_root, subSchemaValue);
                     if (subSchema) {
-                        if (auto err = validate_node(data.at(key), schema_root, *subSchema, path.empty() ? key : path + "." + key))
+                        if (auto err = validate_node(
+                                data.at(key), schema_root, *subSchema, path.empty() ? key : path + "." + key))
                             return err;
                     }
                 }
@@ -357,7 +351,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             if (std::regex_match(key, rx)) {
                                 const Dictionary* sub = schema_from_value(schema_root, pp.second);
                                 if (sub) {
-                                    if (auto err = validate_node(data.at(key), schema_root, *sub, path.empty() ? key : path + "." + key))
+                                    if (auto err = validate_node(
+                                            data.at(key), schema_root, *sub, path.empty() ? key : path + "." + key))
                                         return err;
                                 }
                                 handled = true;
@@ -383,7 +378,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 } else {
                     const Dictionary* sub = schema_from_value(schema_root, ap);
                     if (sub) {
-                        if (auto err = validate_node(data.at(key), schema_root, *sub, path.empty() ? key : path + "." + key))
+                        if (auto err =
+                                validate_node(data.at(key), schema_root, *sub, path.empty() ? key : path + "." + key))
                             return err;
                     }
                 }
@@ -398,10 +394,12 @@ static std::optional<std::string> validate_node(const Dictionary& data,
 
             // minItems / maxItems
             if (schema_node.has("minItems") && schema_node.at("minItems").type() == Dictionary::Integer) {
-                if (data.size() < schema_node.at("minItems").asInt()) return std::optional<std::string>("array too few items");
+                if (data.size() < schema_node.at("minItems").asInt())
+                    return std::optional<std::string>("array too few items");
             }
             if (schema_node.has("maxItems") && schema_node.at("maxItems").type() == Dictionary::Integer) {
-                if (data.size() > schema_node.at("maxItems").asInt()) return std::optional<std::string>("array too many items");
+                if (data.size() > schema_node.at("maxItems").asInt())
+                    return std::optional<std::string>("array too many items");
             }
 
             // uniqueItems
@@ -428,7 +426,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                         if (static_cast<size_t>(i) < nSchemas) {
                             const Dictionary* sub = schema_from_value(schema_root, itemsVal[i]);
                             if (sub) {
-                                if (auto err = validate_node(data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
+                                if (auto err =
+                                        validate_node(data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                     return err;
                             }
                         } else {
@@ -440,7 +439,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                 } else {
                                     const Dictionary* sub = schema_from_value(schema_root, *itadd);
                                     if (sub) {
-                                        if (auto err = validate_node(data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
+                                        if (auto err = validate_node(
+                                                data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                             return err;
                                     }
                                 }
@@ -451,7 +451,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     const Dictionary* sub = schema_from_value(schema_root, itemsVal);
                     if (sub) {
                         for (int i = 0; i < data.size(); ++i) {
-                            if (auto err = validate_node(data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
+                            if (auto err =
+                                    validate_node(data[i], schema_root, *sub, path + "[" + std::to_string(i) + "]"))
                                 return err;
                         }
                     }
@@ -547,8 +548,7 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
             }
         }
     }
-    if (schema.isMappedObject() && !contains_schema_keyword &&
-        !schema.has("properties")) {
+    if (schema.isMappedObject() && !contains_schema_keyword && !schema.has("properties")) {
         Dictionary wrapper;
         wrapper["type"] = std::string("object");
         wrapper["properties"] = schema;
