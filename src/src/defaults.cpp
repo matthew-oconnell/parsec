@@ -17,8 +17,7 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 
     // properties
     const Dictionary* props = nullptr;
-    auto it_props = schema_node.m_object_map.find("properties");
-    if (it_props != schema_node.m_object_map.end()) props = &it_props->second;
+    if (schema_node.has("properties") && schema_node.at("properties").isMappedObject()) props = &schema_node.at("properties");
 
     if (props) {
         for (auto const& p : props->items()) {
@@ -43,11 +42,11 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
                 // Not present: if schema has a default, use it; else if propSchema is an object
                 // with nested defaults, we may create an empty object and apply nested defaults if
                 // there are defaults deeper in the schema.
-                if (propSchema && propSchema->m_object_map.find("default") != propSchema->m_object_map.end()) {
-                    out[k] = clone_value(propSchema->m_object_map.at("default"));
-                } else if (propSchema && propSchema->m_object_map.find("type") != propSchema->m_object_map.end() &&
-                           propSchema->m_object_map.at("type").type() == Dictionary::String &&
-                           propSchema->m_object_map.at("type").asString() == "object") {
+                if (propSchema && propSchema->has("default")) {
+                    out[k] = clone_value(propSchema->at("default"));
+                } else if (propSchema && propSchema->has("type") &&
+                           propSchema->at("type").type() == Dictionary::String &&
+                           propSchema->at("type").asString() == "object") {
                     // If nested object may have defaults inside, create an empty object and apply
                     // nested defaults
                     Dictionary empty;
@@ -60,14 +59,14 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 
     // additionalProperties: if schema object with default, and keys in input not covered by
     // properties, ensure defaults applied
-    auto it_add = schema_node.m_object_map.find("additionalProperties");
     const Dictionary* addSchema = nullptr;
-    if (it_add != schema_node.m_object_map.end() && it_add->second.isMappedObject()) addSchema = &it_add->second;
+    if (schema_node.has("additionalProperties") && schema_node.at("additionalProperties").isMappedObject())
+        addSchema = &schema_node.at("additionalProperties");
 
     if (addSchema) {
         for (auto const& pd : out.items()) {
             const std::string& k = pd.first;
-            if (props && props->m_object_map.find(k) != props->m_object_map.end()) continue;  // covered by properties
+            if (props && props->has(k)) continue;  // covered by properties
             // apply defaults into this additional property
             if (pd.second.isMappedObject()) {
                 Dictionary nested = pd.second;
@@ -89,14 +88,12 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                                           const Dictionary& schema_node) {
     // If schema_node has a 'default' and dataVal is null/empty, return default
     if ((dataVal.type() == Dictionary::Null || (!dataVal.isMappedObject() && !dataVal.isArrayObject()))) {
-        auto it_def = schema_node.m_object_map.find("default");
-        if (it_def != schema_node.m_object_map.end()) return clone_value(it_def->second);
+        if (schema_node.has("default")) return clone_value(schema_node.at("default"));
     }
 
     // If schema type is object, recurse
-    auto it_type = schema_node.m_object_map.find("type");
-    if (it_type != schema_node.m_object_map.end() && it_type->second.type() == Dictionary::String &&
-        it_type->second.asString() == "object") {
+    if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String &&
+        schema_node.at("type").asString() == "object") {
         Dictionary inObj;
         if (dataVal.isMappedObject()) inObj = dataVal;
         Dictionary outObj = apply_defaults_to_object(inObj, schema_root, schema_node);
@@ -104,18 +101,16 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
     }
 
     // If type is array
-    if (it_type != schema_node.m_object_map.end() && it_type->second.type() == Dictionary::String &&
-        it_type->second.asString() == "array") {
+    if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String &&
+        schema_node.at("type").asString() == "array") {
         if (!dataVal.isArrayObject()) {
-            auto it_def = schema_node.m_object_map.find("default");
-            if (it_def != schema_node.m_object_map.end()) return clone_value(it_def->second);
+            if (schema_node.has("default")) return clone_value(schema_node.at("default"));
         } else {
-            auto it_items = schema_node.m_object_map.find("items");
-            if (it_items != schema_node.m_object_map.end() && it_items->second.isMappedObject() &&
-                dataVal.isArrayObject()) {
-                const Dictionary* itemSchema = &it_items->second;
+            if (schema_node.has("items") && schema_node.at("items").isMappedObject() && dataVal.isArrayObject()) {
+                const Dictionary* itemSchema = &schema_node.at("items");
                 std::vector<Dictionary> outList;
-                for (auto const& el : dataVal.m_object_array) {
+                for (int i = 0; i < dataVal.size(); ++i) {
+                    const Dictionary& el = dataVal[i];
                     outList.push_back(apply_defaults_to_value(el, schema_root, *itemSchema));
                 }
                 Dictionary arr;
@@ -134,9 +129,7 @@ Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
 
     // Top-level: if schema declares type object, apply object defaults; otherwise if default
     // exists, use it
-    auto it_type = schema.m_object_map.find("type");
-    if (it_type != schema.m_object_map.end() && it_type->second.type() == Dictionary::String &&
-        it_type->second.asString() == "object") {
+    if (schema.has("type") && schema.at("type").type() == Dictionary::String && schema.at("type").asString() == "object") {
         Dictionary inObj;
         if (data.isMappedObject()) inObj = data;
         Dictionary outObj = apply_defaults_to_object(inObj, schema, schema);
@@ -144,9 +137,8 @@ Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
     }
 
     // If schema has a top-level default and data is not object/array, return default
-    if ((!data.isMappedObject() && !data.isArrayObject()) &&
-        schema.m_object_map.find("default") != schema.m_object_map.end()) {
-        return clone_value(schema.m_object_map.at("default"));
+    if ((!data.isMappedObject() && !data.isArrayObject()) && schema.has("default")) {
+        return clone_value(schema.at("default"));
     }
 
     // Otherwise return the input dictionary unchanged

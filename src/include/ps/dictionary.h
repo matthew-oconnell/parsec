@@ -31,6 +31,7 @@ struct Dictionary {
         Null
     };
 
+  private:
     TYPE my_type = Object;
     bool m_bool = false;
     double m_double = 0.0;
@@ -40,6 +41,7 @@ struct Dictionary {
     std::vector<Dictionary> m_object_array;
     std::map<std::string, Dictionary> m_object_map;
 
+  public:
     Dictionary() { my_type = TYPE::Object; }
     ~Dictionary() = default;
 
