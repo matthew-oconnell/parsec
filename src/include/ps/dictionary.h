@@ -36,7 +36,6 @@ struct Dictionary {
     double m_double = 0.0;
     int64_t m_int = 0;
     std::string m_string = "";
-    std::unique_ptr<Dictionary> m_object = nullptr;
 
     std::vector<Dictionary> m_object_array;
     std::map<std::string, Dictionary> m_object_map;
@@ -350,7 +349,6 @@ struct Dictionary {
     void clear() noexcept {
         m_object_map.clear();
         m_object_array.clear();
-        m_object.reset();
         my_type = TYPE::Object;
     }
 
