@@ -32,16 +32,17 @@ struct Dictionary {
     };
 
     TYPE my_type = Object;
-    bool m_bool;
-    double m_double;
-    int64_t m_int;
-    std::string m_string;
-    std::unique_ptr<Dictionary> m_object;
+    bool m_bool = false;
+    double m_double = 0.0;
+    int64_t m_int = 0;
+    std::string m_string = "";
+    std::unique_ptr<Dictionary> m_object = nullptr;
 
     std::vector<Dictionary> m_object_array;
     std::map<std::string, Dictionary> m_object_map;
 
     Dictionary() { my_type = TYPE::Object; }
+    ~Dictionary() = default;
 
     Dictionary(const std::string& s) {
         my_type = TYPE::String;

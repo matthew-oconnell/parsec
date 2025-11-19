@@ -45,3 +45,13 @@ TEST_CASE("Duplicate keys throw an exception for ron parsing") {
         REQUIRE((msg.find("duplicate key") != std::string::npos));
     }
 }
+
+TEST_CASE("Extra trailing closing brace is not an error ron ") {
+    std::string s = R"(
+{
+  key1: "value1"
+  key2: "value2"
+}}
+)";
+    auto dict = ps::parse_ron(s);
+}

@@ -11,7 +11,7 @@ TEST_CASE("parse reports line and column in error messages") {
     try {
         parse_json(s);
         FAIL("expected parse to throw");
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         std::string msg = e.what();
         // message should mention line/column info or at least include 'unexpected end'
         REQUIRE((msg.find("unexpected end") != std::string::npos || msg.find(":") != std::string::npos));
@@ -24,7 +24,7 @@ TEST_CASE("unmatched opener includes opener location") {
     try {
         parse_json(s);
         FAIL("expected parse to throw");
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         std::string msg = e.what();
         // the parser includes opener location in messages for arrays/objects
         REQUIRE((msg.find("opened at") != std::string::npos));
@@ -36,7 +36,7 @@ TEST_CASE("extra data after value is reported") {
     try {
         parse_json(s);
         FAIL("expected parse to throw");
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         std::string msg = e.what();
         REQUIRE((msg.find("extra data after JSON value") != std::string::npos));
     }
@@ -102,8 +102,23 @@ TEST_CASE("Duplicate keys throw an exception") {
     try {
         parse_json(s);
         FAIL("expected parse to throw");
-    } catch (const std::runtime_error& e) {
+    } catch (const std::exception& e) {
         std::string msg = e.what();
         REQUIRE((msg.find("duplicate key") != std::string::npos));
     }
+}
+
+TEST_CASE("An empty string is not a parse error") {
+    std::string s = "";
+    auto dict = parse_json(s);
+}
+
+TEST_CASE("Extra trailing closing brace is not an error ") {
+    std::string s = R"(
+{
+  "key1": "value1",
+  "key2": "value2"
+}}
+)";
+    auto dict = parse_json(s);
 }

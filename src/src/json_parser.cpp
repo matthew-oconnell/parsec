@@ -209,7 +209,13 @@ namespace {
                                          col);
                 }
             }
-            throw JsonParseError(format_error("unexpected token while parsing value", line, col), line, col);
+            throw JsonParseError(
+                format_error(std::string("unexpected character '" + std::to_string(static_cast<int>(c)) +
+                                         "' while parsing value"),
+                             line,
+                             col),
+                line,
+                col);
         }
 
         Dictionary parse_null() {
@@ -658,62 +664,86 @@ namespace {
 }
 
 Dictionary parse_json(const std::string& text) {
-    Parser p(text);
-    auto val = p.parse_value();
-    p.skip_ws();
-    if (p.peek() != '\0') {
-        // Tolerate a top-level sequence of object members without surrounding braces
-        // e.g. "key": value  "key2": value2
-        // If the input starts with a string followed by ':', treat as an implicit root object
-        char first_nonws = '\0';
-        for (size_t k = 0; k < text.size(); ++k) {
-            if (not std::isspace(static_cast<unsigned char>(text[k]))) {
-                first_nonws = text[k];
+    try {
+        // If the input is empty or only whitespace, treat it as an empty object
+        bool has_nonws = false;
+        for (char ch : text) {
+            if (!std::isspace(static_cast<unsigned char>(ch))) {
+                has_nonws = true;
                 break;
             }
         }
-        if (first_nonws == '"') {
-            // parse remaining as object members
-            // build a Dictionary with the already-parsed value if it was a dict, else include it if
-            // appropriate
-            p.i = 0;
-            p.line = 1;
-            p.col = 1;
-            Dictionary root;
-            p.skip_ws();
-            while (p.peek() != '\0') {
-                p.skip_ws();
-                if (p.peek() != '"')
-                    throw JsonParseError(
-                        p.format_error("expected string key in top-level implicit object", p.line, p.col),
-                        p.line,
-                        p.col);
-                Dictionary k = p.parse_string();
-                p.skip_ws();
-                if (p.get() != ':')
-                    throw JsonParseError(p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
-                p.skip_ws();
-                Dictionary v = p.parse_value();
-                root[k.asString()] = v;
-                p.skip_ws();
-                char c = p.peek();
-                if (c == ',') {
-                    p.get();
-                    p.skip_ws();
-                    continue;
-                }
-                if (c == '\0') break;
-                // allow implicit separator, otherwise error
-                if (c == '"') continue;
-                throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
-            }
-            return root;
+        if (!has_nonws) {
+            return Dictionary();
         }
-        throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
-    }
+        Parser p(text);
+        auto val = p.parse_value();
+        p.skip_ws();
+        // Allow extra trailing closing braces '}' to be ignored when there's no
+        // matching opener; consume any number of stray '}' characters here so
+        // inputs like an object followed by an extra '}' are tolerated.
+        while (p.peek() == '}') {
+            p.get();
+            p.skip_ws();
+        }
+        if (p.peek() != '\0') {
+            // Tolerate a top-level sequence of object members without surrounding braces
+            // e.g. "key": value  "key2": value2
+            // If the input starts with a string followed by ':', treat as an implicit root object
+            char first_nonws = '\0';
+            for (size_t k = 0; k < text.size(); ++k) {
+                if (not std::isspace(static_cast<unsigned char>(text[k]))) {
+                    first_nonws = text[k];
+                    break;
+                }
+            }
+            if (first_nonws == '"') {
+                // parse remaining as object members
+                // build a Dictionary with the already-parsed value if it was a dict, else include it if
+                // appropriate
+                p.i = 0;
+                p.line = 1;
+                p.col = 1;
+                Dictionary root;
+                p.skip_ws();
+                while (p.peek() != '\0') {
+                    p.skip_ws();
+                    if (p.peek() != '"')
+                        throw JsonParseError(
+                            p.format_error("expected string key in top-level implicit object", p.line, p.col),
+                            p.line,
+                            p.col);
+                    Dictionary k = p.parse_string();
+                    p.skip_ws();
+                    if (p.get() != ':')
+                        throw JsonParseError(
+                            p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
+                    p.skip_ws();
+                    Dictionary v = p.parse_value();
+                    root[k.asString()] = v;
+                    p.skip_ws();
+                    char c = p.peek();
+                    if (c == ',') {
+                        p.get();
+                        p.skip_ws();
+                        continue;
+                    }
+                    if (c == '\0') break;
+                    // allow implicit separator, otherwise error
+                    if (c == '"') continue;
+                    throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
+                }
+                return root;
+            }
+            throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
+        }
 
-    // Parsed value is already a Dictionary (scalar, object, or array)
-    return val;
+        // Parsed value is already a Dictionary (scalar, object, or array)
+        return val;
+    } catch (std::exception& e) {
+        throw std::logic_error(std::string("Tried to parse this string <") + text +
+                               "> but encountered this error: " + e.what());
+    }
 }
 
 }  // namespace ps
