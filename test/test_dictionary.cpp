@@ -445,3 +445,33 @@ TEST_CASE("Dictionary can get* ") {
         REQUIRE(dict.getString("dog") == "woof");
     }
 }
+
+TEST_CASE("Dictionary can store int array and know they're ints") {
+    Dictionary dict;
+    dict["mixed array"][0] = 3;
+    dict["mixed array"][1] = 4;
+    dict["mixed array"][2] = 7;
+    dict["mixed array"][3] = 8;
+    REQUIRE(dict["mixed array"].size() == 4);
+    REQUIRE(dict.at("mixed array").type() == Dictionary::IntArray);
+}
+
+TEST_CASE("Dictionary can store mixed int and doubles in array and know they're doubles") {
+    Dictionary dict;
+    dict["mixed array"][0] = 3;
+    dict["mixed array"][1] = 4.4;
+    dict["mixed array"][2] = 7;
+    dict["mixed array"][3] = 89;
+    REQUIRE(dict["mixed array"].size() == 4);
+    REQUIRE(dict.at("mixed array").type() == Dictionary::DoubleArray);
+}
+
+TEST_CASE("Ensure dictionary assignment operators don't alias because of shared ptr", "[alias]") {
+    Dictionary dict1;
+    dict1["value"] = 3;
+    Dictionary dict2;
+    dict2 = dict1;
+    dict2["value"] = 4;
+    REQUIRE(dict1["value"].asInt() == 3);
+    REQUIRE(dict2["value"].asInt() == 4);
+}

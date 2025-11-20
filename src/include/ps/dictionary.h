@@ -41,7 +41,6 @@ struct Dictionary {
   private:
     TYPE my_type = Object;
     std::shared_ptr<DictionaryScalarImpl> scalar = std::make_shared<DictionaryScalarImpl>();
-    // DictionaryScalarImpl scalar;
 
     std::map<int, Dictionary> m_array_map;
     std::map<std::string, Dictionary> m_object_map;
@@ -117,20 +116,41 @@ struct Dictionary {
         for (auto const& v : init) m_array_map.emplace(i++, Dictionary(v));
     }
 
-    Dictionary(const Dictionary& other) {
-        my_type = other.my_type;
-        // Ensure scalar is copied (deep copy of the pointed-to value)
-        scalar = std::make_shared<DictionaryScalarImpl>(*other.scalar);
+    static Dictionary null() {
+        Dictionary d;
+        d.my_type = TYPE::Null;
+        return d;
+    }
+
+    Dictionary& operator=(const Dictionary& d) {
+        if (this == &d) return *this;
+        my_type = d.my_type;
+        // deep-copy the scalar value so this Dictionary does not share state
+        scalar = std::make_shared<DictionaryScalarImpl>(*d.scalar);
+
+        // Build new maps first (do not modify `this` while reading `d`),
+        // so assigning from a sub-element (e.g. `dict = dict["key"]`) is safe.
+        std::map<std::string, Dictionary> new_object_map;
+        std::map<int, Dictionary> new_array_map;
+
         switch (my_type) {
             case TYPE::Object:
-                m_object_map = other.m_object_map;
+                for (auto const& p : d.m_object_map) {
+                    Dictionary tmp; // default construct then assign to get deep-copy
+                    tmp = p.second;
+                    new_object_map.emplace(p.first, std::move(tmp));
+                }
                 break;
             case TYPE::ObjectArray:
             case TYPE::IntArray:
             case TYPE::DoubleArray:
             case TYPE::StringArray:
             case TYPE::BoolArray:
-                m_array_map = other.m_array_map;
+                for (auto const& kv : d.m_array_map) {
+                    Dictionary tmp;
+                    tmp = kv.second;
+                    new_array_map.emplace(kv.first, std::move(tmp));
+                }
                 break;
             case TYPE::Null:
                 // nothing extra to copy
@@ -139,20 +159,13 @@ struct Dictionary {
                 // scalar already copied above for scalar types
                 break;
         }
-    }
 
-    Dictionary(Dictionary&& other) noexcept = default;
+        // Now swap in the newly constructed maps.
+        if (!new_object_map.empty() || my_type == TYPE::Object) m_object_map = std::move(new_object_map);
+        if (!new_array_map.empty() || my_type == TYPE::ObjectArray || my_type == TYPE::IntArray ||
+            my_type == TYPE::DoubleArray || my_type == TYPE::StringArray || my_type == TYPE::BoolArray)
+            m_array_map = std::move(new_array_map);
 
-    Dictionary& operator=(Dictionary&& other) noexcept = default;
-
-    static Dictionary null() {
-        Dictionary d;
-        d.my_type = TYPE::Null;
-        return d;
-    }
-
-    Dictionary& operator=(const Dictionary& d) {
-        *this = Dictionary(d);
         return *this;
     }
 
@@ -330,7 +343,101 @@ struct Dictionary {
         my_type = TYPE::Object;
     }
 
-    TYPE type() const { return my_type; }
+    TYPE type() const {
+        // If this is an object-array created via `operator[]` access,
+        // infer a more specific homogeneous array type where possible
+        // (e.g., all-integers -> IntArray, all-numbers -> DoubleArray,
+        // all-strings -> StringArray, all-bools -> BoolArray).
+        if (my_type != TYPE::ObjectArray) return my_type;
+        if (m_array_map.empty()) return my_type;
+
+        bool all_int = true;
+        bool all_double_or_int = true;
+        bool all_string = true;
+        bool all_bool = true;
+        bool all_object = true;
+
+        for (auto const& kv : m_array_map) {
+            const Dictionary& el = kv.second;
+            switch (el.my_type) {
+                case TYPE::Integer:
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::Double:
+                    all_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::IntArray:
+                    // nested arrays break scalar-homogeneity
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::DoubleArray:
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::StringArray:
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::BoolArray:
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::String:
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+                case TYPE::Boolean:
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_object = false;
+                    break;
+                case TYPE::Object:
+                case TYPE::ObjectArray:
+                    // Any nested object-like element forces ObjectArray
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    break;
+                case TYPE::Null:
+                    // treat null as breaking homogeneous typed arrays
+                    all_int = false;
+                    all_double_or_int = false;
+                    all_string = false;
+                    all_bool = false;
+                    all_object = false;
+                    break;
+            }
+        }
+
+        if (all_int) return TYPE::IntArray;
+        if (all_double_or_int) return TYPE::DoubleArray;
+        if (all_string) return TYPE::StringArray;
+        if (all_bool) return TYPE::BoolArray;
+        if (all_object) return TYPE::ObjectArray;
+        return TYPE::ObjectArray;
+    }
 
     std::string typeString() const {
         switch (my_type) {
@@ -369,6 +476,10 @@ struct Dictionary {
         return result;
     }
 
+    // Proxy returned for mutable integer-index access so we can observe
+    // assignments like `dict["arr"][0] = 3;` and promote the parent
+    // container type to an appropriate array type (IntArray, DoubleArray,
+    // StringArray, BoolArray, ObjectArray).
     Dictionary& operator[](int index) {
         // If this is an object that has never been used as a mapped object,
         // allow converting it to an array on first integer-index access so
@@ -425,7 +536,10 @@ struct Dictionary {
     const Dictionary& at(const std::string& k) const {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
+
+        // didn't find it, throw a decent error message
         std::ostringstream ss;
+        ss << "Could not find key <" << k << "> available options are: ";
         bool first = true;
         for (auto const& p : m_object_map) {
             if (!first) ss << ",";
@@ -438,7 +552,10 @@ struct Dictionary {
     Dictionary& at(const std::string& k) {
         auto it = m_object_map.find(k);
         if (it != m_object_map.end()) return it->second;
+
+        // didn't find it, throw a decent error message
         std::ostringstream ss;
+        ss << "Could not find key <" << k << "> available options are: ";
         bool first = true;
         for (auto const& p : m_object_map) {
             if (!first) ss << ",";
