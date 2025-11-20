@@ -70,6 +70,8 @@ cmake --build build --parallel
 ./build/parsec --ini path/to/config.ini
 ```
 
+**Auto-detection**: When you don't specify a format flag, parsec automatically tries all supported formats (JSON, RON, TOML, INI, YAML) and uses intelligent heuristics to report the most helpful error message if all formats fail. For example, if your file starts with `{` and contains `key: value` patterns, parsec will report errors from the JSON parser even if it also tried other formats.
+
 If the file contains a syntax error the tool prints a helpful message with line/column and exits non-zero. This makes it handy to plug into pre-commit hooks or CI pipelines to ensure configuration correctness.
 
 Schema validation from the CLI
@@ -87,28 +89,32 @@ On success the CLI prints `OK: validation passed` and exits 0. On failure it pri
 
 Here are two realistic examples of the kind of output `parsec` prints when it encounters a syntax violation. The messages include a one-line explanation, the line with the error, and a caret pointing to the column.
 
-1) Common mistake: using Python-style `True`/`False` instead of JSON `true`/`false`.
+1) Intelligent format detection on error:
 
-File `config.ron`:
+File `bad.txt`:
 
-```ron
-{
-	enabled: True
-}
+```
+true false
 ```
 
-Command (explicitly parse as RON):
+Command (auto-detect format):
 
 ```bash
-./build/parsec --ron config.ron
+./build/parsec bad.txt
 ```
 
 Example stderr output:
 
 ```
-OK: parsed RON; value: { "enabled": "True" }
-Preview: {object, 1 keys} enabled="True"
+parse error: Failed to parse as any supported format. Most likely intended format: JSON
+
+Tried to parse this string <true false
+> but encountered this error: extra data after JSON value (line 1, column 6)
+true false
+     ^
 ```
+
+parsec automatically identified that this looks like JSON (boolean literal at start) and reported the JSON parser's error message with helpful context.
 
 2) Missing closing quote on a string (helpful snippet extraction):
 
@@ -150,11 +156,21 @@ Minimal usage example (C++):
 
 int main() {
     std::string content = "{ foo: 1, bar: [true, false] }";
-    // The parser returns a ps::Dictionary directly
-    ps::Dictionary d = ps::parse_ron(content);  // or ps::parse_json(), ps::parse_toml(), ps::parse_ini()
+    
+    // Option 1: Use format-specific parsers
+    ps::Dictionary d1 = ps::parse_ron(content);
+    ps::Dictionary d2 = ps::parse_json(json_content);
+    ps::Dictionary d3 = ps::parse_toml(toml_content);
+    ps::Dictionary d4 = ps::parse_ini(ini_content);
+    
+    // Option 2: Use automatic format detection (tries all formats)
+    ps::Dictionary d = ps::parse(content);  // Auto-detects RON/JSON/TOML/INI/YAML
+    
     int foo = d.at("foo").asInt();
 }
 ```
+
+**Multi-format parsing**: The `ps::parse()` function tries all supported formats automatically and uses intelligent heuristics to report the most helpful error if all fail. For example, input starting with `{` is more likely to be JSON/RON, and input with `[[tables]]` is more likely TOML. The parser scores each format based on content characteristics and reports errors from the most likely intended format.
 
 Integrating into your CMake project
 

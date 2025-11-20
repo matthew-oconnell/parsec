@@ -23,6 +23,7 @@ target_sources(parsec_lib
     src/ron_parser.cpp
     src/toml_parser.cpp
     src/ini_parser.cpp
+    src/yaml_parser.cpp
     src/validate.cpp
 )
 
