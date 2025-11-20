@@ -15,6 +15,7 @@ add_executable(parsec_tests
   test_parse_examples.cpp
   test_comments.cpp
   test_parse_errors.cpp
+  test_json.cpp
   test_ron.cpp
   test_cli_parser_selection.cpp
   test_pretty_print.cpp
