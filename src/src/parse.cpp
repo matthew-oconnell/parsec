@@ -7,10 +7,61 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cctype>
+#include <regex>
 
 namespace ps {
 
 namespace {
+    // Extract format hint from first line comment if present
+    // Supports: vim modeline, emacs mode line, and simple "format:" pragma
+    // Examples:
+    //   # vim: set filetype=json:
+    //   # vim: ft=toml
+    //   # -*- mode: yaml -*-
+    //   # format: ini
+    std::string extract_format_hint(const std::string& text) {
+        // Only check first line
+        size_t first_newline = text.find('\n');
+        std::string first_line = (first_newline != std::string::npos) 
+            ? text.substr(0, first_newline) 
+            : text;
+        
+        // Skip if first line doesn't start with a comment character
+        size_t start = 0;
+        while (start < first_line.size() && std::isspace(static_cast<unsigned char>(first_line[start]))) {
+            ++start;
+        }
+        if (start >= first_line.size() || (first_line[start] != '#' && first_line[start] != ';')) {
+            return ""; // No comment on first line
+        }
+        
+        // Convert to lowercase for case-insensitive matching
+        std::string lower_line = first_line;
+        std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+        
+        // Try vim modeline: "vim: set filetype=X:" or "vim: ft=X"
+        std::regex vim_pattern(R"(vim:\s*(?:set\s+)?(?:filetype|ft)\s*=\s*(\w+))");
+        std::smatch match;
+        if (std::regex_search(lower_line, match, vim_pattern)) {
+            return match[1].str();
+        }
+        
+        // Try emacs mode line: "-*- mode: X -*-"
+        std::regex emacs_pattern(R"(-\*-\s*mode:\s*(\w+)\s*-\*-)");
+        if (std::regex_search(lower_line, match, emacs_pattern)) {
+            return match[1].str();
+        }
+        
+        // Try simple format pragma: "format: X"
+        std::regex format_pattern(R"(format:\s*(\w+))");
+        if (std::regex_search(lower_line, match, format_pattern)) {
+            return match[1].str();
+        }
+        
+        return ""; // No format hint found
+    }
+    
     // Heuristic to estimate the intended format based on content
     std::string guess_format(const std::string& text) {
         // Skip leading whitespace
@@ -138,6 +189,19 @@ namespace {
 }
 
 Dictionary parse(const std::string& text) {
+    // Check for explicit format hint in first line comment
+    std::string hint = extract_format_hint(text);
+    if (!hint.empty()) {
+        // If user provided an explicit hint, use ONLY that parser
+        // and report errors from that format
+        if (hint == "json") return parse_json(text);
+        if (hint == "ron") return parse_ron(text);
+        if (hint == "toml") return parse_toml(text);
+        if (hint == "ini") return parse_ini(text);
+        if (hint == "yaml" || hint == "yml") return parse_yaml(text);
+        // If hint is unrecognized, fall through to normal auto-detection
+    }
+    
     std::string json_error, ron_error, toml_error, ini_error, yaml_error;
     
     // Try JSON first (most strict)

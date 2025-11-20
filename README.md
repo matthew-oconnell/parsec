@@ -72,6 +72,13 @@ cmake --build build --parallel
 
 **Auto-detection**: When you don't specify a format flag, parsec automatically tries all supported formats (JSON, RON, TOML, INI, YAML) and uses intelligent heuristics to report the most helpful error message if all formats fail. For example, if your file starts with `{` and contains `key: value` patterns, parsec will report errors from the JSON parser even if it also tried other formats.
 
+**Format hints**: You can add a format hint in the first line using common editor conventions:
+- Vim modeline: `# vim: set filetype=toml:` or `# vim: ft=json`
+- Emacs mode line: `# -*- mode: yaml -*-`
+- Simple pragma: `# format: ini`
+
+When a format hint is present, parsec uses **only** that parser and reports errors from that format. This ensures clear, unambiguous error messages when the file doesn't match the declared format. If no hint is present, parsec tries all formats automatically.
+
 If the file contains a syntax error the tool prints a helpful message with line/column and exits non-zero. This makes it handy to plug into pre-commit hooks or CI pipelines to ensure configuration correctness.
 
 Schema validation from the CLI

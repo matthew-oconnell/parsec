@@ -148,6 +148,13 @@ The `parsec` executable validates configuration files and provides schema valida
 ./build/src/parsec --validate schemas/simple_schema.json examples/simple.json
 ```
 
+**Format Hints**: The library supports format hints in the first line of files using common editor conventions:
+- Vim modeline: `# vim: set filetype=toml:` or `# vim: ft=json`
+- Emacs mode line: `# -*- mode: yaml -*-`
+- Simple pragma: `# format: ini`
+
+When a format hint is detected, **only** that parser is used. This provides clear error messages when the file doesn't match its declared format.
+
 **Exit codes:**
 - `0` — Success (valid syntax/schema)
 - `1` — Parse error or validation failure
@@ -172,16 +179,20 @@ target_link_libraries(your_target PRIVATE ps::parsec)
 #include <ps/parsec.h>
 
 int main() {
-    // Parse RON format
+    // Option 1: Use format-specific parsers
     std::string config = "{ port: 8080, host: localhost }";
     ps::Dictionary d = ps::parse_ron(config);
     
     int port = d.at("port").asInt();
     std::string host = d.at("host").asString();
     
-    // Or parse JSON
-    ps::Dictionary json = ps::parse_json("{\"enabled\": true}");
-    bool enabled = json.at("enabled").asBool();
+    // Option 2: Use auto-detection (tries all formats)
+    ps::Dictionary auto_parsed = ps::parse(config);
+    
+    // Format hints are also supported in the input:
+    // # format: toml
+    // # vim: set filetype=json:
+    // # -*- mode: yaml -*-
     
     return 0;
 }
