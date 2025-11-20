@@ -3,7 +3,11 @@
 
 Licensed under the Apache License, Version 2.0 — see the `LICENSE` file for details.
 
-parsec is a small, easy-to-use C++ library (namespace `ps`) that provides a "Python-like" dictionary Value/Dictionary type and a parser for human-friendly configuration files. The parser accepts both JSON and a more relaxed, readable format (RON — Rusty Object Notation) that reduces quoting, trailing-comma pain, and visual clutter.
+parsec is a small, easy-to-use C++ library (namespace `ps`) that provides a "Python-like" dictionary Value/Dictionary type and a parser for human-friendly configuration files. The parser supports multiple formats:
+- **JSON** — strict, machine-friendly
+- **RON** (Rusty Object Notation) — more relaxed, human-friendly with reduced quoting and trailing-comma flexibility
+- **TOML** — popular configuration format with tables, inline tables, and clear syntax
+- **YAML** — work in progress
 
 This README shows why parsec's parser is easier for humans, how to validate files with the command-line tool, and a short developer section describing how to integrate the library into your C++ project.
 
@@ -56,10 +60,12 @@ Build and run (out-of-source):
 ```bash
 cmake -S . -B build -DPARSEC_BUILD_TESTS=ON
 cmake --build build --parallel
-# run the CLI on a file
+# run the CLI on a file (auto-detect format)
 ./build/parsec path/to/config.ron
-# or validate a JSON file
-./build/parsec path/to/config.json
+# or explicitly specify format
+./build/parsec --json path/to/config.json
+./build/parsec --ron path/to/config.ron
+./build/parsec --toml path/to/config.toml
 ```
 
 If the file contains a syntax error the tool prints a helpful message with line/column and exits non-zero. This makes it handy to plug into pre-commit hooks or CI pipelines to ensure configuration correctness.
@@ -143,7 +149,7 @@ Minimal usage example (C++):
 int main() {
     std::string content = "{ foo: 1, bar: [true, false] }";
     // The parser returns a ps::Dictionary directly
-    ps::Dictionary d = ps::parse_ron(content); // or ps::parse_json(content)
+    ps::Dictionary d = ps::parse_ron(content);  // or ps::parse_json(), ps::parse_toml()
     int foo = d.at("foo").asInt();
 }
 ```

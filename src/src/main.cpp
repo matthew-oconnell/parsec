@@ -3,6 +3,7 @@
 #include <string>
 #include <ps/json.h>
 #include <ps/ron.h>
+#include <ps/toml.h>
 #include <ps/parse.h>
 #include <ps/validate.h>
 #include <algorithm>
@@ -23,7 +24,7 @@ inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dic
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage:\n  parsec [--auto|--json|--ron] <file>\n  parsec --validate "
+        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml] <file>\n  parsec --validate "
                      "<schema.json> <file>\n";
         return 2;
     }
@@ -97,6 +98,9 @@ int main(int argc, char** argv) {
         } else if (mode == "--ron" or mode == "ron") {
             v = ps::parse_ron(content);
             used = "RON";
+        } else if (mode == "--toml" or mode == "toml") {
+            v = ps::parse_toml(content);
+            used = "TOML";
         } else {
             // auto mode: let ps::parse decide between JSON and RON
             v = ps::parse(content);
@@ -104,6 +108,8 @@ int main(int argc, char** argv) {
             // prefer extension hint if present
             if (path.size() >= 4 && path.substr(path.size() - 4) == ".ron")
                 used = "RON";
+            else if (path.size() >= 5 && path.substr(path.size() - 5) == ".toml")
+                used = "TOML";
             else
                 used = "JSON_or_RON";
         }
