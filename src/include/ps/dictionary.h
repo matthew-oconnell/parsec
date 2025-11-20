@@ -49,6 +49,10 @@ struct Dictionary {
     Dictionary() { my_type = TYPE::Object; }
     ~Dictionary() = default;
 
+    // Deep-copy constructor: delegate to operator= to ensure maps and
+    // scalar state are copied deeply (no shared state with source).
+    Dictionary(const Dictionary& d) { *this = d; }
+
     Dictionary(const std::string& s) {
         my_type = TYPE::String;
         scalar->m_string = s;
@@ -136,7 +140,7 @@ struct Dictionary {
         switch (my_type) {
             case TYPE::Object:
                 for (auto const& p : d.m_object_map) {
-                    Dictionary tmp; // default construct then assign to get deep-copy
+                    Dictionary tmp;  // default construct then assign to get deep-copy
                     tmp = p.second;
                     new_object_map.emplace(p.first, std::move(tmp));
                 }

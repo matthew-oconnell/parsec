@@ -4,6 +4,7 @@
 
 using namespace ps;
 using Catch::Approx;
+using Catch::Matchers::Contains;
 
 TEST_CASE("Dictionary basic operations") {
     Dictionary d;
@@ -359,7 +360,13 @@ TEST_CASE("Can easily check if something exists and is true") {
 TEST_CASE("Give available options if the user fails to request a valid key") {
     Dictionary dict;
     dict["dog"] = 1;
-    REQUIRE_THROWS_WITH(dict.at("cat"), std::string("\"dog\""));
+    try {
+        dict.at("cat");
+        FAIL("Expected exception when accessing missing key");
+    } catch (const std::exception& e) {
+        std::string msg(e.what());
+        REQUIRE(msg.find("dog") != std::string::npos);
+    }
 }
 
 TEST_CASE("Can use _dict and _json literals") {
@@ -473,5 +480,15 @@ TEST_CASE("Ensure dictionary assignment operators don't alias because of shared 
     dict2 = dict1;
     dict2["value"] = 4;
     REQUIRE(dict1["value"].asInt() == 3);
+    REQUIRE(dict2["value"].asInt() == 4);
+}
+
+TEST_CASE("Nested objects don't alias", "[alias]") {
+    Dictionary dict1;
+    dict1["nested"]["value"] = 3;
+    const Dictionary& dict_const = dict1;
+    auto dict2 = dict_const["nested"];
+    dict2["value"] = 4;
+    REQUIRE(dict1["nested"]["value"].asInt() == 3);
     REQUIRE(dict2["value"].asInt() == 4);
 }
