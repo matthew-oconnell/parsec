@@ -8,6 +8,7 @@ This document provides essential information for AI coding agents working on the
 - **JSON** (strict, machine-friendly)
 - **RON** (Rusty Object Notation — human-friendly with relaxed syntax)
 - **TOML** (Tom's Obvious Minimal Language — popular configuration format)
+- **INI** (simple, widely-used format for basic configuration)
 - **YAML** (work in progress)
 
 ### Core Design Goals
@@ -140,6 +141,9 @@ The `parsec` executable validates configuration files and provides schema valida
 # Explicitly parse as TOML
 ./build/src/parsec --toml examples/sample.toml
 
+# Explicitly parse as INI
+./build/src/parsec --ini examples/sample.ini
+
 # Validate against a JSON schema
 ./build/src/parsec --validate schemas/simple_schema.json examples/simple.json
 ```
@@ -213,6 +217,7 @@ ps::Dictionary completed = ps::setDefaults(data, schema);
 - `ps::parse_json(const std::string&)` → `Dictionary`
 - `ps::parse_ron(const std::string&)` → `Dictionary`
 - `ps::parse_toml(const std::string&)` → `Dictionary`
+- `ps::parse_ini(const std::string&)` → `Dictionary`
 - `ps::parse_yaml(const std::string&)` → `Dictionary`
 - `ps::parse_auto(const std::string&, const std::string& hint)` → `Dictionary`
 
@@ -316,6 +321,7 @@ TEST_CASE("unmatched opener includes opener location") {
    - `json_parser.cpp` — JSON parsing logic
    - `ron_parser.cpp` — RON parsing logic
    - `toml_parser.cpp` — TOML parsing logic
+   - `ini_parser.cpp` — INI parsing logic
    - `yaml_parser.cpp` — YAML parsing logic
 2. Ensure error messages include line/column context
 3. Add corresponding tests in `test/test_parse_errors.cpp`

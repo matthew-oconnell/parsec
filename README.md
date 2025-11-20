@@ -7,6 +7,7 @@ parsec is a small, easy-to-use C++ library (namespace `ps`) that provides a "Pyt
 - **JSON** — strict, machine-friendly
 - **RON** (Rusty Object Notation) — more relaxed, human-friendly with reduced quoting and trailing-comma flexibility
 - **TOML** — popular configuration format with tables, inline tables, and clear syntax
+- **INI** — simple, widely-used format for basic configuration
 - **YAML** — work in progress
 
 This README shows why parsec's parser is easier for humans, how to validate files with the command-line tool, and a short developer section describing how to integrate the library into your C++ project.
@@ -66,6 +67,7 @@ cmake --build build --parallel
 ./build/parsec --json path/to/config.json
 ./build/parsec --ron path/to/config.ron
 ./build/parsec --toml path/to/config.toml
+./build/parsec --ini path/to/config.ini
 ```
 
 If the file contains a syntax error the tool prints a helpful message with line/column and exits non-zero. This makes it handy to plug into pre-commit hooks or CI pipelines to ensure configuration correctness.
@@ -149,7 +151,7 @@ Minimal usage example (C++):
 int main() {
     std::string content = "{ foo: 1, bar: [true, false] }";
     // The parser returns a ps::Dictionary directly
-    ps::Dictionary d = ps::parse_ron(content);  // or ps::parse_json(), ps::parse_toml()
+    ps::Dictionary d = ps::parse_ron(content);  // or ps::parse_json(), ps::parse_toml(), ps::parse_ini()
     int foo = d.at("foo").asInt();
 }
 ```
