@@ -4,6 +4,7 @@
 #include <ps/json.h>
 #include <ps/ron.h>
 #include <ps/toml.h>
+#include <ps/ini.h>
 #include <ps/parse.h>
 #include <ps/validate.h>
 #include <algorithm>
@@ -24,7 +25,7 @@ inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dic
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml] <file>\n  parsec --validate "
+        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate "
                      "<schema.json> <file>\n";
         return 2;
     }
@@ -101,6 +102,9 @@ int main(int argc, char** argv) {
         } else if (mode == "--toml" or mode == "toml") {
             v = ps::parse_toml(content);
             used = "TOML";
+        } else if (mode == "--ini" or mode == "ini") {
+            v = ps::parse_ini(content);
+            used = "INI";
         } else {
             // auto mode: let ps::parse decide between JSON and RON
             v = ps::parse(content);
@@ -110,6 +114,8 @@ int main(int argc, char** argv) {
                 used = "RON";
             else if (path.size() >= 5 && path.substr(path.size() - 5) == ".toml")
                 used = "TOML";
+            else if (path.size() >= 4 && path.substr(path.size() - 4) == ".ini")
+                used = "INI";
             else
                 used = "JSON_or_RON";
         }

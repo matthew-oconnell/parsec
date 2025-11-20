@@ -4,3 +4,4 @@
 #include <ps/validate.h>
 #include <ps/parse.h>
 #include <ps/toml.h>
+#include <ps/ini.h>

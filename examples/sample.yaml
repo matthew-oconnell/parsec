@@ -1,0 +1,19 @@
+visualization:
+  - type: volume
+    fields: auto
+    filename:
+      - dog.vtk
+      - cat.vtk
+  - type: plane
+    center:
+      - 0
+      - 0
+      - 0
+    normal:
+      - 1
+      - 0
+      - 0
+    fields: auto
+    filename:
+      - dog.vtk
+      - cat.vtk
