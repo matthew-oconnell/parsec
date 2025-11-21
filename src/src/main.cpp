@@ -10,19 +10,8 @@
 #include <ps/validate.h>
 #include <algorithm>
 
-// Temporary stubs to satisfy linking while incremental migration is in progress.
-// These are local fallbacks so `main` can link even if other translation units
-// that normally provide these symbols haven't been migrated/compiled yet.
-// Remove these once the full migration is complete and proper implementations
-// are available in the library.
-namespace ps {
-inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dictionary& /*schema*/) {
-    // conservative default: indicate success (no validation errors). This is
-    // a temporary shim to allow linking; proper validation logic lives in
-    // `validate.cpp` and should be used when available.
-    return std::nullopt;
-}
-}  // namespace ps
+// The real `ps::validate` implementation is provided in `validate.cpp`.
+// Do not provide a local stub here so the CLI calls the library implementation.
 
 int main(int argc, char** argv) {
     if (argc < 2) {
