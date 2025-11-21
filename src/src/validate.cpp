@@ -278,7 +278,9 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 break;
             }
         }
-        if (!matched) return std::optional<std::string>("no alternatives in anyOf matched");
+        if (!matched) {
+            return std::optional<std::string>("anyOf did not match any schema at '" + display_path(path) + "'");
+        }
     }
 
     // oneOf
@@ -293,7 +295,13 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 ++matches;
             }
         }
-        if (matches != 1) return std::optional<std::string>("oneOf did not match exactly one schema");
+        if (matches != 1) {
+            if (matches == 0) {
+                return std::optional<std::string>("oneOf did not match any schema at '" + display_path(path) + "'");
+            } else {
+                return std::optional<std::string>("oneOf matched multiple schemas (" + std::to_string(matches) + ") at '" + display_path(path) + "'");
+            }
+        }
     }
 
     // type check
