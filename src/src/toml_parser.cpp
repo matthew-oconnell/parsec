@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <vector>
 #include <ctime>
+#include <limits>
 #include <iomanip>
 
 namespace ps {

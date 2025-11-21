@@ -24,6 +24,7 @@ target_sources(parsec_lib
     src/toml_parser.cpp
     src/ini_parser.cpp
     src/yaml_parser.cpp
+    src/yaml_printer.cpp
     src/validate.cpp
 )
 
