@@ -535,6 +535,11 @@ namespace {
                     throw JsonParseError(format_error(base, line, col), line, col);
                 }
                 Dictionary k = parse_string();
+                // Keys must start with an ASCII letter
+                const std::string keystr = k.asString();
+                if (keystr.empty() || !std::isalpha(static_cast<unsigned char>(keystr[0]))) {
+                    throw JsonParseError(format_error("object keys must start with a letter", line, col), line, col);
+                }
                 skip_ws();
                 if (get() != ':')
                     throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
@@ -713,7 +718,12 @@ Dictionary parse_json(const std::string& text) {
                             p.format_error("expected string key in top-level implicit object", p.line, p.col),
                             p.line,
                             p.col);
-                    Dictionary k = p.parse_string();
+                        Dictionary k = p.parse_string();
+                        // Keys must start with an ASCII letter
+                        const std::string keystr = k.asString();
+                        if (keystr.empty() || !std::isalpha(static_cast<unsigned char>(keystr[0]))) {
+                            throw JsonParseError(p.format_error("object keys must start with a letter", p.line, p.col), p.line, p.col);
+                        }
                     p.skip_ws();
                     if (p.get() != ':')
                         throw JsonParseError(

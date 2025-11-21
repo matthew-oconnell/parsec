@@ -208,7 +208,16 @@ namespace {
             // identifier key
             size_t start = i;
             while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_') get();
-            return s.substr(start, i - start);
+            std::string key = s.substr(start, i - start);
+            if (key.empty()) {
+                throw std::runtime_error("expected key");
+            }
+            // Keys must start with an ASCII letter
+            unsigned char first_ch = static_cast<unsigned char>(key[0]);
+            if (!std::isalpha(first_ch)) {
+                throw std::runtime_error("RON parse error: invalid key: keys must start with a letter");
+            }
+            return key;
         }
 
         Dictionary parse_object() {

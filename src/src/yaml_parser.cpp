@@ -307,6 +307,11 @@ namespace {
                     continue;
                 }
 
+                // Keys must start with an ASCII letter
+                if (!std::isalpha(static_cast<unsigned char>(key[0]))) {
+                    throw std::runtime_error(std::string("YAML parse error: invalid key: keys must start with a letter"));
+                }
+
                 if (peek() != ':') {
                     throw std::runtime_error("expected ':' after key in YAML object");
                 }
