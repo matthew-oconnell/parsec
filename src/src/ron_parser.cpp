@@ -207,15 +207,15 @@ namespace {
             }
             // identifier key
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_') get();
+            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_' or peek() == '$') get();
             std::string key = s.substr(start, i - start);
             if (key.empty()) {
                 throw std::runtime_error("expected key");
             }
             // Keys must start with an ASCII letter
             unsigned char first_ch = static_cast<unsigned char>(key[0]);
-            if (!std::isalpha(first_ch)) {
-                throw std::runtime_error("RON parse error: invalid key: keys must start with a letter");
+            if (!(std::isalnum(first_ch) || first_ch == '$')) {
+                throw std::runtime_error("RON parse error: invalid key: keys must start with a letter, digit, or '$'");
             }
             return key;
         }
@@ -298,11 +298,11 @@ namespace {
 }
 
 Dictionary parse_ron(const std::string& text) {
-    RonParser p(text);
-    p.skip_ws();
-    // If the first non-ws char is an identifier or quoted string, treat as implicit root object
-    char c = p.peek();
-    if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '"') {
+        RonParser p(text);
+        p.skip_ws();
+        // If the first non-ws char is an identifier (letter/digit/'_'/'$') or quoted string, treat as implicit root object
+        char c = p.peek();
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '"' || c == '$') {
         Dictionary root;
         while (p.peek() != '\0') {
             std::string key = p.parse_key();
@@ -321,7 +321,7 @@ Dictionary parse_ron(const std::string& text) {
                 continue;
             }
             // allow implicit separator
-            if (std::isalpha(static_cast<unsigned char>(p.peek())) || p.peek() == '_' || p.peek() == '"') continue;
+            if (std::isalnum(static_cast<unsigned char>(p.peek())) || p.peek() == '_' || p.peek() == '"' || p.peek() == '$') continue;
             break;
         }
         return root;

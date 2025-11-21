@@ -18,6 +18,7 @@ namespace {
         size_t i = 0;
         size_t line = 1;
         size_t col = 1;
+            std::vector<std::string> key_stack;
 
         struct Opener {
             char ch;
@@ -535,16 +536,23 @@ namespace {
                     throw JsonParseError(format_error(base, line, col), line, col);
                 }
                 Dictionary k = parse_string();
-                // Keys must start with an ASCII letter
+                // Allow any quoted key when this object is the value of a "patternProperties" key
                 const std::string keystr = k.asString();
-                if (keystr.empty() || !std::isalpha(static_cast<unsigned char>(keystr[0]))) {
-                    throw JsonParseError(format_error("object keys must start with a letter", line, col), line, col);
+                bool in_pattern_properties = (!key_stack.empty() && key_stack.back() == "patternProperties");
+                if (!in_pattern_properties) {
+                    // Keys may start with an ASCII letter, a digit, or '$' (allow JSON $schema/$ref and numeric-start keys)
+                    if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) || keystr[0] == '$')) {
+                        throw JsonParseError(format_error("object keys must start with a letter, digit, or '$'", line, col), line, col);
+                    }
                 }
                 skip_ws();
                 if (get() != ':')
                     throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
                 skip_ws();
+                // Push the key so child object parsing can know the parent key (e.g. patternProperties)
+                key_stack.push_back(keystr);
                 Dictionary v = parse_value();
+                key_stack.pop_back();
                 // Duplicate keys are not allowed
                 if (d.count(k.asString()) > 0) {
                     std::string msg = format_error(std::string("duplicate key '") + k.asString() + "'", line, col);
@@ -719,11 +727,15 @@ Dictionary parse_json(const std::string& text) {
                             p.line,
                             p.col);
                         Dictionary k = p.parse_string();
-                        // Keys must start with an ASCII letter
-                        const std::string keystr = k.asString();
-                        if (keystr.empty() || !std::isalpha(static_cast<unsigned char>(keystr[0]))) {
-                            throw JsonParseError(p.format_error("object keys must start with a letter", p.line, p.col), p.line, p.col);
-                        }
+                                // Allow any quoted key when this object is the value of a "patternProperties" key
+                                const std::string keystr = k.asString();
+                                bool in_pattern_properties = (!p.key_stack.empty() && p.key_stack.back() == "patternProperties");
+                                if (!in_pattern_properties) {
+                                    if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) || keystr[0] == '$')) {
+                                        throw JsonParseError(p.format_error("object keys must start with a letter, digit, or '$'", p.line, p.col), p.line, p.col);
+                                    }
+                                }
+                                p.key_stack.push_back(keystr);
                     p.skip_ws();
                     if (p.get() != ':')
                         throw JsonParseError(
