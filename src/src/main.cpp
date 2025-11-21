@@ -26,7 +26,7 @@ inline std::optional<std::string> validate(const Dictionary& /*data*/, const Dic
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate <schema.json> <file>\n  parsec --convert <yaml|json> <input> <output>\n";
+        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate <schema.json> <file>\n  parsec --convert <yaml|json|ron> <input> <output>\n";
         return 2;
     }
 
@@ -78,7 +78,7 @@ int main(int argc, char** argv) {
     // Convert mode: --convert <yaml|json> <input> <output>
     if (std::string(argv[1]) == "--convert") {
         if (argc != 5) {
-            std::cerr << "usage: parsec --convert <yaml|json> <input> <output>\n";
+            std::cerr << "usage: parsec --convert <yaml|json|ron> <input> <output>\n";
             return 2;
         }
         std::string fmt = argv[2];
@@ -106,8 +106,10 @@ int main(int argc, char** argv) {
             } else if (fmt == "json" || fmt == "--json") {
                 // Use Dictionary::dump with indentation for readable JSON
                 out_file << data.dump(4, false) << std::endl;
+            } else if (fmt == "ron" || fmt == "--ron") {
+                out_file << ps::dump_ron(data);
             } else {
-                std::cerr << "error: unknown format '" << fmt << "' (expected 'yaml' or 'json')\n";
+                std::cerr << "error: unknown format '" << fmt << "' (expected 'yaml', 'json' or 'ron')\n";
                 return 2;
             }
 

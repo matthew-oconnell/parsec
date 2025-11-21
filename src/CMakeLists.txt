@@ -25,6 +25,7 @@ target_sources(parsec_lib
     src/ini_parser.cpp
     src/yaml_parser.cpp
     src/yaml_printer.cpp
+    src/ron_printer.cpp
     src/validate.cpp
 )
 
