@@ -10,6 +10,54 @@
 #include <iostream>
 
 namespace ps {
+// Helper: compute Levenshtein distance between two strings
+static int levenshtein_distance(const std::string& a, const std::string& b) {
+    size_t n = a.size();
+    size_t m = b.size();
+    if (n == 0) return (int)m;
+    if (m == 0) return (int)n;
+    std::vector<int> prev(m + 1), cur(m + 1);
+    for (size_t j = 0; j <= m; ++j) prev[j] = (int)j;
+    for (size_t i = 1; i <= n; ++i) {
+        cur[0] = (int)i;
+        for (size_t j = 1; j <= m; ++j) {
+            int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
+            cur[j] = std::min({ prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost });
+        }
+        prev.swap(cur);
+    }
+    return prev[m];
+}
+
+// Helper: find nearby keys from a properties dictionary. Returns at most
+// `max_suggestions` keys sorted by increasing distance. Uses a normalized
+// distance threshold (ratio <= threshold) or small absolute distance.
+static std::vector<std::string> find_nearby_keys(const std::string& key,
+                                                 const Dictionary* properties,
+                                                 double threshold = 0.40,
+                                                 int max_suggestions = 5) {
+    std::vector<std::pair<int, std::string>> cands;
+    if (!properties) return {};
+    for (auto const& p : properties->items()) {
+        const std::string& cand = p.first;
+        int d = levenshtein_distance(key, cand);
+        size_t maxlen = std::max(key.size(), cand.size());
+        double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
+        // accept if ratio small enough or absolute distance small
+        if (ratio <= threshold || d <= 2) {
+            cands.emplace_back(d, cand);
+        }
+    }
+    if (cands.empty()) return {};
+    std::sort(cands.begin(), cands.end(), [](auto const& a, auto const& b) {
+        if (a.first != b.first) return a.first < b.first;
+        return a.second < b.second;
+    });
+    std::vector<std::string> out;
+    for (size_t i = 0; i < cands.size() && (int)out.size() < max_suggestions; ++i) out.push_back(cands[i].second);
+    return out;
+}
+
 // Helper: limit error message to 80 characters (truncate with ...)
 static std::string limit_line_length(const std::string& msg, size_t maxlen = 80) {
     if (msg.size() <= maxlen) return msg;
@@ -296,6 +344,21 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             // Enforce parent-level required names even if no explicit "properties" are listed
             for (auto const& rn : required_names) {
                 if (!data.has(rn)) {
+                    // If additionalProperties is explicitly disallowed, try to find a nearby
+                    // data key that might be a typo of the required name and suggest it.
+                    if (it_add != nullptr && it_add->type() == Dictionary::Boolean && !it_add->asBool()) {
+                        for (auto const& dprop : data.items()) {
+                            const std::string& candidate = dprop.first;
+                            int d = levenshtein_distance(candidate, rn);
+                            size_t maxlen = std::max(candidate.size(), rn.size());
+                            double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
+                            if (ratio <= 0.40 || d <= 2) {
+                                std::string msg = "property '" + candidate + "' not allowed";
+                                msg += " Did you mean '" + rn + "'?";
+                                return std::optional<std::string>(msg);
+                            }
+                        }
+                    }
                     return std::optional<std::string>("missing required property '" + rn + "'");
                 }
             }
@@ -373,7 +436,25 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 const Dictionary& ap = *it_add;
                 if (ap.type() == Dictionary::Boolean) {
                     if (!ap.asBool()) {
-                        return std::optional<std::string>("property '" + key + "' not allowed");
+                        // Try to suggest nearby property names from the declared properties
+                        std::vector<std::string> suggestions = find_nearby_keys(key, properties);
+                        std::string msg = "property '" + key + "' not allowed";
+                        if (!suggestions.empty()) {
+                            msg += " Did you mean ";
+                            if (suggestions.size() == 1) {
+                                msg += "'" + suggestions[0] + "'?";
+                            } else {
+                                for (size_t si = 0; si < suggestions.size(); ++si) {
+                                    if (si > 0) {
+                                        if (si + 1 == suggestions.size()) msg += " or ";
+                                        else msg += ", ";
+                                    }
+                                    msg += "'" + suggestions[si] + "'";
+                                }
+                                msg += "?";
+                            }
+                        }
+                        return std::optional<std::string>(msg);
                     }
                 } else {
                     const Dictionary* sub = schema_from_value(schema_root, ap);

@@ -43,3 +43,28 @@ TEST_CASE("validate medium schema against example check file", "[validate][mediu
     auto err = ps::validate(cfg, schema);
     REQUIRE(!err.has_value());
 }
+
+TEST_CASE("validate finds nearby keys if a key is invalid") {
+    Dictionary schema = ps::parse_json(R"({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string" },
+            "age": { "type": "integer" },
+            "address": { "type": "string" }
+        },
+        "required": ["name", "age", "address"],
+        "additionalProperties": false
+    })");
+
+    Dictionary data = ps::parse_json(R"({
+        "name": "John Doe",
+        "age": 30,
+        "addrss": "123 Main St"
+    })");
+
+    auto err = ps::validate(data, schema);
+    REQUIRE(err.has_value());
+    std::string err_msg = *err;
+    REQUIRE(err_msg.find("addrss") != std::string::npos);
+    REQUIRE(err_msg.find("Did you mean 'address'?") != std::string::npos);
+}
