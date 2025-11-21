@@ -92,6 +92,12 @@ namespace {
                 throw std::runtime_error(parse_error("empty key"));
             }
 
+            // Keys must start with an ASCII letter (A-Z or a-z)
+            unsigned char first_ch = static_cast<unsigned char>(key[0]);
+            if (!std::isalpha(first_ch)) {
+                throw std::runtime_error(parse_error("invalid key: keys must start with a letter"));
+            }
+
             char separator = peek();
             if (separator != '=' && separator != ':') {
                 throw std::runtime_error(parse_error("expected '=' or ':' after key"));

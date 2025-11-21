@@ -258,6 +258,30 @@ key = value
     REQUIRE(d.at("section name").at("key").asString() == "value");
 }
 
+TEST_CASE("INI keys must start with letter - valid", "[ini]") {
+    std::string ini = R"(
+alpha = one
+AlphaKey = two
+a1 = three
+)";
+    auto d = ps::parse_ini(ini);
+    REQUIRE(d.at("alpha").asString() == "one");
+    REQUIRE(d.at("AlphaKey").asString() == "two");
+    REQUIRE(d.at("a1").asString() == "three");
+}
+
+TEST_CASE("INI keys must start with letter - invalid starts", "[ini][error]") {
+    std::string ini_digit = R"(
+1key = value
+)";
+    REQUIRE_THROWS(ps::parse_ini(ini_digit));
+
+    std::string ini_underscore = R"(
+_key = value
+)";
+    REQUIRE_THROWS(ps::parse_ini(ini_underscore));
+}
+
 TEST_CASE("Parse INI global section and named sections", "[ini]") {
     std::string ini = R"(
 global_key = global_value
@@ -282,4 +306,9 @@ sci2 = 4.56E-5
     auto d = ps::parse_ini(ini);
     REQUIRE(d.at("sci1").asDouble() == 1.23e10);
     REQUIRE(d.at("sci2").asDouble() == 4.56E-5);
+}
+
+TEST_CASE("don't allow ini keys to start with brackets", "[ini][error]") {
+    std::string used_brackets_for_array = R"({"some_array":{{"type":"dog"}, "type":"pokemon"}})";
+    REQUIRE_THROWS( ps::parse_ini(used_brackets_for_array));
 }

@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <cctype>
 #include <regex>
+#include <iostream>
+#include <vector>
+#include <map>
 
 namespace ps {
 
@@ -188,63 +191,144 @@ namespace {
     }
 }
 
-Dictionary parse(const std::string& text) {
+Dictionary parse(const std::string& text, bool verbose) {
+    // Track attempts and errors to support verbose reporting
+    std::vector<std::string> attempted_parsers;
+    std::map<std::string, std::string> parser_errors;
+
     // Check for explicit format hint in first line comment
     std::string hint = extract_format_hint(text);
     if (!hint.empty()) {
+        if (verbose) std::cerr << "Format hint found: '" << hint << "'\n";
         // If user provided an explicit hint, use ONLY that parser
-        // and report errors from that format
-        if (hint == "json") return parse_json(text);
-        if (hint == "ron") return parse_ron(text);
-        if (hint == "toml") return parse_toml(text);
-        if (hint == "ini") return parse_ini(text);
-        if (hint == "yaml" || hint == "yml") return parse_yaml(text);
-        // If hint is unrecognized, fall through to normal auto-detection
+        // and report errors from that format (when verbose)
+        try {
+            if (hint == "json") {
+                attempted_parsers.emplace_back("JSON");
+                Dictionary d = parse_json(text);
+                if (verbose) std::cerr << "Used parser: JSON (from hint)\n";
+                return d;
+            }
+            if (hint == "ron") {
+                attempted_parsers.emplace_back("RON");
+                Dictionary d = parse_ron(text);
+                if (verbose) std::cerr << "Used parser: RON (from hint)\n";
+                return d;
+            }
+            if (hint == "toml") {
+                attempted_parsers.emplace_back("TOML");
+                Dictionary d = parse_toml(text);
+                if (verbose) std::cerr << "Used parser: TOML (from hint)\n";
+                return d;
+            }
+            if (hint == "ini") {
+                attempted_parsers.emplace_back("INI");
+                Dictionary d = parse_ini(text);
+                if (verbose) std::cerr << "Used parser: INI (from hint)\n";
+                return d;
+            }
+            if (hint == "yaml" || hint == "yml") {
+                attempted_parsers.emplace_back("YAML");
+                Dictionary d = parse_yaml(text);
+                if (verbose) std::cerr << "Used parser: YAML (from hint)\n";
+                return d;
+            }
+            // If hint is unrecognized, fall through to normal auto-detection
+            if (verbose) std::cerr << "Unrecognized hint '" << hint << "' - falling back to auto-detection\n";
+        } catch (const std::exception& e) {
+            parser_errors[hint] = e.what();
+            if (verbose) std::cerr << "Parser error for hint '" << hint << "': " << e.what() << "\n";
+            // Re-throw to preserve original behavior for hinted parse failures
+            throw;
+        }
     }
-    
-    std::string json_error, ron_error, toml_error, ini_error, yaml_error;
-    
+
     // Try JSON first (most strict)
     try {
-        return parse_json(text);
+        attempted_parsers.emplace_back("JSON");
+        Dictionary d = parse_json(text);
+        if (verbose) std::cerr << "Attempted parsers: JSON => success\n";
+        if (verbose) std::cerr << "Used parser: JSON\n";
+        return d;
     } catch (const std::exception& e) {
-        json_error = e.what();
+        parser_errors["JSON"] = e.what();
     }
 
     // Try RON (relaxed JSON)
     try {
-        return parse_ron(text);
+        attempted_parsers.emplace_back("RON");
+        Dictionary d = parse_ron(text);
+        if (verbose) std::cerr << "Attempted parsers: RON => success\n";
+        if (verbose) std::cerr << "Used parser: RON\n";
+        return d;
     } catch (const std::exception& e) {
-        ron_error = e.what();
+        parser_errors["RON"] = e.what();
     }
 
     // Try TOML
     try {
-        return parse_toml(text);
+        attempted_parsers.emplace_back("TOML");
+        Dictionary d = parse_toml(text);
+        if (verbose) std::cerr << "Attempted parsers: TOML => success\n";
+        if (verbose) std::cerr << "Used parser: TOML\n";
+        return d;
     } catch (const std::exception& e) {
-        toml_error = e.what();
-    }
-
-    // Try INI
-    try {
-        return parse_ini(text);
-    } catch (const std::exception& e) {
-        ini_error = e.what();
+        parser_errors["TOML"] = e.what();
     }
 
     // Try YAML
     try {
-        return parse_yaml(text);
+        attempted_parsers.emplace_back("YAML");
+        Dictionary d = parse_yaml(text);
+        if (verbose) std::cerr << "Attempted parsers: YAML => success\n";
+        if (verbose) std::cerr << "Used parser: YAML\n";
+        return d;
     } catch (const std::exception& e) {
-        yaml_error = e.what();
+        parser_errors["YAML"] = e.what();
+    }
+
+    // Try INI
+    try {
+        attempted_parsers.emplace_back("INI");
+        Dictionary d = parse_ini(text);
+        if (verbose) std::cerr << "Attempted parsers: INI => success\n";
+        if (verbose) std::cerr << "Used parser: INI\n";
+        return d;
+    } catch (const std::exception& e) {
+        parser_errors["INI"] = e.what();
     }
 
     // All parsers failed - guess the intended format and report that error
     std::string guessed_format = guess_format(text);
-    
+
+    if (verbose) {
+        std::cerr << "All parsers attempted. Summary:\n";
+        for (const auto& name : attempted_parsers) {
+            auto it = parser_errors.find(name);
+            if (it != parser_errors.end()) {
+                std::cerr << " - " << name << ": error: " << it->second << "\n";
+            } else {
+                std::cerr << " - " << name << ": success\n";
+            }
+        }
+        // If there were any parsers we considered via hint but not standard names
+        for (const auto& p : parser_errors) {
+            if (std::find(attempted_parsers.begin(), attempted_parsers.end(), p.first) == attempted_parsers.end()) {
+                std::cerr << " - " << p.first << ": error: " << p.second << "\n";
+            }
+        }
+        std::cerr << "Most likely intended format: " << guessed_format << "\n";
+    }
+
+    std::string json_error = parser_errors.count("JSON") ? parser_errors["JSON"] : std::string();
+    std::string ron_error = parser_errors.count("RON") ? parser_errors["RON"] : std::string();
+    std::string toml_error = parser_errors.count("TOML") ? parser_errors["TOML"] : std::string();
+    std::string ini_error = parser_errors.count("INI") ? parser_errors["INI"] : std::string();
+    std::string yaml_error = parser_errors.count("YAML") ? parser_errors["YAML"] : std::string();
+
     std::string error_msg = "Failed to parse as any supported format. ";
     error_msg += "Most likely intended format: " + guessed_format + "\n\n";
-    
+
     if (guessed_format == "JSON" && !json_error.empty()) {
         error_msg += json_error;
     } else if (guessed_format == "RON" && !ron_error.empty()) {
@@ -264,7 +348,7 @@ Dictionary parse(const std::string& text) {
         error_msg += "INI: " + ini_error + "\n";
         error_msg += "YAML: " + yaml_error;
     }
-    
+
     throw std::runtime_error(error_msg);
 }
 

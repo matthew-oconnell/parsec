@@ -148,3 +148,15 @@ TEST_CASE("parse() provides helpful error for completely invalid input", "[parse
         REQUIRE(msg.find("Most likely intended format:") != std::string::npos);
     }
 }
+
+
+
+TEST_CASE("Parse ini require keys start with letters") {
+    std::string used_brackets_for_array = R"({"some_array":{{"type":"dog"}, "type":"pokemon"}})";
+    auto dict = ps::parse(used_brackets_for_array, true);
+    printf("%s\n", dict.dump(4).c_str());
+    printf("keys: \n");
+    for (auto const& k : dict.keys()) {
+        printf(" - %s\n", k.c_str());
+    }
+}
