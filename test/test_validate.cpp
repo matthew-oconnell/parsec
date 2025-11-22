@@ -154,7 +154,7 @@ TEST_CASE("validate phase1: enum and additionalProperties", "[validate][phase1]"
         cfg["extra"] = 42;
         auto e = validate(cfg, top);
         REQUIRE(e.has_value());
-        REQUIRE(e.value().find("not allowed") != std::string::npos);
+        REQUIRE(e.value().find("not valid") != std::string::npos);
     }
 }
 

@@ -1,6 +1,7 @@
 // All helpers and code inside a single ps namespace
 #include <string>
 #include "ps/validate.h"
+#include <ps/ron.h>
 #include <sstream>
 #include <vector>
 #include <algorithm>
@@ -32,6 +33,7 @@ static int levenshtein_distance(const std::string& a, const std::string& b) {
 // Helper: find nearby keys from a properties dictionary. Returns at most
 // `max_suggestions` keys sorted by increasing distance. Uses a normalized
 // distance threshold (ratio <= threshold) or small absolute distance.
+// Also checks for prefix/substring matches.
 static std::vector<std::string> find_nearby_keys(const std::string& key,
                                                  const Dictionary* properties,
                                                  double threshold = 0.40,
@@ -40,12 +42,27 @@ static std::vector<std::string> find_nearby_keys(const std::string& key,
     if (!properties) return {};
     for (auto const& p : properties->items()) {
         const std::string& cand = p.first;
+        
+        // Check if key is a prefix of candidate (e.g., "norm" is prefix of "norm order")
+        bool is_prefix = (cand.size() > key.size() && cand.substr(0, key.size()) == key);
+        // Check if key is contained in candidate (substring match)
+        bool is_substring = cand.find(key) != std::string::npos;
+        
         int d = levenshtein_distance(key, cand);
         size_t maxlen = std::max(key.size(), cand.size());
         double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
-        // accept if ratio small enough or absolute distance small
-        if (ratio <= threshold || d <= 2) {
-            cands.emplace_back(d, cand);
+        
+        // Accept if: ratio small enough, absolute distance small, or prefix/substring match
+        if (ratio <= threshold || d <= 2 || is_prefix) {
+            // Prioritize prefix matches by giving them distance 0
+            if (is_prefix) {
+                cands.emplace_back(0, cand);
+            } else if (is_substring && d > 3) {
+                // Give substring matches a bonus (better distance)
+                cands.emplace_back(d / 2, cand);
+            } else {
+                cands.emplace_back(d, cand);
+            }
         }
     }
     if (cands.empty()) return {};
@@ -62,6 +79,139 @@ static std::vector<std::string> find_nearby_keys(const std::string& key,
 static std::string limit_line_length(const std::string& msg, size_t maxlen = 80) {
     if (msg.size() <= maxlen) return msg;
     return msg.substr(0, maxlen - 3) + "...";
+}
+
+// Helper: extract a human-readable name from a schema (for error messages)
+static std::string extract_schema_name(const Dictionary& schema, const Dictionary& schema_root) {
+    // Check for $ref and extract the name
+    if (schema.has("$ref") && schema.at("$ref").type() == Dictionary::String) {
+        std::string ref = schema.at("$ref").asString();
+        size_t pos = ref.rfind('/');
+        if (pos != std::string::npos) {
+            return ref.substr(pos + 1);
+        }
+        return ref;
+    }
+    
+    // Check for a title field
+    if (schema.has("title") && schema.at("title").type() == Dictionary::String) {
+        return schema.at("title").asString();
+    }
+    
+    // Check for type-based name
+    if (schema.has("type") && schema.at("type").type() == Dictionary::String) {
+        return schema.at("type").asString() + " type";
+    }
+    
+    return "schema";
+}
+
+// Forward declaration for recursive use
+static const Dictionary* resolve_local_ref(const Dictionary& root, const std::string& ref);
+
+// Helper: generate a minimal example from a schema (for error messages)
+static std::string generate_schema_example(const Dictionary& schema, const Dictionary& schema_root, int depth = 0) {
+    std::string ex;
+    
+    // Prevent infinite recursion
+    if (depth > 3) return "{...}";
+    
+    // Handle $ref by resolving and showing the reference name + structure
+    if (schema.has("$ref") && schema.at("$ref").type() == Dictionary::String) {
+        std::string ref = schema.at("$ref").asString();
+        // Extract just the name from the reference
+        size_t pos = ref.rfind('/');
+        std::string refName = (pos != std::string::npos) ? ref.substr(pos + 1) : ref;
+        
+        // Try to resolve and generate example from the target
+        const Dictionary* target = resolve_local_ref(schema_root, ref);
+        if (target && depth < 2) {
+            return refName + ": " + generate_schema_example(*target, schema_root, depth + 1);
+        }
+        return refName;
+    }
+    
+    // Check for type
+    if (schema.has("type") && schema.at("type").type() == Dictionary::String) {
+        std::string t = schema.at("type").asString();
+        if (t == "object") {
+            ex = "{";
+            if (schema.has("properties") && schema.at("properties").isMappedObject()) {
+                const Dictionary& props = schema.at("properties");
+                bool first = true;
+                for (auto const& p : props.items()) {
+                    if (!first) ex += ", ";
+                    first = false;
+                    ex += "\"" + p.first + "\": ";
+                    // recursively generate example for nested schema
+                    if (p.second.isMappedObject() && p.second.has("type")) {
+                        ex += generate_schema_example(p.second, schema_root, depth + 1);
+                    } else if (p.second.has("$ref")) {
+                        ex += generate_schema_example(p.second, schema_root, depth + 1);
+                    } else {
+                        ex += "...";
+                    }
+                }
+            }
+            ex += "}";
+        } else if (t == "array") {
+            ex = "[";
+            if (schema.has("items")) {
+                if (schema.at("items").isArrayObject()) {
+                    ex += "<tuple>";
+                } else {
+                    ex += generate_schema_example(schema.at("items"), schema_root, depth + 1);
+                }
+            } else {
+                ex += "...";
+            }
+            ex += "]";
+        } else if (t == "string") {
+            if (schema.has("enum") && schema.at("enum").isArrayObject()) {
+                const Dictionary& en = schema.at("enum");
+                if (en.size() > 0 && en[0].type() == Dictionary::String) {
+                    ex = "\"" + en[0].asString() + "\"";
+                    if (en.size() > 1) ex += " | ...";
+                } else {
+                    ex = "\"...\"";
+                }
+            } else {
+                ex = "\"...\"";
+            }
+        } else if (t == "integer") {
+            if (schema.has("minimum")) {
+                ex = schema.at("minimum").dump();
+            } else {
+                ex = "0";
+            }
+        } else if (t == "number") {
+            if (schema.has("minimum")) {
+                ex = schema.at("minimum").dump();
+            } else {
+                ex = "0.0";
+            }
+        } else if (t == "boolean") {
+            ex = "true";
+        } else if (t == "null") {
+            ex = "null";
+        } else {
+            ex = "<" + t + ">";
+        }
+    } else if (schema.has("enum") && schema.at("enum").isArrayObject()) {
+        const Dictionary& en = schema.at("enum");
+        if (en.size() > 0) {
+            ex = en[0].dump();
+            if (en.size() > 1) ex += " | ...";
+        } else {
+            ex = "<enum>";
+        }
+    } else if (schema.has("const")) {
+        ex = schema.at("const").dump();
+    } else {
+        ex = "{...}";
+    }
+    
+    return ex;
 }
 
 // Helper: convert internal path (dot/bracket style) to folder-style display path
@@ -87,6 +237,10 @@ static std::string display_path(const std::string& path) {
         }
         out.push_back(s[i]);
         ++i;
+    }
+    // Remove trailing /0 if present
+    if (out.size() >= 2 && out[out.size() - 2] == '/' && out[out.size() - 1] == '0') {
+        out.resize(out.size() - 2);
     }
     return out;
 }
@@ -251,7 +405,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     // const keyword: value must equal the provided literal
     if (schema_node.has("const")) {
         if (!(schema_node.at("const") == data)) {
-            return std::optional<std::string>("property '" + path + "' does not match const value");
+            return std::optional<std::string>("key '" + path + "' does not match const value");
         }
     }
 
@@ -269,17 +423,30 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     if (schema_node.has("anyOf") && schema_node.at("anyOf").isArrayObject()) {
         const Dictionary& arr = schema_node.at("anyOf");
         bool matched = false;
+        std::vector<std::string> failures;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            if (!validate_node(data, schema_root, *subSchema, path).has_value()) {
+            auto err = validate_node(data, schema_root, *subSchema, path);
+            if (!err.has_value()) {
                 matched = true;
                 break;
             }
+            std::string schemaName = extract_schema_name(*subSchema, schema_root);
+            failures.push_back("Option: " + schemaName + "\n  Doesn't match because: " + *err);
         }
         if (!matched) {
-            return std::optional<std::string>("anyOf did not match any schema at '" + display_path(path) + "'");
+            std::string msg = "anyOf did not match any schema at '" + display_path(path) + "'";
+            // format with ron parser
+            msg += std::string("\n Your value: ") + ps::dump_ron(data);
+            if (!failures.empty()) {
+                msg += "\n\nAlternatives:";
+                for (const auto& f : failures) {
+                    msg += "\n" + f + "\n";
+                }
+            }
+            return std::optional<std::string>(msg);
         }
     }
 
@@ -287,19 +454,40 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     if (schema_node.has("oneOf") && schema_node.at("oneOf").isArrayObject()) {
         const Dictionary& arr = schema_node.at("oneOf");
         int matches = 0;
+        std::vector<std::string> failures;
+        std::vector<int> matched_indices;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            if (!validate_node(data, schema_root, *subSchema, path).has_value()) {
+            auto err = validate_node(data, schema_root, *subSchema, path);
+            if (!err.has_value()) {
                 ++matches;
+                matched_indices.push_back(i);
+            } else {
+                std::string schemaName = extract_schema_name(*subSchema, schema_root);
+                failures.push_back("Option: " + schemaName + "\n  Failed because: " + *err);
             }
         }
         if (matches != 1) {
             if (matches == 0) {
-                return std::optional<std::string>("oneOf did not match any schema at '" + display_path(path) + "'");
+                std::string msg = "oneOf did not match any schema at '" + display_path(path) + "'";
+                msg += std::string("\n Your value: ") + ps::dump_ron(data);
+                if (!failures.empty()) {
+                    msg += "\n\nAlternatives:";
+                    for (const auto& f : failures) {
+                        msg += "\n" + f + "\n";
+                    }
+                }
+                return std::optional<std::string>(msg);
             } else {
-                return std::optional<std::string>("oneOf matched multiple schemas (" + std::to_string(matches) + ") at '" + display_path(path) + "'");
+                std::string msg = "oneOf matched multiple schemas (" + std::to_string(matches) + ") at '" + display_path(path) + "'";
+                msg += std::string("\n Your value: ") + ps::dump_ron(data);
+                msg += "\n  Matched alternatives:";
+                for (int idx : matched_indices) {
+                    msg += " " + std::to_string(idx);
+                }
+                return std::optional<std::string>(msg);
             }
         }
     }
@@ -361,13 +549,13 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             size_t maxlen = std::max(candidate.size(), rn.size());
                             double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
                             if (ratio <= 0.40 || d <= 2) {
-                                std::string msg = "property '" + candidate + "' not allowed";
+                                std::string msg = "key '" + candidate + "' not allowed";
                                 msg += " Did you mean '" + rn + "'?";
                                 return std::optional<std::string>(msg);
                             }
                         }
                     }
-                    return std::optional<std::string>("missing required property '" + rn + "'");
+                    return std::optional<std::string>("missing required key '" + rn + "'");
                 }
             }
 
@@ -391,9 +579,9 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     auto itreq = propSchema.has("required") ? &propSchema.at("required") : nullptr;
                     if (!has) {
                         if (itreq != nullptr && itreq->type() == Dictionary::Boolean && itreq->asBool())
-                            return std::optional<std::string>("missing required property '" + key + "'");
+                            return std::optional<std::string>("missing required key '" + key + "'");
                         if (required_names.find(key) != required_names.end())
-                            return std::optional<std::string>("missing required property '" + key + "'");
+                            return std::optional<std::string>("missing required key '" + key + "'");
                         continue;
                     }
                     // validate present property
@@ -446,9 +634,13 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     if (!ap.asBool()) {
                         // Try to suggest nearby property names from the declared properties
                         std::vector<std::string> suggestions = find_nearby_keys(key, properties);
-                        std::string msg = "property '" + key + "' not allowed";
+                        std::string msg = "key '" + key + "' not valid";
+                        if (!path.empty()) {
+                            msg += " in '" + path + "'";
+                        }
+                        msg += ".";
                         if (!suggestions.empty()) {
-                            msg += " Did you mean ";
+                            msg += "\nDid you mean ";
                             if (suggestions.size() == 1) {
                                 msg += "'" + suggestions[0] + "'?";
                             } else {
