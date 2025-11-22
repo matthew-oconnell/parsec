@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
                 data = ps::parse_ron(content);
             }
 
-            auto err = ps::validate(data, schema);
+            auto err = ps::validate(data, schema, content);
             if (err.has_value()) {
                 std::cerr << "validation error: " << *err << "\n";
                 return 1;

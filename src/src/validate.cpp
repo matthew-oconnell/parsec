@@ -898,4 +898,119 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     return validate_node(data, schema, schema, "");
 }
 
+// Helper: find line number for a key in raw JSON/RON content
+// Searches for the key at the specified path (e.g., "mesh adaptation.spalding yplus")
+static int find_line_number(const std::string& raw_content, const std::string& path) {
+    if (path.empty()) return -1;
+    
+    // Split path into components
+    std::vector<std::string> components;
+    std::string current;
+    for (char c : path) {
+        if (c == '.') {
+            if (!current.empty()) {
+                components.push_back(current);
+                current.clear();
+            }
+        } else {
+            current += c;
+        }
+    }
+    if (!current.empty()) {
+        components.push_back(current);
+    }
+    
+    if (components.empty()) return -1;
+    
+    // Search for the last component (the actual key with the error)
+    std::string search_key = components.back();
+    
+    // Count lines and search for the key in quotes
+    int line = 1;
+    size_t pos = 0;
+    int best_line = -1;
+    
+    // Look for the key as a quoted string followed by colon
+    std::string pattern1 = "\"" + search_key + "\"";
+    std::string pattern2 = "'" + search_key + "'";
+    
+    while (pos < raw_content.size()) {
+        // Check if we found the key at this position
+        if (raw_content.compare(pos, pattern1.size(), pattern1) == 0 ||
+            raw_content.compare(pos, pattern2.size(), pattern2) == 0) {
+            // Check if followed by : (ignoring whitespace)
+            size_t colon_pos = pos + pattern1.size();
+            while (colon_pos < raw_content.size() && 
+                   (raw_content[colon_pos] == ' ' || raw_content[colon_pos] == '\t')) {
+                colon_pos++;
+            }
+            if (colon_pos < raw_content.size() && raw_content[colon_pos] == ':') {
+                best_line = line;
+            }
+        }
+        
+        // Count newlines
+        if (raw_content[pos] == '\n') {
+            line++;
+        }
+        pos++;
+    }
+    
+    return best_line;
+}
+
+// Validate with line number tracking
+std::optional<std::string> validate(const Dictionary& data, const Dictionary& schema, const std::string& raw_content) {
+    auto result = validate(data, schema);
+    if (!result.has_value()) {
+        return result;
+    }
+    
+    // Extract the path from the error message and find line number
+    std::string error = *result;
+    
+    // Try to extract path from error message patterns like:
+    // "key 'xxx' not valid in 'yyy'"
+    // "'xxx.yyy.zzz' has value"
+    std::string path;
+    
+    // Pattern 1: key 'xxx' not valid in 'yyy'
+    size_t in_pos = error.find(" in '");
+    if (in_pos != std::string::npos) {
+        size_t start = in_pos + 5;  // skip " in '"
+        size_t end = error.find("'", start);
+        if (end != std::string::npos) {
+            std::string parent_path = error.substr(start, end - start);
+            
+            // Also extract the key name
+            size_t key_start = error.find("key '");
+            if (key_start != std::string::npos) {
+                key_start += 5;  // skip "key '"
+                size_t key_end = error.find("'", key_start);
+                if (key_end != std::string::npos) {
+                    std::string key = error.substr(key_start, key_end - key_start);
+                    path = parent_path + "." + key;
+                }
+            }
+        }
+    }
+    
+    // Pattern 2: 'xxx.yyy.zzz' has value
+    if (path.empty() && error[0] == '\'') {
+        size_t end = error.find("'", 1);
+        if (end != std::string::npos) {
+            path = error.substr(1, end - 1);
+        }
+    }
+    
+    if (!path.empty()) {
+        int line_num = find_line_number(raw_content, path);
+        if (line_num > 0) {
+            return std::optional<std::string>("on line " + std::to_string(line_num) + ": \n" + error);
+        }
+    }
+    
+    return result;
+}
+
 }  // namespace ps
