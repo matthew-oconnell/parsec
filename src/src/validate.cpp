@@ -370,7 +370,47 @@ static std::optional<std::string> check_enum(const Dictionary& data,
     for (int i = 0; i < ev.size(); ++i) {
         if (ev[i] == data) return std::nullopt;
     }
-    return std::optional<std::string>("property '" + path + "' not one of enum values");
+    
+    // Build error message with actual value and list of valid options
+    std::string msg = "'" + path + "' has value " + value_preview(data) + ".\n";
+    msg += "But the valid options are:\n";
+    
+    // Collect enum values as strings for display and suggestions
+    std::vector<std::string> enum_values;
+    for (int i = 0; i < ev.size(); ++i) {
+        std::string enum_val;
+        if (ev[i].type() == Dictionary::String) {
+            enum_val = ev[i].asString();
+        } else {
+            enum_val = ev[i].dump(0, true);
+        }
+        enum_values.push_back(enum_val);
+        msg += "  - " + enum_val + "\n";
+    }
+    
+    // Try to suggest the closest match if data is a string
+    if (data.type() == Dictionary::String) {
+        std::string data_str = data.asString();
+        int best_distance = INT_MAX;
+        std::string best_match;
+        
+        for (const auto& enum_val : enum_values) {
+            int d = levenshtein_distance(data_str, enum_val);
+            if (d < best_distance) {
+                best_distance = d;
+                best_match = enum_val;
+            }
+        }
+        
+        // Suggest if reasonably close (within 40% similarity or distance <= 3)
+        size_t maxlen = std::max(data_str.size(), best_match.size());
+        double ratio = maxlen == 0 ? 0.0 : static_cast<double>(best_distance) / static_cast<double>(maxlen);
+        if (ratio <= 0.40 || best_distance <= 3) {
+            msg += "Did you mean '" + best_match + "'?";
+        }
+    }
+    
+    return std::optional<std::string>(msg);
 }
 
 static std::optional<std::string> validate_node(const Dictionary& data,
