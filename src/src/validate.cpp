@@ -11,6 +11,15 @@
 #include <iostream>
 
 namespace ps {
+// Helper: convert string to lowercase
+static std::string to_lower(const std::string& s) {
+    std::string result = s;
+    for (char& c : result) {
+        c = std::tolower(static_cast<unsigned char>(c));
+    }
+    return result;
+}
+
 // Helper: compute Levenshtein distance between two strings
 static int levenshtein_distance(const std::string& a, const std::string& b) {
     size_t n = a.size();
@@ -391,10 +400,20 @@ static std::optional<std::string> check_enum(const Dictionary& data,
     // Try to suggest the closest match if data is a string
     if (data.type() == Dictionary::String) {
         std::string data_str = data.asString();
+        std::string data_lower = to_lower(data_str);
         int best_distance = INT_MAX;
         std::string best_match;
         
         for (const auto& enum_val : enum_values) {
+            // First check case-insensitive match (if same when lowercased, distance is 0)
+            std::string enum_lower = to_lower(enum_val);
+            if (data_lower == enum_lower) {
+                best_distance = 0;
+                best_match = enum_val;
+                break;
+            }
+            
+            // Otherwise compute regular distance
             int d = levenshtein_distance(data_str, enum_val);
             if (d < best_distance) {
                 best_distance = d;
@@ -403,9 +422,10 @@ static std::optional<std::string> check_enum(const Dictionary& data,
         }
         
         // Suggest if reasonably close (within 40% similarity or distance <= 3)
+        // Also suggest if case-insensitive match (distance == 0 after case normalization)
         size_t maxlen = std::max(data_str.size(), best_match.size());
         double ratio = maxlen == 0 ? 0.0 : static_cast<double>(best_distance) / static_cast<double>(maxlen);
-        if (ratio <= 0.40 || best_distance <= 3) {
+        if (ratio <= 0.40 || best_distance <= 3 || to_lower(data_str) == to_lower(best_match)) {
             msg += "Did you mean '" + best_match + "'?";
         }
     }
