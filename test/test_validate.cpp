@@ -480,3 +480,64 @@ TEST_CASE("patternProperties take precedence over additionalProperties",
         REQUIRE(!e.has_value());
     }
 }
+
+
+
+TEST_CASE("setDefaults: Default should not override existing value", "[defaults][bug]") {
+    // Schema with a default value of 500 for "steps"
+    Dictionary schema;
+    schema["type"] = "object";
+    Dictionary props;
+    props["steps"] = Dictionary{{"type", "integer"}, {"default", int64_t(500)}};
+    schema["properties"] = props;
+
+    // User input with "steps" set to 100
+    Dictionary input;
+    input["steps"] = int64_t(100);
+    
+    // The expected behavior: setDefaults should preserve the user-provided value
+    auto out = setDefaults(input, schema);
+    
+    // This should pass, but currently fails because setDefaults incorrectly 
+    // applies the schema default (500) even though the user input has a value (100)
+    REQUIRE(out.has("steps"));
+    REQUIRE(out.at("steps").isInt());
+    REQUIRE(out.at("steps").asInt() == 100); // Expected: 100, Actual: 500
+    
+    INFO("Schema default incorrectly overrode user-provided value");
+    INFO("Expected steps=100 (user input), got steps=" << out.at("steps").asInt() << " (schema default)");
+}
+
+// Additional test case showing how this affects nested objects
+TEST_CASE("setDefaults: Default should not override existing nested values", "[defaults][bug]") {
+    // Schema with nested object that has defaults
+    Dictionary schema;
+    schema["type"] = "object";
+    Dictionary props;
+    
+    // Create a nested schema with defaults
+    Dictionary nestedSchema;
+    nestedSchema["type"] = "object";
+    Dictionary nestedProps;
+    nestedProps["value"] = Dictionary{{"type", "integer"}, {"default", int64_t(500)}};
+    nestedSchema["properties"] = nestedProps;
+    
+    props["nested"] = nestedSchema;
+    schema["properties"] = props;
+
+    // User input with a nested object that has a different value
+    Dictionary input;
+    Dictionary nestedInput;
+    nestedInput["value"] = int64_t(100);
+    input["nested"] = nestedInput;
+    
+    // The expected behavior: setDefaults should preserve the user-provided value in nested objects
+    auto out = setDefaults(input, schema);
+    
+    REQUIRE(out.has("nested"));
+    REQUIRE(out.at("nested").has("value"));
+    REQUIRE(out.at("nested").at("value").isInt());
+    REQUIRE(out.at("nested").at("value").asInt() == 100); // Expected: 100, Actual: might be 500
+    
+    INFO("Schema default incorrectly overrode user-provided nested value");
+}

@@ -1,4 +1,4 @@
-// All helpers and code inside a single ps namespace
+#include <limits>
 #include <string>
 #include "ps/validate.h"
 #include <ps/ron.h>
@@ -401,7 +401,7 @@ static std::optional<std::string> check_enum(const Dictionary& data,
     if (data.type() == Dictionary::String) {
         std::string data_str = data.asString();
         std::string data_lower = to_lower(data_str);
-        int best_distance = INT_MAX;
+        int best_distance = std::numeric_limits<int>::max();
         std::string best_match;
         
         for (const auto& enum_val : enum_values) {

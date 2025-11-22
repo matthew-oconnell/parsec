@@ -25,6 +25,7 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
             const std::string& k = p.first;
             const Dictionary& propSchemaVal = p.second;
             const Dictionary* propSchema = propSchemaVal.isMappedObject() ? &propSchemaVal : nullptr;
+            
 
             // If key present in input, recursively apply defaults into it
             if (out.has(k)) {
@@ -87,8 +88,11 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                                           const Dictionary& schema_root,
                                           const Dictionary& schema_node) {
-    // If schema_node has a 'default' and dataVal is null/empty, return default
-    if ((dataVal.type() == Dictionary::Null || (!dataVal.isMappedObject() && !dataVal.isArrayObject()))) {
+    // If schema_node has a 'default' and dataVal is explicitly null, return default.
+    // Do NOT treat scalar values (int/string/bool) as "missing" — those are user
+    // provided values and must be preserved. Only apply the schema default when
+    // the provided value is actually null/absent.
+    if (dataVal.type() == Dictionary::Null) {
         if (schema_node.has("default")) return clone_value(schema_node.at("default"));
     }
 
