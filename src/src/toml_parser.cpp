@@ -2,6 +2,7 @@
 #include <cctype>
 #include <sstream>
 #include <stdexcept>
+#include <algorithm>
 #include <vector>
 #include <ctime>
 #include <limits>

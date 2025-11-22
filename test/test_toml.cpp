@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <ps/toml.h>
 #include <string>
+#include <cmath>
 
 TEST_CASE("Parse simple TOML key-value pairs", "[toml]") {
     std::string toml = R"(
