@@ -600,20 +600,27 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             // Enforce parent-level required names even if no explicit "properties" are listed
             for (auto const& rn : required_names) {
                 if (!data.has(rn)) {
-                    // If additionalProperties is explicitly disallowed, try to find a nearby
-                    // data key that might be a typo of the required name and suggest it.
-                    if (it_add != nullptr && it_add->type() == Dictionary::Boolean && !it_add->asBool()) {
-                        for (auto const& dprop : data.items()) {
-                            const std::string& candidate = dprop.first;
-                            int d = levenshtein_distance(candidate, rn);
-                            size_t maxlen = std::max(candidate.size(), rn.size());
-                            double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
-                            if (ratio <= 0.40 || d <= 2) {
-                                std::string msg = "key '" + candidate + "' not allowed";
-                                msg += " Did you mean '" + rn + "'?";
-                                return std::optional<std::string>(msg);
-                            }
+                    // Check if there's a similar key in the data that might be a typo of the required name.
+                    // Only suggest keys that are NOT already allowed by the schema.
+                    std::string suggestion;
+                    for (auto const& dprop : data.items()) {
+                        const std::string& candidate = dprop.first;
+                        // Skip if this key is explicitly allowed in properties
+                        if (properties && properties->has(candidate)) continue;
+                        
+                        int d = levenshtein_distance(candidate, rn);
+                        size_t maxlen = std::max(candidate.size(), rn.size());
+                        double ratio = maxlen == 0 ? 0.0 : static_cast<double>(d) / static_cast<double>(maxlen);
+                        if (ratio <= 0.40 || d <= 2) {
+                            suggestion = candidate;
+                            break;
                         }
+                    }
+                    
+                    if (!suggestion.empty()) {
+                        std::string msg = "key '" + suggestion + "' not allowed";
+                        msg += " Did you mean '" + rn + "'?";
+                        return std::optional<std::string>(msg);
                     }
                     return std::optional<std::string>("missing required key '" + rn + "'");
                 }
