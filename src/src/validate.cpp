@@ -92,6 +92,7 @@ static std::string limit_line_length(const std::string& msg, size_t maxlen = 80)
 
 // Helper: extract a human-readable name from a schema (for error messages)
 static std::string extract_schema_name(const Dictionary& schema, const Dictionary& schema_root) {
+    (void)schema_root; // suppress unused-parameter warning; kept for future use
     // Check for $ref and extract the name
     if (schema.has("$ref") && schema.at("$ref").type() == Dictionary::String) {
         std::string ref = schema.at("$ref").asString();
@@ -119,7 +120,7 @@ static std::string extract_schema_name(const Dictionary& schema, const Dictionar
 static const Dictionary* resolve_local_ref(const Dictionary& root, const std::string& ref);
 
 // Helper: generate a minimal example from a schema (for error messages)
-static std::string generate_schema_example(const Dictionary& schema, const Dictionary& schema_root, int depth = 0) {
+[[maybe_unused]] static std::string generate_schema_example(const Dictionary& schema, const Dictionary& schema_root, int depth = 0) {
     std::string ex;
     
     // Prevent infinite recursion
@@ -622,7 +623,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                         msg += " Did you mean '" + rn + "'?";
                         return std::optional<std::string>(msg);
                     }
-                    return std::optional<std::string>("missing required key '" + rn + "'");
+                    std::string full_key = path.empty() ? rn : path + "." + rn;
+                    return std::optional<std::string>("missing required key '" + full_key + "'");
                 }
             }
 
@@ -645,10 +647,11 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     // per-property required as boolean
                     auto itreq = propSchema.has("required") ? &propSchema.at("required") : nullptr;
                     if (!has) {
+                        std::string full_key = path.empty() ? key : path + "." + key;
                         if (itreq != nullptr && itreq->type() == Dictionary::Boolean && itreq->asBool())
-                            return std::optional<std::string>("missing required key '" + key + "'");
+                            return std::optional<std::string>("missing required key '" + full_key + "'");
                         if (required_names.find(key) != required_names.end())
-                            return std::optional<std::string>("missing required key '" + key + "'");
+                            return std::optional<std::string>("missing required key '" + full_key + "'");
                         continue;
                     }
                     // validate present property
@@ -1012,7 +1015,7 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     
     if (!path.empty()) {
         int line_num = find_line_number(raw_content, path);
-        if (line_num > 0) {
+        if (line_num > 1) {
             return std::optional<std::string>("on line " + std::to_string(line_num) + ": \n" + error);
         }
     }

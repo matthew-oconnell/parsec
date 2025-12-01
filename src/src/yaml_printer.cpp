@@ -58,7 +58,7 @@ std::string dump_yaml(const Dictionary &dict) {
         for (int k = 0; k < n; ++k) out.put(' ');
     };
 
-    std::function<void(const Dictionary&, int, bool)> emit_inline_or_block;
+    std::function<void(const Dictionary&, int)> emit_inline_or_block;
 
     auto scalar_to_yaml = [&](const Dictionary &d) -> std::string {
         switch (d.type()) {
@@ -84,10 +84,9 @@ std::string dump_yaml(const Dictionary &dict) {
         return std::string();
     };
 
-    // emit_inline_or_block: when `inline_allowed` is true we attempt to emit
-    // simple scalars inline (used after keys or list markers). For complex
-    // containers we emit block style with increased indentation.
-    emit_inline_or_block = [&](const Dictionary &d, int indent, bool inline_allowed) {
+    // emit_inline_or_block: emits scalars inline and containers in block
+    // style with increased indentation as needed.
+    emit_inline_or_block = [&](const Dictionary &d, int indent) {
         switch (d.type()) {
             case Dictionary::TYPE::Null:
             case Dictionary::TYPE::Boolean:
@@ -156,7 +155,7 @@ std::string dump_yaml(const Dictionary &dict) {
 
     emit = [&](const Dictionary &d, int indent) {
         // Reuse inline/block emitter
-        emit_inline_or_block(d, indent, true);
+        emit_inline_or_block(d, indent);
     };
 
     // Top-level handling: if top is a mapped object, emit keys without
