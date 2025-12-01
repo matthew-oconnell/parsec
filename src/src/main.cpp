@@ -15,18 +15,31 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate <schema.json> <file>\n  parsec --convert <yaml|json|ron> <input> <output>\n";
+        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate [--no-defaults] <schema.json> <file>\n  parsec --convert <yaml|json|ron> <input> <output>\n";
         return 2;
     }
 
     // Special validate mode: parse schema (JSON) and validate the given file against it
     if (std::string(argv[1]) == "--validate") {
-        if (argc != 4) {
-            std::cerr << "usage: parsec --validate <schema.json> <file>\n";
+        bool apply_defaults = true;
+        int schema_idx = 2;
+        int data_idx = 3;
+        int expected_argc = 4;
+        
+        // Check for --no-defaults flag
+        if (argc >= 3 && std::string(argv[2]) == "--no-defaults") {
+            apply_defaults = false;
+            schema_idx = 3;
+            data_idx = 4;
+            expected_argc = 5;
+        }
+        
+        if (argc != expected_argc) {
+            std::cerr << "usage: parsec --validate [--no-defaults] <schema.json> <file>\n";
             return 2;
         }
-        std::string schema_path = argv[2];
-        std::string data_path = argv[3];
+        std::string schema_path = argv[schema_idx];
+        std::string data_path = argv[data_idx];
         std::ifstream sin(schema_path);
         if (!sin) {
             std::cerr << "error: cannot open schema: " << schema_path << "\n";
@@ -49,6 +62,11 @@ int main(int argc, char** argv) {
                 data = ps::parse_json(content);
             } catch (...) {
                 data = ps::parse_ron(content);
+            }
+
+            // Apply defaults from schema if requested
+            if (apply_defaults) {
+                data = ps::setDefaults(data, schema);
             }
 
             auto err = ps::validate(data, schema, content);
