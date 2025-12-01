@@ -84,3 +84,10 @@ TEST_CASE(
 })";
     REQUIRE(expected == dict.dump(2));
 }
+
+TEST_CASE("Dictionary with escaped quoted strings pretty prints correctly") {
+    Dictionary dict;
+    dict["quote"] = std::string("He said, \"Hello, World!\"");
+    std::string expected = R"({"quote":"He said, \"Hello, World!\""})";
+    REQUIRE(expected == dict.dump());
+}

@@ -1,6 +1,12 @@
 #include <catch2/catch_all.hpp>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 #include "ps/parsec.h"
 #include "ps/validate.h"
+
+namespace fs = std::filesystem;
 
 using namespace ps;
 
@@ -541,3 +547,24 @@ TEST_CASE("setDefaults: Default should not override existing nested values", "[d
     
     INFO("Schema default incorrectly overrode user-provided nested value");
 }
+
+// Dictionary load_file(const std::filesystem::path& p) {
+//     std::ifstream in(p);
+//     REQUIRE(in.good());
+//     std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+//     return ps::parse_json(content);
+// }
+
+// TEST_CASE("fix bug from upstream", "[validate]") {
+//     // load schema from test/bug-assets/schema.json
+//     fs::path schema_path = fs::path(EXAMPLES_DIR) / "bug-assets" / "schema.json";
+//     auto schema = load_file(schema_path);
+
+//     fs::path user_path = fs::path(EXAMPLES_DIR) / "bug-assets" / "user.json";
+//     auto user = load_file(user_path);
+
+//     auto merged = ps::setDefaults(user, schema);
+
+//     REQUIRE(merged.at("HyperSolve").at("nonlinear solver settings").at("frechet derivative type").asString() ==
+//             "finite-difference");
+// }

@@ -5,6 +5,31 @@ namespace ps {
 // Helper: deep-copy a Dictionary (copy constructor performs deep copy)
 static Dictionary clone_value(const Dictionary& v) { return v; }
 
+// Resolve a local JSON Pointer-style $ref (only supports local refs starting with "#/")
+static const Dictionary* resolve_local_ref(const Dictionary& root, const std::string& ref) {
+    if (ref.empty()) return nullptr;
+    if (ref[0] != '#') return nullptr;  // only local refs supported
+    // strip leading '#/' if present
+    std::string path = ref;
+    if (path.size() >= 2 && path[1] == '/')
+        path = path.substr(2);
+    else if (path.size() == 1)
+        return &root;
+
+    const Dictionary* cur = &root;
+    size_t pos = 0;
+    while (pos < path.size()) {
+        size_t next = path.find('/', pos);
+        std::string token = (next == std::string::npos) ? path.substr(pos) : path.substr(pos, next - pos);
+        pos = (next == std::string::npos) ? path.size() : next + 1;
+        if (!cur->has(token)) return nullptr;
+        const Dictionary& v = cur->at(token);
+        if (!v.isMappedObject()) return nullptr;
+        cur = &v;
+    }
+    return cur;
+}
+
 // Recursively apply defaults from schema_node into target (which may be a dict or scalar)
 static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                                           const Dictionary& schema_root,
@@ -24,7 +49,17 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
         for (auto const& p : props->items()) {
             const std::string& k = p.first;
             const Dictionary& propSchemaVal = p.second;
-            const Dictionary* propSchema = propSchemaVal.isMappedObject() ? &propSchemaVal : nullptr;
+            
+            // Resolve $ref if present
+            const Dictionary* propSchema = nullptr;
+            if (propSchemaVal.isMappedObject()) {
+                if (propSchemaVal.has("$ref") && propSchemaVal.at("$ref").type() == Dictionary::String) {
+                    const std::string ref = propSchemaVal.at("$ref").asString();
+                    propSchema = resolve_local_ref(schema_root, ref);
+                } else {
+                    propSchema = &propSchemaVal;
+                }
+            }
             
 
             // If key present in input, recursively apply defaults into it
@@ -88,31 +123,41 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
 static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                                           const Dictionary& schema_root,
                                           const Dictionary& schema_node) {
+    // Resolve $ref if present
+    const Dictionary* actual_schema = &schema_node;
+    if (schema_node.has("$ref") && schema_node.at("$ref").type() == Dictionary::String) {
+        const std::string ref = schema_node.at("$ref").asString();
+        const Dictionary* resolved = resolve_local_ref(schema_root, ref);
+        if (resolved) {
+            actual_schema = resolved;
+        }
+    }
+
     // If schema_node has a 'default' and dataVal is explicitly null, return default.
     // Do NOT treat scalar values (int/string/bool) as "missing" — those are user
     // provided values and must be preserved. Only apply the schema default when
     // the provided value is actually null/absent.
     if (dataVal.type() == Dictionary::Null) {
-        if (schema_node.has("default")) return clone_value(schema_node.at("default"));
+        if (actual_schema->has("default")) return clone_value(actual_schema->at("default"));
     }
 
     // If schema type is object, recurse
-    if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String &&
-        schema_node.at("type").asString() == "object") {
+    if (actual_schema->has("type") && actual_schema->at("type").type() == Dictionary::String &&
+        actual_schema->at("type").asString() == "object") {
         Dictionary inObj;
         if (dataVal.isMappedObject()) inObj = dataVal;
-        Dictionary outObj = apply_defaults_to_object(inObj, schema_root, schema_node);
+        Dictionary outObj = apply_defaults_to_object(inObj, schema_root, *actual_schema);
         return outObj;
     }
 
     // If type is array
-    if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String &&
-        schema_node.at("type").asString() == "array") {
+    if (actual_schema->has("type") && actual_schema->at("type").type() == Dictionary::String &&
+        actual_schema->at("type").asString() == "array") {
         if (!dataVal.isArrayObject()) {
-            if (schema_node.has("default")) return clone_value(schema_node.at("default"));
+            if (actual_schema->has("default")) return clone_value(actual_schema->at("default"));
         } else {
-            if (schema_node.has("items") && schema_node.at("items").isMappedObject() && dataVal.isArrayObject()) {
-                const Dictionary* itemSchema = &schema_node.at("items");
+            if (actual_schema->has("items") && actual_schema->at("items").isMappedObject() && dataVal.isArrayObject()) {
+                const Dictionary* itemSchema = &actual_schema->at("items");
                 std::vector<Dictionary> outList;
                 for (int i = 0; i < dataVal.size(); ++i) {
                     const Dictionary& el = dataVal[i];

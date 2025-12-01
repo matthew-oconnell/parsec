@@ -864,6 +864,43 @@ inline std::vector<Dictionary> Dictionary::asObjects() const {
     throw std::runtime_error("not an object list");
 }
 
+// Helper function to escape JSON strings
+static inline std::string escape_json_string(const std::string& s) {
+    std::string result;
+    result.reserve(s.size() + 2);
+    result.push_back('"');
+    for (char c : s) {
+        switch (c) {
+            case '"':
+                result += "\\\"";
+                break;
+            case '\\':
+                result += "\\\\";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            case '\b':
+                result += "\\b";
+                break;
+            case '\f':
+                result += "\\f";
+                break;
+            default:
+                result.push_back(c);
+                break;
+        }
+    }
+    result.push_back('"');
+    return result;
+}
+
 inline std::string Dictionary::dump(int indent, bool compact) const {
     std::function<std::string(const Dictionary&)> make_pretty_compact;
     make_pretty_compact = [&](const Dictionary& d) -> std::string {
@@ -880,7 +917,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 return ss.str();
             }
             case TYPE::String:
-                return std::string("\"") + d.scalar->m_string + std::string("\"");
+                return escape_json_string(d.scalar->m_string);
             case TYPE::IntArray:
             case TYPE::DoubleArray:
             case TYPE::StringArray:
@@ -953,7 +990,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 return;
             }
             case TYPE::String:
-                out << '"' << val.scalar->m_string << '"';
+                out << escape_json_string(val.scalar->m_string);
                 return;
             case TYPE::IntArray:
             case TYPE::DoubleArray:
