@@ -124,6 +124,203 @@ Tests are located in `test/` with the following coverage:
 - `test_comments.cpp` — Comment stripping behavior
 - `test_cli_parser_selection.cpp` — CLI format detection logic
 
+## Writing Unit Tests
+
+When adding or modifying C++ code, you **must** also add or update unit tests using Catch2.
+
+### Test File Organization
+
+**Location and Naming**:
+- Place tests in the `test/` directory
+- Name test files with descriptive suffixes:
+  - `test_something.cpp` for unit tests
+  - `test_something_integration.cpp` for integration tests
+- Mirror source structure when appropriate: `src/foo.cpp` → `test/test_foo.cpp`
+
+**Dependencies**:
+- Include `<catch2/catch_test_macros.hpp>` in all test files
+- Add additional Catch2 headers (e.g., `<catch2/matchers/catch_matchers.hpp>`) only when needed
+- **Do not define `main()`** — the project provides a test runner via Catch2
+- Only include headers you actually use
+- Prefer including public headers (e.g., `<ps/parsec.h>`) instead of internal implementation files
+
+### Test Structure and Style
+
+**Use `TEST_CASE`, avoid `SECTION`**:
+```cpp
+#include <catch2/catch_test_macros.hpp>
+#include <ps/parsec.h>
+
+TEST_CASE("Dictionary looks up existing keys", "[dictionary][unit]") {
+    ps::Dictionary dict;
+    dict["answer"] = 42;
+
+    REQUIRE(dict.has("answer"));
+    REQUIRE(dict.at("answer").asInt() == 42);
+}
+
+TEST_CASE("Dictionary throws on missing keys", "[dictionary][unit][exception]") {
+    ps::Dictionary dict;
+
+    REQUIRE_FALSE(dict.has("missing"));
+    REQUIRE_THROWS_AS(dict.at("missing"), std::out_of_range);
+}
+```
+
+**Test case naming**:
+- First argument: Clear English description of the behavior being tested
+- Second argument: One or more tags in brackets
+  - Always include a component tag (e.g., `[json]`, `[dictionary]`, `[validate]`)
+  - Always include a category tag: `[unit]`, `[integration]`, `[exception]`, `[slow]`
+  - Examples: `[json][unit]`, `[parser][unit][exception]`
+
+### Assertions and Matchers
+
+**Prefer strong, specific assertions**:
+- `REQUIRE` — for conditions that must hold for the test to continue
+- `CHECK` — for additional checks where failure doesn't invalidate the rest of the test
+- `REQUIRE_NOTHROW` — verify code does not throw
+- `REQUIRE_THROWS` — verify code throws any exception
+- `REQUIRE_THROWS_AS` — verify code throws a specific exception type
+- `REQUIRE_THROWS_WITH` — verify exception message content
+
+**Exception testing examples**:
+```cpp
+TEST_CASE("Parser throws on invalid JSON syntax", "[json][unit][exception]") {
+    std::string bad_json = R"({"key": "value)";
+    
+    REQUIRE_THROWS_AS(ps::parse_json(bad_json), std::runtime_error);
+}
+
+TEST_CASE("Parser provides helpful error messages", "[json][unit][exception]") {
+    std::string bad_json = R"({"duplicate": 1, "duplicate": 2})";
+    
+    REQUIRE_THROWS_WITH(
+        ps::parse_json(bad_json),
+        Catch::Matchers::ContainsSubstring("duplicate")
+    );
+}
+```
+
+**Floating-point comparisons**:
+```cpp
+#include <catch2/catch_approx.hpp>
+
+TEST_CASE("Parse floating point values", "[json][unit]") {
+    auto dict = ps::parse_json(R"({"pi": 3.14159})");
+    REQUIRE(dict.at("pi").asDouble() == Catch::Approx(3.14159).epsilon(1e-12));
+}
+```
+
+### Test Coverage Expectations
+
+When you add or modify code, you **must** also add tests that cover:
+
+1. **Happy path behavior** — the intended use case works correctly
+2. **Edge cases** — empty input, null values, boundary conditions
+3. **Invalid input** — malformed syntax, wrong types, missing required fields
+4. **Error handling** — exceptions are thrown with correct types and messages
+
+**Keep tests small and focused**:
+- One behavior per `TEST_CASE`
+- Name tests so a failing test clearly indicates what's broken
+- Avoid testing multiple unrelated behaviors in a single test case
+
+**Example of focused tests**:
+```cpp
+TEST_CASE("Can parse empty JSON object", "[json][unit]") {
+    auto dict = ps::parse_json("{}");
+    REQUIRE(dict.size() == 0);
+}
+
+TEST_CASE("Can parse empty JSON array", "[json][unit]") {
+    auto dict = ps::parse_json("[]");
+    REQUIRE(dict.size() == 0);
+}
+
+TEST_CASE("Can parse nested objects", "[json][unit]") {
+    auto dict = ps::parse_json(R"({"outer": {"inner": 42}})");
+    REQUIRE(dict.at("outer").at("inner").asInt() == 42);
+}
+```
+
+### Performance and Stability
+
+**Keep unit tests fast and deterministic**:
+- Avoid network calls, filesystem I/O, or random behavior unless specifically testing those features
+- If randomization is needed, use a fixed seed and document it in a comment
+- Tests should run quickly (< 1 second per test case) to enable rapid iteration
+- Use `[slow]` tag for tests that take longer than 1 second
+
+**Avoid external dependencies in unit tests**:
+- Do not add production-only dependencies (MPI, large external libraries, etc.) unless the test specifically validates integration with that dependency
+- Prefer testing against small, in-memory examples rather than large external files
+
+### Common Patterns in parsec Tests
+
+**Parsing tests**:
+```cpp
+TEST_CASE("Parse JSON with trailing commas", "[json][unit]") {
+    std::string json = R"({"a": 1, "b": 2,})";
+    REQUIRE_NOTHROW(ps::parse_json(json));
+}
+```
+
+**Error message quality tests**:
+```cpp
+TEST_CASE("Error includes line and column", "[json][unit][exception]") {
+    std::string bad = "{\n  \"key\": bad_value\n}";
+    try {
+        ps::parse_json(bad);
+        FAIL("Expected parse to throw");
+    } catch (const std::exception& e) {
+        std::string msg = e.what();
+        REQUIRE(msg.find("line") != std::string::npos);
+        REQUIRE(msg.find("column") != std::string::npos);
+    }
+}
+```
+
+**Schema validation tests**:
+```cpp
+TEST_CASE("Validate data against schema", "[validate][unit]") {
+    ps::Dictionary schema = ps::parse_json(R"({"type": "object", "required": ["name"]})");
+    ps::Dictionary valid_data = ps::parse_json(R"({"name": "test"})");
+    ps::Dictionary invalid_data = ps::parse_json(R"({"other": "value"})");
+    
+    REQUIRE_FALSE(ps::validate(valid_data, schema).has_value());
+    REQUIRE(ps::validate(invalid_data, schema).has_value());
+}
+```
+
+### Adding Tests to the Build
+
+After creating a new test file:
+
+1. Add it to `test/CMakeLists.txt`:
+   ```cmake
+   add_executable(parsec_tests
+       test_json.cpp
+       test_ron.cpp
+       test_your_new_test.cpp  # Add here
+       # ... other test files
+   )
+   ```
+
+2. Rebuild and run tests:
+   ```bash
+   cd build
+   cmake --build .
+   ./test/parsec_tests
+   ```
+
+3. Run specific tests to verify:
+   ```bash
+   ./test/parsec_tests "your test name"
+   ./test/parsec_tests "[yourtag]"
+   ```
+
+
 ## CLI Tool Usage
 
 The `parsec` executable validates configuration files and provides schema validation:
@@ -336,7 +533,8 @@ TEST_CASE("unmatched opener includes opener location") {
    - `yaml_parser.cpp` — YAML parsing logic
 2. Ensure error messages include line/column context
 3. Add corresponding tests in `test/test_parse_errors.cpp`
-4. Run full test suite to verify no regressions
+4. **Verify the code compiles with zero warnings**: Run `cmake --build build` and check output
+5. Run full test suite to verify no regressions
 
 ### Adding a New Example File
 
