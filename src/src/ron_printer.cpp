@@ -2,6 +2,7 @@
 #include <sstream>
 #include <string>
 #include <functional>
+#include <cctype>
 
 namespace ps {
 
@@ -106,7 +107,28 @@ std::string dump_ron(const Dictionary &d) {
                 for (size_t idx = 0; idx < items.size(); ++idx) {
                     const auto &p = items[idx];
                     indent_spaces(indent + 2);
-                    out << p.first << ": ";
+                    
+                    // Quote key if it contains characters not allowed in unquoted identifiers
+                    // Allowed: alphanumeric, underscore, dollar sign
+                    bool needs_quoting = false;
+                    if (p.first.empty()) {
+                        needs_quoting = true;
+                    } else {
+                        for (char c : p.first) {
+                            if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$')) {
+                                needs_quoting = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (needs_quoting) {
+                        out << escape_string_ron(p.first);
+                    } else {
+                        out << p.first;
+                    }
+                    out << ": ";
+                    
                     const Dictionary &v = p.second;
                     if (is_simple(v)) {
                         emit(v, indent + 2);

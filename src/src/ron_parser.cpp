@@ -59,8 +59,49 @@ namespace {
 
         Dictionary parse_number_or_ident() {
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '.' or peek() == '_' or peek() == '-')
-                get();
+            // Collect initial part: digits, dots, hyphens (for negative numbers)
+            // For identifiers: also letters and underscores
+            bool has_alpha = false;
+            bool has_digit = false;
+            bool has_dot = false;
+            
+            while (true) {
+                char c = peek();
+                if (std::isdigit(static_cast<unsigned char>(c))) {
+                    has_digit = true;
+                    get();
+                } else if (std::isalpha(static_cast<unsigned char>(c))) {
+                    // Check if this is 'e' or 'E' for scientific notation
+                    if ((c == 'e' || c == 'E') && has_digit && i > start) {
+                        // This might be scientific notation
+                        size_t e_pos = i;
+                        get(); // consume e/E
+                        if (peek() == '+' || peek() == '-') {
+                            get(); // consume sign
+                        }
+                        // Must have at least one digit after e/E
+                        if (std::isdigit(static_cast<unsigned char>(peek()))) {
+                            while (std::isdigit(static_cast<unsigned char>(peek())))
+                                get();
+                            break; // End of scientific notation number
+                        } else {
+                            // Not valid scientific notation, backtrack and treat as identifier
+                            i = e_pos;
+                            has_alpha = true;
+                            get();
+                        }
+                    } else {
+                        has_alpha = true;
+                        get();
+                    }
+                } else if (c == '.' || c == '_' || c == '-') {
+                    if (c == '.') has_dot = true;
+                    get();
+                } else {
+                    break;
+                }
+            }
+            
             std::string tok = s.substr(start, i - start);
             if (tok == "null") return Dictionary::null();
             if (tok == "true") {
@@ -75,20 +116,29 @@ namespace {
             }
             // try integer or double
             std::istringstream ss(tok);
-            if (tok.find('.') != std::string::npos) {
+            // Check if it's a floating-point number (has . or e/E for scientific notation)
+            // But only if it starts with a digit or minus (to avoid treating identifiers like "volume" as numbers)
+            bool looks_like_number = !tok.empty() && (std::isdigit(static_cast<unsigned char>(tok[0])) || tok[0] == '-' || tok[0] == '.');
+            if (looks_like_number && (tok.find('.') != std::string::npos || tok.find('e') != std::string::npos || tok.find('E') != std::string::npos)) {
                 double dval;
                 ss >> dval;
-                Dictionary d;
-                d = dval;
-                return d;
+                if (!ss.fail()) {
+                    Dictionary d;
+                    d = dval;
+                    return d;
+                }
             }
-            int64_t v;
-            ss >> v;
-            if (!ss.fail()) {
-                Dictionary d;
-                d = v;
-                return d;
+            // Try as integer if it looks like a number
+            if (looks_like_number) {
+                int64_t v;
+                ss >> v;
+                if (!ss.fail()) {
+                    Dictionary d;
+                    d = v;
+                    return d;
+                }
             }
+            // Fall back to string identifier
             Dictionary d;
             d = tok;
             return d;
