@@ -61,9 +61,7 @@ namespace {
             size_t start = i;
             // Collect initial part: digits, dots, hyphens (for negative numbers)
             // For identifiers: also letters and underscores
-            bool has_alpha = false;
             bool has_digit = false;
-            bool has_dot = false;
             
             while (true) {
                 char c = peek();
@@ -87,15 +85,12 @@ namespace {
                         } else {
                             // Not valid scientific notation, backtrack and treat as identifier
                             i = e_pos;
-                            has_alpha = true;
                             get();
                         }
                     } else {
-                        has_alpha = true;
                         get();
                     }
                 } else if (c == '.' || c == '_' || c == '-') {
-                    if (c == '.') has_dot = true;
                     get();
                 } else {
                     break;
