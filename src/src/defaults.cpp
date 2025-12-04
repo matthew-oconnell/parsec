@@ -50,8 +50,9 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
             const std::string& k = p.first;
             const Dictionary& propSchemaVal = p.second;
             
-            // Resolve $ref if present
+            // Resolve $ref if present, but keep track of original for default value
             const Dictionary* propSchema = nullptr;
+            const Dictionary* propSchemaForDefault = &propSchemaVal;  // May have 'default' key
             if (propSchemaVal.isMappedObject()) {
                 if (propSchemaVal.has("$ref") && propSchemaVal.at("$ref").type() == Dictionary::String) {
                     const std::string ref = propSchemaVal.at("$ref").asString();
@@ -76,10 +77,11 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
                     }
                 }
             } else {
-                // Not present: if schema has a default, use it; else if propSchema is an object
-                // with nested defaults, we may create an empty object and apply nested defaults if
-                // there are defaults deeper in the schema.
-                if (propSchema && propSchema->has("default")) {
+                // Not present: check for default in the original schema (before $ref resolution)
+                // or in the resolved schema
+                if (propSchemaForDefault->has("default")) {
+                    out[k] = clone_value(propSchemaForDefault->at("default"));
+                } else if (propSchema && propSchema->has("default")) {
                     out[k] = clone_value(propSchema->at("default"));
                 } else if (propSchema && propSchema->has("type") &&
                            propSchema->at("type").type() == Dictionary::String &&
@@ -167,6 +169,86 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                 arr = outList;
                 return arr;
             }
+        }
+    }
+
+    // Handle anyOf: try each alternative and apply defaults from the first matching schema
+    // We determine a match by checking if the data is an object with a "type" field that
+    // matches one of the alternatives, or by trying to apply and checking for consistency.
+    if (actual_schema->has("anyOf") && actual_schema->at("anyOf").isArrayObject()) {
+        const Dictionary& anyOfArray = actual_schema->at("anyOf");
+        
+        // If dataVal is an object with a "type" field, try to find matching schema
+        if (dataVal.isMappedObject() && dataVal.has("type")) {
+            std::string dataType = dataVal.at("type").asString();
+            
+            // Try each alternative to find one with matching type enum
+            for (int i = 0; i < anyOfArray.size(); ++i) {
+                const Dictionary* altSchema = &anyOfArray[i];
+                
+                // Resolve $ref if present
+                if (altSchema->has("$ref") && altSchema->at("$ref").type() == Dictionary::String) {
+                    const std::string ref = altSchema->at("$ref").asString();
+                    altSchema = resolve_local_ref(schema_root, ref);
+                    if (!altSchema) continue;
+                }
+                
+                // Check if this alternative has type enum matching our data
+                if (altSchema->has("properties") && altSchema->at("properties").has("type")) {
+                    const Dictionary& typeProp = altSchema->at("properties").at("type");
+                    if (typeProp.has("enum") && typeProp.at("enum").isArrayObject()) {
+                        const Dictionary& enumArray = typeProp.at("enum");
+                        for (int j = 0; j < enumArray.size(); ++j) {
+                            if (enumArray[j].type() == Dictionary::String &&
+                                enumArray[j].asString() == dataType) {
+                                // Found matching schema - apply defaults from it
+                                return apply_defaults_to_value(dataVal, schema_root, *altSchema);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no type-based match, just try the first alternative
+        if (anyOfArray.size() > 0) {
+            return apply_defaults_to_value(dataVal, schema_root, anyOfArray[0]);
+        }
+    }
+
+    // Handle oneOf similarly to anyOf
+    if (actual_schema->has("oneOf") && actual_schema->at("oneOf").isArrayObject()) {
+        const Dictionary& oneOfArray = actual_schema->at("oneOf");
+        
+        if (dataVal.isMappedObject() && dataVal.has("type")) {
+            std::string dataType = dataVal.at("type").asString();
+            
+            for (int i = 0; i < oneOfArray.size(); ++i) {
+                const Dictionary* altSchema = &oneOfArray[i];
+                
+                if (altSchema->has("$ref") && altSchema->at("$ref").type() == Dictionary::String) {
+                    const std::string ref = altSchema->at("$ref").asString();
+                    altSchema = resolve_local_ref(schema_root, ref);
+                    if (!altSchema) continue;
+                }
+                
+                if (altSchema->has("properties") && altSchema->at("properties").has("type")) {
+                    const Dictionary& typeProp = altSchema->at("properties").at("type");
+                    if (typeProp.has("enum") && typeProp.at("enum").isArrayObject()) {
+                        const Dictionary& enumArray = typeProp.at("enum");
+                        for (int j = 0; j < enumArray.size(); ++j) {
+                            if (enumArray[j].type() == Dictionary::String &&
+                                enumArray[j].asString() == dataType) {
+                                return apply_defaults_to_value(dataVal, schema_root, *altSchema);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (oneOfArray.size() > 0) {
+            return apply_defaults_to_value(dataVal, schema_root, oneOfArray[0]);
         }
     }
 

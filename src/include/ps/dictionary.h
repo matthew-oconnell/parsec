@@ -1073,7 +1073,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
         out << std::string(static_cast<size_t>(level), ' ') << "}";
     };
 
-    dumpObject(*this, 0);
+    dumpValue(*this, 0);
     return out.str();
 }
 
