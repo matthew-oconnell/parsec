@@ -89,6 +89,12 @@ struct Dictionary {
             m_array_map.emplace(static_cast<int>(i), Dictionary(static_cast<int64_t>(v[i])));
     }
 
+    Dictionary(const std::vector<int64_t>& v) {
+        my_type = TYPE::IntArray;
+        for (size_t i = 0; i < v.size(); ++i)
+            m_array_map.emplace(static_cast<int>(i), Dictionary((v[i])));
+    }
+
     Dictionary(const std::vector<std::string>& v) {
         my_type = TYPE::StringArray;
         for (size_t i = 0; i < v.size(); ++i)
@@ -641,18 +647,18 @@ struct Dictionary {
     }
 
     bool getBool(const std::string& key) const { return at(key).asBool(); }
-    int getInt(const std::string& key) const { return at(key).asInt(); }
+    int64_t getInt(const std::string& key) const { return at(key).asInt(); }
     double getDouble(const std::string& key) const { return at(key).asDouble(); }
     std::string getString(const std::string& key) const { return at(key).asString(); }
-    std::vector<int> getInts(const std::string& key) const { return at(key).asInts(); }
+    std::vector<int64_t> getInts(const std::string& key) const { return at(key).asInts(); }
     std::vector<double> getDoubles(const std::string& key) const { return at(key).asDoubles(); }
     std::vector<std::string> getStrings(const std::string& key) const {
         return at(key).asStrings();
     }
     std::vector<bool> getBools(const std::string& key) const { return at(key).asBools(); }
 
-    int asInt() const {
-        if (my_type == TYPE::Integer) return static_cast<int>(scalar->m_int);
+    int64_t asInt() const {
+        if (my_type == TYPE::Integer) return scalar->m_int;
         if (my_type == TYPE::Double) return static_cast<int>(scalar->m_double);
         throw std::runtime_error("not an int");
     }
@@ -668,7 +674,8 @@ struct Dictionary {
         throw std::runtime_error("not a bool");
     }
 
-    std::vector<int> asInts() const;
+    std::vector<int64_t> asInts() const;
+    std::vector<int> asInt32s() const;
 
     std::vector<double> asDoubles() const;
 
@@ -722,12 +729,18 @@ struct Dictionary {
 
     // Comparison operators against primitive types for compatibility
     bool operator==(int rhs) const {
-        if (my_type == TYPE::Integer) return static_cast<int>(scalar->m_int) == rhs;
-        if (my_type == TYPE::Double) return static_cast<int>(scalar->m_double) == rhs;
+        if (my_type == TYPE::Integer) return scalar->m_int == static_cast<int64_t>(rhs);
+        if (my_type == TYPE::Double)
+            return static_cast<int64_t>(scalar->m_double) == static_cast<int64_t>(rhs);
+        return false;
+    }
+    bool operator==(int64_t rhs) const {
+        if (my_type == TYPE::Integer) return scalar->m_int == rhs;
+        if (my_type == TYPE::Double) return static_cast<int64_t>(scalar->m_double) == rhs;
         return false;
     }
 
-    bool operator!=(int rhs) const { return not(*this == rhs); }
+    bool operator!=(int64_t rhs) const { return not(*this == rhs); }
 
     bool operator==(double rhs) const {
         if (my_type == TYPE::Double) return scalar->m_double == rhs;
@@ -771,28 +784,37 @@ struct Dictionary {
     }
 };
 
-inline std::vector<int> Dictionary::asInts() const {
+inline std::vector<int> Dictionary::asInt32s() const {
+    auto int64s = asInts();
+    std::vector<int> out;
+    out.reserve(int64s.size());
+    for (auto n : int64s) out.push_back(static_cast<int>(n));
+    return out;
+}
+
+inline std::vector<int64_t> Dictionary::asInts() const {
     if (my_type == TYPE::Integer) {
-        return std::vector<int>{static_cast<int>(scalar->m_int)};
+        return std::vector<int64_t>{scalar->m_int};
     }
     if (my_type == TYPE::Double) {
-        return std::vector<int>{static_cast<int>(scalar->m_double)};
+        return std::vector<int64_t>{static_cast<int64_t>(scalar->m_double)};
     }
     if (my_type == TYPE::IntArray) {
-        std::vector<int> out;
+        std::vector<int64_t> out;
         out.reserve(m_array_map.size());
         for (auto const& kv : m_array_map) out.push_back(kv.second.asInt());
         return out;
     }
     if (my_type == TYPE::DoubleArray) {
         // TODO warn if double isn't approx an int
-        std::vector<int> out;
+        std::vector<int64_t> out;
         out.reserve(m_array_map.size());
-        for (auto const& kv : m_array_map) out.push_back(static_cast<int>(kv.second.asDouble()));
+        for (auto const& kv : m_array_map)
+            out.push_back(static_cast<int64_t>(kv.second.asDouble()));
         return out;
     }
     if (my_type == TYPE::ObjectArray) {
-        std::vector<int> out;
+        std::vector<int64_t> out;
         out.reserve(m_array_map.size());
         for (auto const& kv : m_array_map) out.push_back(kv.second.asInt());
         return out;

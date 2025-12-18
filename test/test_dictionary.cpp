@@ -110,7 +110,7 @@ TEST_CASE("add a vector") {
     REQUIRE(3 == dict["some integers"].size());
     REQUIRE(Dictionary::IntArray == dict["some integers"].type());
 
-    auto v2 = dict.at("some integers").asInts();
+    auto v2 = dict.at("some integers").asInt32s();
     REQUIRE(v == v2);
     REQUIRE("{\"some integers\":[0,1,2]}" == dict.dump(0));
 
@@ -139,7 +139,7 @@ TEST_CASE("add a vector") {
 TEST_CASE("query array") {
     Dictionary dict;
 
-    std::vector<int> v{5, 4, 2};
+    std::vector<int64_t> v{5, 4, 2};
     dict["some integers"] = v;
     auto my_array = dict["some integers"];
     REQUIRE(my_array.size() == 3);
@@ -151,7 +151,7 @@ TEST_CASE("query array") {
 TEST_CASE("Add nested elements") {
     Dictionary dict;
     dict["pokemon"]["name"] = "pikachu";
-    std::vector<int> toes{3, 3, 4, 4};
+    std::vector<int64_t> toes{3, 3, 4, 4};
     dict["pokemon"]["toes per leg"] = toes;
     REQUIRE(1 == dict.size());
     REQUIRE("pikachu" == dict.at("pokemon").at("name").asString());
@@ -168,8 +168,8 @@ TEST_CASE("add arrays via [] operators") {
     REQUIRE(6 == dict["some array"][1].asInt());
     REQUIRE("{\"some array\":[5,6]}" == dict.dump(0));
 
-    std::vector<int> expected = {5, 6};
-    std::vector<int> actual = dict["some array"].asInts();
+    std::vector<int64_t> expected = {5, 6};
+    auto actual = dict["some array"].asInts();
 
     REQUIRE(expected == actual);
 }
@@ -178,7 +178,7 @@ TEST_CASE("Scalar Integers can be converted to arrays of single length") {
     Dictionary dict;
     dict["some number"] = 6;
     REQUIRE(6 == dict["some number"].asInt());
-    REQUIRE(std::vector<int>{6} == dict["some number"].asInts());
+    REQUIRE(std::vector<int>{6} == dict["some number"].asInt32s());
     REQUIRE(6.0 == dict["some number"].asDouble());
     REQUIRE(std::vector<double>{6.0} == dict["some number"].asDoubles());
     dict["not a number"] = "my string";
