@@ -175,21 +175,21 @@ compression = yes
 debug = off
 )";
     auto d = ps::parse_ini(ini);
-    
+
     REQUIRE(d.at("app_name").asString() == "MyApp");
     REQUIRE(d.at("version").asString() == "1.0.0");
-    
+
     REQUIRE(d.at("server").at("host").asString() == "localhost");
     REQUIRE(d.at("server").at("port").asInt() == 8080);
     REQUIRE(d.at("server").at("enabled").asBool() == true);
     REQUIRE(d.at("server").at("timeout").asInt() == 30);
-    
+
     REQUIRE(d.at("server").at("ssl").at("enabled").asBool() == false);
     REQUIRE(d.at("server").at("ssl").at("port").asInt() == 443);
-    
+
     REQUIRE(d.at("database").at("host").asString() == "db.example.com");
     REQUIRE(d.at("database").at("port").asInt() == 5432);
-    
+
     REQUIRE(d.at("features").at("caching").asBool() == true);
     REQUIRE(d.at("features").at("compression").asBool() == true);
     REQUIRE(d.at("features").at("debug").asBool() == false);
@@ -310,5 +310,5 @@ sci2 = 4.56E-5
 
 TEST_CASE("don't allow ini keys to start with brackets", "[ini][error]") {
     std::string used_brackets_for_array = R"({"some_array":{{"type":"dog"}, "type":"pokemon"}})";
-    REQUIRE_THROWS( ps::parse_ini(used_brackets_for_array));
+    REQUIRE_THROWS(ps::parse_ini(used_brackets_for_array));
 }

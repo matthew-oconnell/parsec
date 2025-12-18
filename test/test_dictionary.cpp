@@ -245,7 +245,8 @@ TEST_CASE("Can merge two dictionaries including adding new keys") {
     REQUIRE(merged_pet.at("diet").at("lunch").asString() == "no");
     REQUIRE(merged_pet.at("diet").at("dinner").asString() == "stolen table scraps");
     REQUIRE(merged_pet.at("name").asString() == "spot");
-    REQUIRE(merged_pet.at("toys").asStrings() == std::vector<std::string>{"blue kong", "tire", "duck", "ball"});
+    REQUIRE(merged_pet.at("toys").asStrings() ==
+            std::vector<std::string>{"blue kong", "tire", "duck", "ball"});
 }
 
 TEST_CASE("Can easily check if something exists and is true") {

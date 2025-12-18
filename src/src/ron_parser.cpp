@@ -62,7 +62,7 @@ namespace {
             // Collect initial part: digits, dots, hyphens (for negative numbers)
             // For identifiers: also letters and underscores
             bool has_digit = false;
-            
+
             while (true) {
                 char c = peek();
                 if (std::isdigit(static_cast<unsigned char>(c))) {
@@ -73,15 +73,14 @@ namespace {
                     if ((c == 'e' || c == 'E') && has_digit && i > start) {
                         // This might be scientific notation
                         size_t e_pos = i;
-                        get(); // consume e/E
+                        get();  // consume e/E
                         if (peek() == '+' || peek() == '-') {
-                            get(); // consume sign
+                            get();  // consume sign
                         }
                         // Must have at least one digit after e/E
                         if (std::isdigit(static_cast<unsigned char>(peek()))) {
-                            while (std::isdigit(static_cast<unsigned char>(peek())))
-                                get();
-                            break; // End of scientific notation number
+                            while (std::isdigit(static_cast<unsigned char>(peek()))) get();
+                            break;  // End of scientific notation number
                         } else {
                             // Not valid scientific notation, backtrack and treat as identifier
                             i = e_pos;
@@ -96,7 +95,7 @@ namespace {
                     break;
                 }
             }
-            
+
             std::string tok = s.substr(start, i - start);
             if (tok == "null") return Dictionary::null();
             if (tok == "true") {
@@ -112,9 +111,14 @@ namespace {
             // try integer or double
             std::istringstream ss(tok);
             // Check if it's a floating-point number (has . or e/E for scientific notation)
-            // But only if it starts with a digit or minus (to avoid treating identifiers like "volume" as numbers)
-            bool looks_like_number = !tok.empty() && (std::isdigit(static_cast<unsigned char>(tok[0])) || tok[0] == '-' || tok[0] == '.');
-            if (looks_like_number && (tok.find('.') != std::string::npos || tok.find('e') != std::string::npos || tok.find('E') != std::string::npos)) {
+            // But only if it starts with a digit or minus (to avoid treating identifiers like
+            // "volume" as numbers)
+            bool looks_like_number =
+                        !tok.empty() && (std::isdigit(static_cast<unsigned char>(tok[0])) ||
+                                         tok[0] == '-' || tok[0] == '.');
+            if (looks_like_number &&
+                (tok.find('.') != std::string::npos || tok.find('e') != std::string::npos ||
+                 tok.find('E') != std::string::npos)) {
                 double dval;
                 ss >> dval;
                 if (!ss.fail()) {
@@ -142,7 +146,8 @@ namespace {
         Dictionary parse_array() {
             if (get() != '[') throw std::runtime_error("expected '['");
             std::vector<Dictionary> out_values;
-            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true,
+                 allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
@@ -252,7 +257,9 @@ namespace {
             }
             // identifier key
             size_t start = i;
-            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_' or peek() == '$') get();
+            while (std::isalnum(static_cast<unsigned char>(peek())) or peek() == '_' or
+                   peek() == '$')
+                get();
             std::string key = s.substr(start, i - start);
             if (key.empty()) {
                 throw std::runtime_error("expected key");
@@ -260,7 +267,9 @@ namespace {
             // Keys must start with an ASCII letter
             unsigned char first_ch = static_cast<unsigned char>(key[0]);
             if (!(std::isalnum(first_ch) || first_ch == '$')) {
-                throw std::runtime_error("RON parse error: invalid key: keys must start with a letter, digit, or '$'");
+                throw std::runtime_error(
+                            "RON parse error: invalid key: keys must start with a letter, digit, "
+                            "or '$'");
             }
             return key;
         }
@@ -335,7 +344,8 @@ namespace {
                 if (pc == '\0')
                     msg << "unexpected end of input in RON";
                 else
-                    msg << "unexpected token in RON at index " << i << " ('" << pc << "') near '" << snippet << "'";
+                    msg << "unexpected token in RON at index " << i << " ('" << pc << "') near '"
+                        << snippet << "'";
                 throw std::runtime_error(msg.str());
             }
         }
@@ -343,11 +353,12 @@ namespace {
 }
 
 Dictionary parse_ron(const std::string& text) {
-        RonParser p(text);
-        p.skip_ws();
-        // If the first non-ws char is an identifier (letter/digit/'_'/'$') or quoted string, treat as implicit root object
-        char c = p.peek();
-        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '"' || c == '$') {
+    RonParser p(text);
+    p.skip_ws();
+    // If the first non-ws char is an identifier (letter/digit/'_'/'$') or quoted string, treat as
+    // implicit root object
+    char c = p.peek();
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '"' || c == '$') {
         Dictionary root;
         while (p.peek() != '\0') {
             std::string key = p.parse_key();
@@ -366,7 +377,9 @@ Dictionary parse_ron(const std::string& text) {
                 continue;
             }
             // allow implicit separator
-            if (std::isalnum(static_cast<unsigned char>(p.peek())) || p.peek() == '_' || p.peek() == '"' || p.peek() == '$') continue;
+            if (std::isalnum(static_cast<unsigned char>(p.peek())) || p.peek() == '_' ||
+                p.peek() == '"' || p.peek() == '$')
+                continue;
             break;
         }
         return root;

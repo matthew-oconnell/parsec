@@ -121,7 +121,7 @@ port = 8080
         std::string msg = e.what();
         // Should get error from JSON parser (invalid literal, parse error, etc.)
         // NOT succeed by falling back to TOML
-        REQUIRE((msg.find("invalid literal") != std::string::npos || 
+        REQUIRE((msg.find("invalid literal") != std::string::npos ||
                  msg.find("parse error") != std::string::npos ||
                  msg.find("unexpected") != std::string::npos));
     }
@@ -148,8 +148,6 @@ TEST_CASE("parse() provides helpful error for completely invalid input", "[parse
         REQUIRE(msg.find("Most likely intended format:") != std::string::npos);
     }
 }
-
-
 
 TEST_CASE("Parse ini require keys start with letters") {
     std::string used_brackets_for_array = R"({"some_array":{{"type":"dog"}, "type":"pokemon"}})";

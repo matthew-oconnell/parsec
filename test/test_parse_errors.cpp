@@ -14,7 +14,8 @@ TEST_CASE("parse reports line and column in error messages") {
     } catch (const std::exception& e) {
         std::string msg = e.what();
         // message should mention line/column info or at least include 'unexpected end'
-        REQUIRE((msg.find("unexpected end") != std::string::npos || msg.find(":") != std::string::npos));
+        REQUIRE((msg.find("unexpected end") != std::string::npos ||
+                 msg.find(":") != std::string::npos));
     }
 }
 

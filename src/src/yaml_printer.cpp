@@ -6,7 +6,7 @@
 
 namespace ps {
 
-static bool needs_quoting(const std::string &s) {
+static bool needs_quoting(const std::string& s) {
     if (s.empty()) return true;
     // Leading or trailing whitespace should be quoted
     if (std::isspace(static_cast<unsigned char>(s.front())) ||
@@ -31,7 +31,7 @@ static bool needs_quoting(const std::string &s) {
     return false;
 }
 
-static std::string quote_string(const std::string &s) {
+static std::string quote_string(const std::string& s) {
     std::string out;
     out.push_back('"');
     for (char c : s) {
@@ -50,7 +50,7 @@ static std::string quote_string(const std::string &s) {
     return out;
 }
 
-std::string dump_yaml(const Dictionary &dict) {
+std::string dump_yaml(const Dictionary& dict) {
     std::ostringstream out;
 
     std::function<void(const Dictionary&, int)> emit;
@@ -60,7 +60,7 @@ std::string dump_yaml(const Dictionary &dict) {
 
     std::function<void(const Dictionary&, int)> emit_inline_or_block;
 
-    auto scalar_to_yaml = [&](const Dictionary &d) -> std::string {
+    auto scalar_to_yaml = [&](const Dictionary& d) -> std::string {
         switch (d.type()) {
             case Dictionary::TYPE::Null:
                 return std::string("null");
@@ -86,7 +86,7 @@ std::string dump_yaml(const Dictionary &dict) {
 
     // emit_inline_or_block: emits scalars inline and containers in block
     // style with increased indentation as needed.
-    emit_inline_or_block = [&](const Dictionary &d, int indent) {
+    emit_inline_or_block = [&](const Dictionary& d, int indent) {
         switch (d.type()) {
             case Dictionary::TYPE::Null:
             case Dictionary::TYPE::Boolean:
@@ -107,11 +107,13 @@ std::string dump_yaml(const Dictionary &dict) {
                     break;
                 }
                 for (int i = 0; i < d.size(); ++i) {
-                    const Dictionary &el = d.at(i);
+                    const Dictionary& el = d.at(i);
                     indent_spaces(indent);
                     out << "- ";
-                    bool el_is_simple = (el.type() == Dictionary::TYPE::Null || el.type() == Dictionary::TYPE::Boolean ||
-                                         el.type() == Dictionary::TYPE::Integer || el.type() == Dictionary::TYPE::Double ||
+                    bool el_is_simple = (el.type() == Dictionary::TYPE::Null ||
+                                         el.type() == Dictionary::TYPE::Boolean ||
+                                         el.type() == Dictionary::TYPE::Integer ||
+                                         el.type() == Dictionary::TYPE::Double ||
                                          el.type() == Dictionary::TYPE::String);
                     if (el_is_simple) {
                         out << scalar_to_yaml(el) << '\n';
@@ -131,13 +133,15 @@ std::string dump_yaml(const Dictionary &dict) {
                 // scalar we put it inline 'key: value', otherwise newline
                 // and nested block.
                 auto items = d.items();
-                for (auto const &p : items) {
+                for (auto const& p : items) {
                     indent_spaces(indent);
                     out << p.first << ":";
-                    const Dictionary &val = p.second;
-                    bool val_is_simple = (val.type() == Dictionary::TYPE::Null || val.type() == Dictionary::TYPE::Boolean ||
-                                         val.type() == Dictionary::TYPE::Integer || val.type() == Dictionary::TYPE::Double ||
-                                         val.type() == Dictionary::TYPE::String);
+                    const Dictionary& val = p.second;
+                    bool val_is_simple = (val.type() == Dictionary::TYPE::Null ||
+                                          val.type() == Dictionary::TYPE::Boolean ||
+                                          val.type() == Dictionary::TYPE::Integer ||
+                                          val.type() == Dictionary::TYPE::Double ||
+                                          val.type() == Dictionary::TYPE::String);
                     if (val_is_simple) {
                         out << " " << scalar_to_yaml(val) << '\n';
                     } else {
@@ -153,7 +157,7 @@ std::string dump_yaml(const Dictionary &dict) {
         }
     };
 
-    emit = [&](const Dictionary &d, int indent) {
+    emit = [&](const Dictionary& d, int indent) {
         // Reuse inline/block emitter
         emit_inline_or_block(d, indent);
     };
@@ -177,4 +181,4 @@ std::string dump_yaml(const Dictionary &dict) {
     return res;
 }
 
-} // namespace ps
+}  // namespace ps

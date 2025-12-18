@@ -137,20 +137,20 @@ TEST_CASE("RON printer quotes keys with special characters") {
     d["key.with.dots"] = "value3";
     d["normal_key"] = "value4";
     d["$special"] = "value5";
-    
+
     std::string ron_output = ps::dump_ron(d);
-    
+
     // Keys with spaces, hyphens, and dots should be quoted
     REQUIRE(ron_output.find("\"key with spaces\":") != std::string::npos);
     REQUIRE(ron_output.find("\"key-with-hyphens\":") != std::string::npos);
     REQUIRE(ron_output.find("\"key.with.dots\":") != std::string::npos);
-    
+
     // Normal keys should not be quoted
     REQUIRE(ron_output.find("normal_key:") != std::string::npos);
-    
+
     // Dollar sign keys should not be quoted (allowed in RON)
     REQUIRE(ron_output.find("$special:") != std::string::npos);
-    
+
     // Verify the output can be parsed back
     auto parsed = ps::parse_ron(ron_output);
     REQUIRE(parsed.at("key with spaces").asString() == "value1");
@@ -167,10 +167,10 @@ TEST_CASE("RON round-trip with scientific notation and special keys") {
     d["temperature"] = 3.14159e-10;
     d["count"] = 1000000;
     d["$ref"] = "schema.json";
-    
+
     std::string ron_output = ps::dump_ron(d);
     auto parsed = ps::parse_ron(ron_output);
-    
+
     REQUIRE(parsed.has("boundary conditions"));
     REQUIRE(parsed.has("cfl bounds"));
     REQUIRE(parsed.at("cfl bounds").size() == 2);

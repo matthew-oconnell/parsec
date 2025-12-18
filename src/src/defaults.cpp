@@ -20,7 +20,8 @@ static const Dictionary* resolve_local_ref(const Dictionary& root, const std::st
     size_t pos = 0;
     while (pos < path.size()) {
         size_t next = path.find('/', pos);
-        std::string token = (next == std::string::npos) ? path.substr(pos) : path.substr(pos, next - pos);
+        std::string token =
+                    (next == std::string::npos) ? path.substr(pos) : path.substr(pos, next - pos);
         pos = (next == std::string::npos) ? path.size() : next + 1;
         if (!cur->has(token)) return nullptr;
         const Dictionary& v = cur->at(token);
@@ -49,30 +50,32 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
         for (auto const& p : props->items()) {
             const std::string& k = p.first;
             const Dictionary& propSchemaVal = p.second;
-            
+
             // Resolve $ref if present, but keep track of original for default value
             const Dictionary* propSchema = nullptr;
             const Dictionary* propSchemaForDefault = &propSchemaVal;  // May have 'default' key
             if (propSchemaVal.isMappedObject()) {
-                if (propSchemaVal.has("$ref") && propSchemaVal.at("$ref").type() == Dictionary::String) {
+                if (propSchemaVal.has("$ref") &&
+                    propSchemaVal.at("$ref").type() == Dictionary::String) {
                     const std::string ref = propSchemaVal.at("$ref").asString();
                     propSchema = resolve_local_ref(schema_root, ref);
                 } else {
                     propSchema = &propSchemaVal;
                 }
             }
-            
 
             // If key present in input, recursively apply defaults into it
             if (out.has(k)) {
                 if (propSchema) {
                     if (out[k].isMappedObject()) {
                         Dictionary nested = out[k];
-                        Dictionary nested_with = apply_defaults_to_object(nested, schema_root, *propSchema);
+                        Dictionary nested_with =
+                                    apply_defaults_to_object(nested, schema_root, *propSchema);
                         out[k] = nested_with;
                     } else {
                         Dictionary existing = out[k];
-                        Dictionary withDefaults = apply_defaults_to_value(existing, schema_root, *propSchema);
+                        Dictionary withDefaults =
+                                    apply_defaults_to_value(existing, schema_root, *propSchema);
                         out[k] = withDefaults;
                     }
                 }
@@ -99,7 +102,8 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
     // additionalProperties: if schema object with default, and keys in input not covered by
     // properties, ensure defaults applied
     const Dictionary* addSchema = nullptr;
-    if (schema_node.has("additionalProperties") && schema_node.at("additionalProperties").isMappedObject())
+    if (schema_node.has("additionalProperties") &&
+        schema_node.at("additionalProperties").isMappedObject())
         addSchema = &schema_node.at("additionalProperties");
 
     if (addSchema) {
@@ -113,7 +117,8 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
                 out[k] = nested_with;
             } else {
                 Dictionary existing = pd.second;
-                Dictionary withDefaults = apply_defaults_to_value(existing, schema_root, *addSchema);
+                Dictionary withDefaults =
+                            apply_defaults_to_value(existing, schema_root, *addSchema);
                 out[k] = withDefaults;
             }
         }
@@ -158,7 +163,8 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
         if (!dataVal.isArrayObject()) {
             if (actual_schema->has("default")) return clone_value(actual_schema->at("default"));
         } else {
-            if (actual_schema->has("items") && actual_schema->at("items").isMappedObject() && dataVal.isArrayObject()) {
+            if (actual_schema->has("items") && actual_schema->at("items").isMappedObject() &&
+                dataVal.isArrayObject()) {
                 const Dictionary* itemSchema = &actual_schema->at("items");
                 std::vector<Dictionary> outList;
                 for (int i = 0; i < dataVal.size(); ++i) {
@@ -177,22 +183,22 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
     // matches one of the alternatives, or by trying to apply and checking for consistency.
     if (actual_schema->has("anyOf") && actual_schema->at("anyOf").isArrayObject()) {
         const Dictionary& anyOfArray = actual_schema->at("anyOf");
-        
+
         // If dataVal is an object with a "type" field, try to find matching schema
         if (dataVal.isMappedObject() && dataVal.has("type")) {
             std::string dataType = dataVal.at("type").asString();
-            
+
             // Try each alternative to find one with matching type enum
             for (int i = 0; i < anyOfArray.size(); ++i) {
                 const Dictionary* altSchema = &anyOfArray[i];
-                
+
                 // Resolve $ref if present
                 if (altSchema->has("$ref") && altSchema->at("$ref").type() == Dictionary::String) {
                     const std::string ref = altSchema->at("$ref").asString();
                     altSchema = resolve_local_ref(schema_root, ref);
                     if (!altSchema) continue;
                 }
-                
+
                 // Check if this alternative has type enum matching our data
                 if (altSchema->has("properties") && altSchema->at("properties").has("type")) {
                     const Dictionary& typeProp = altSchema->at("properties").at("type");
@@ -209,7 +215,7 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                 }
             }
         }
-        
+
         // If no type-based match, just try the first alternative
         if (anyOfArray.size() > 0) {
             return apply_defaults_to_value(dataVal, schema_root, anyOfArray[0]);
@@ -219,19 +225,19 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
     // Handle oneOf similarly to anyOf
     if (actual_schema->has("oneOf") && actual_schema->at("oneOf").isArrayObject()) {
         const Dictionary& oneOfArray = actual_schema->at("oneOf");
-        
+
         if (dataVal.isMappedObject() && dataVal.has("type")) {
             std::string dataType = dataVal.at("type").asString();
-            
+
             for (int i = 0; i < oneOfArray.size(); ++i) {
                 const Dictionary* altSchema = &oneOfArray[i];
-                
+
                 if (altSchema->has("$ref") && altSchema->at("$ref").type() == Dictionary::String) {
                     const std::string ref = altSchema->at("$ref").asString();
                     altSchema = resolve_local_ref(schema_root, ref);
                     if (!altSchema) continue;
                 }
-                
+
                 if (altSchema->has("properties") && altSchema->at("properties").has("type")) {
                     const Dictionary& typeProp = altSchema->at("properties").at("type");
                     if (typeProp.has("enum") && typeProp.at("enum").isArrayObject()) {
@@ -246,7 +252,7 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
                 }
             }
         }
-        
+
         if (oneOfArray.size() > 0) {
             return apply_defaults_to_value(dataVal, schema_root, oneOfArray[0]);
         }

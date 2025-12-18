@@ -120,7 +120,7 @@ namespace {
             if (quote != '"' && quote != '\'') {
                 throw std::runtime_error(parse_error("expected string"));
             }
-            get(); // consume opening quote
+            get();  // consume opening quote
 
             // Check for triple-quoted string
             bool is_triple = false;
@@ -145,13 +145,15 @@ namespace {
                     if (is_triple) {
                         // Check for triple quote
                         if (i + 2 < s.size() && s[i + 1] == quote && s[i + 2] == quote) {
-                            get(); get(); get();
+                            get();
+                            get();
+                            get();
                             break;
                         } else {
                             result += get();
                         }
                     } else {
-                        get(); // consume closing quote
+                        get();  // consume closing quote
                         break;
                     }
                 } else if (c == '\\' && quote == '"') {
@@ -159,13 +161,27 @@ namespace {
                     get();
                     char e = get();
                     switch (e) {
-                        case 'n': result += '\n'; break;
-                        case 't': result += '\t'; break;
-                        case 'r': result += '\r'; break;
-                        case '\\': result += '\\'; break;
-                        case '"': result += '"'; break;
-                        case 'b': result += '\b'; break;
-                        case 'f': result += '\f'; break;
+                        case 'n':
+                            result += '\n';
+                            break;
+                        case 't':
+                            result += '\t';
+                            break;
+                        case 'r':
+                            result += '\r';
+                            break;
+                        case '\\':
+                            result += '\\';
+                            break;
+                        case '"':
+                            result += '"';
+                            break;
+                        case 'b':
+                            result += '\b';
+                            break;
+                        case 'f':
+                            result += '\f';
+                            break;
                         default:
                             result += e;
                             break;
@@ -179,7 +195,7 @@ namespace {
 
         Dictionary parse_number() {
             size_t start = i;
-            
+
             // Handle sign
             bool is_negative = false;
             if (peek() == '+') {
@@ -197,7 +213,8 @@ namespace {
                 }
                 Dictionary d;
                 if (word == "inf") {
-                    d = is_negative ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
+                    d = is_negative ? -std::numeric_limits<double>::infinity()
+                                    : std::numeric_limits<double>::infinity();
                     return d;
                 } else if (word == "nan") {
                     d = std::numeric_limits<double>::quiet_NaN();
@@ -206,7 +223,7 @@ namespace {
             }
 
             bool is_float = false;
-            while (peek() != '\0' && !std::isspace(static_cast<unsigned char>(peek())) && 
+            while (peek() != '\0' && !std::isspace(static_cast<unsigned char>(peek())) &&
                    peek() != ',' && peek() != ']' && peek() != '}' && peek() != '#') {
                 if (peek() == '.' || peek() == 'e' || peek() == 'E') {
                     is_float = true;
@@ -257,7 +274,7 @@ namespace {
             // Simple datetime parsing - store as string for now
             // Full RFC 3339 parsing would be more complex
             size_t start = i;
-            while (peek() != '\0' && !std::isspace(static_cast<unsigned char>(peek())) && 
+            while (peek() != '\0' && !std::isspace(static_cast<unsigned char>(peek())) &&
                    peek() != ',' && peek() != ']' && peek() != '}' && peek() != '#') {
                 get();
             }
@@ -389,13 +406,16 @@ namespace {
                 return parse_inline_table();
             } else if (c == 't' || c == 'f') {
                 return parse_boolean();
-            } else if (std::isdigit(static_cast<unsigned char>(c)) || c == '+' || c == '-' || c == 'i' || c == 'n') {
+            } else if (std::isdigit(static_cast<unsigned char>(c)) || c == '+' || c == '-' ||
+                       c == 'i' || c == 'n') {
                 // Could be number or datetime
                 // Simple heuristic: if it contains ':', 'T', or 'Z', it's likely a datetime
                 size_t lookahead = i;
-                while (lookahead < s.size() && !std::isspace(static_cast<unsigned char>(s[lookahead])) && 
-                       s[lookahead] != ',' && s[lookahead] != ']' && s[lookahead] != '}' && s[lookahead] != '#') {
-                    if (s[lookahead] == 'T' || s[lookahead] == 'Z' || 
+                while (lookahead < s.size() &&
+                       !std::isspace(static_cast<unsigned char>(s[lookahead])) &&
+                       s[lookahead] != ',' && s[lookahead] != ']' && s[lookahead] != '}' &&
+                       s[lookahead] != '#') {
+                    if (s[lookahead] == 'T' || s[lookahead] == 'Z' ||
                         (s[lookahead] == ':' && lookahead > i + 2)) {
                         return parse_datetime();
                     }
@@ -403,11 +423,14 @@ namespace {
                 }
                 return parse_number();
             } else {
-                throw std::runtime_error(parse_error(std::string("unexpected character: '") + c + "'"));
+                throw std::runtime_error(
+                            parse_error(std::string("unexpected character: '") + c + "'"));
             }
         }
 
-        void set_value_at_path(Dictionary& root, const std::vector<std::string>& path, const Dictionary& value) {
+        void set_value_at_path(Dictionary& root,
+                               const std::vector<std::string>& path,
+                               const Dictionary& value) {
             if (path.empty()) {
                 throw std::runtime_error(parse_error("empty path"));
             }
@@ -535,7 +558,8 @@ namespace {
                 } else if (is_bare_key_char(peek()) || peek() == '"' || peek() == '\'') {
                     parse_key_value();
                 } else {
-                    throw std::runtime_error(parse_error(std::string("unexpected character: '") + peek() + "'"));
+                    throw std::runtime_error(
+                                parse_error(std::string("unexpected character: '") + peek() + "'"));
                 }
 
                 skip_ws_and_comments();

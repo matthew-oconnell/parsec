@@ -43,8 +43,10 @@ namespace {
             size_t start = i;
             int indent = 0;
             while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) {
-                if (s[i] == ' ') indent++;
-                else indent += 2; // treat tab as 2 spaces
+                if (s[i] == ' ')
+                    indent++;
+                else
+                    indent += 2;  // treat tab as 2 spaces
                 ++i;
             }
             // If line is empty or comment, ignore indent
@@ -58,10 +60,10 @@ namespace {
 
         std::string parse_string_value() {
             skip_ws_inline();
-            
+
             if (peek() == '"') {
                 // Quoted string
-                get(); // consume opening quote
+                get();  // consume opening quote
                 std::string out;
                 while (true) {
                     char c = get();
@@ -69,10 +71,14 @@ namespace {
                     if (c == '"') break;
                     if (c == '\\') {
                         char e = get();
-                        if (e == 'n') out.push_back('\n');
-                        else if (e == 't') out.push_back('\t');
-                        else if (e == 'r') out.push_back('\r');
-                        else out.push_back(e);
+                        if (e == 'n')
+                            out.push_back('\n');
+                        else if (e == 't')
+                            out.push_back('\t');
+                        else if (e == 'r')
+                            out.push_back('\r');
+                        else
+                            out.push_back(e);
                     } else {
                         out.push_back(c);
                     }
@@ -80,7 +86,7 @@ namespace {
                 return out;
             } else if (peek() == '\'') {
                 // Single-quoted string
-                get(); // consume opening quote
+                get();  // consume opening quote
                 std::string out;
                 while (true) {
                     char c = get();
@@ -139,7 +145,8 @@ namespace {
 
             // Try to parse as number
             std::istringstream ss(str);
-            if (str.find('.') != std::string::npos || str.find('e') != std::string::npos || str.find('E') != std::string::npos) {
+            if (str.find('.') != std::string::npos || str.find('e') != std::string::npos ||
+                str.find('E') != std::string::npos) {
                 double dval;
                 ss >> dval;
                 if (!ss.fail() && ss.eof()) {
@@ -166,7 +173,8 @@ namespace {
 
         Dictionary parse_array(int base_indent) {
             std::vector<Dictionary> out_values;
-            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true,
+                 allObject = true;
 
             while (i < s.size()) {
                 // Skip empty lines and comments
@@ -198,7 +206,7 @@ namespace {
                 }
 
                 if (peek() != '-') break;
-                get(); // consume '-'
+                get();  // consume '-'
                 skip_ws_inline();
 
                 Dictionary v = parse_value(indent + 2);
@@ -207,19 +215,34 @@ namespace {
                 if (!v.isMappedObject()) allObject = false;
                 switch (v.type()) {
                     case Dictionary::Integer:
-                        allDouble = false; allString = false; allBool = false; allObject = false;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
                         break;
                     case Dictionary::Double:
-                        allInt = false; allString = false; allBool = false; allObject = false;
+                        allInt = false;
+                        allString = false;
+                        allBool = false;
+                        allObject = false;
                         break;
                     case Dictionary::String:
-                        allInt = false; allDouble = false; allBool = false; allObject = false;
+                        allInt = false;
+                        allDouble = false;
+                        allBool = false;
+                        allObject = false;
                         break;
                     case Dictionary::Boolean:
-                        allInt = false; allDouble = false; allString = false; allObject = false;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allObject = false;
                         break;
                     case Dictionary::Object:
-                        allInt = false; allDouble = false; allString = false; allBool = false;
+                        allInt = false;
+                        allDouble = false;
+                        allString = false;
+                        allBool = false;
                         break;
                     default:
                         allInt = allDouble = allString = allBool = allObject = false;
@@ -258,12 +281,12 @@ namespace {
 
         Dictionary parse_object(int base_indent) {
             Dictionary d;
-            
+
             while (i < s.size()) {
                 // Skip inline whitespace if we're starting inline (after '-' or mid-line)
                 // Otherwise handle line-based indentation
                 bool is_inline = (i > 0 && s[i - 1] != '\n');
-                
+
                 if (is_inline) {
                     skip_ws_inline();
                 } else {
@@ -281,7 +304,7 @@ namespace {
                             skip_to_eol();
                             continue;
                         }
-                        
+
                         // Consume indent
                         i += indent;  // Simply skip forward by the indent amount
                         break;
@@ -309,13 +332,14 @@ namespace {
 
                 // Keys must start with an ASCII letter
                 if (!std::isalpha(static_cast<unsigned char>(key[0]))) {
-                    throw std::runtime_error(std::string("YAML parse error: invalid key: keys must start with a letter"));
+                    throw std::runtime_error(std::string(
+                                "YAML parse error: invalid key: keys must start with a letter"));
                 }
 
                 if (peek() != ':') {
                     throw std::runtime_error("expected ':' after key in YAML object");
                 }
-                get(); // consume ':'
+                get();  // consume ':'
 
                 if (d.has(key)) {
                     throw std::runtime_error("duplicate key '" + key + "' in YAML object");
@@ -326,8 +350,10 @@ namespace {
                 Dictionary value;
                 if (peek() == '\n' || peek() == '#' || peek() == '\0') {
                     // Value is on next line(s) - could be nested object or array
-                    if (peek() == '#') skip_to_eol();
-                    else if (peek() == '\n') get();
+                    if (peek() == '#')
+                        skip_to_eol();
+                    else if (peek() == '\n')
+                        get();
 
                     // Check what's next
                     int next_indent = get_indent();
@@ -363,7 +389,8 @@ namespace {
             skip_ws_inline();
 
             // Check for array marker
-            if (peek() == '-' && i + 1 < s.size() && std::isspace(static_cast<unsigned char>(s[i + 1]))) {
+            if (peek() == '-' && i + 1 < s.size() &&
+                std::isspace(static_cast<unsigned char>(s[i + 1]))) {
                 return parse_array(base_indent);
             }
 
@@ -371,8 +398,9 @@ namespace {
             size_t lookahead = i;
             bool has_colon = false;
             while (lookahead < s.size() && s[lookahead] != '\n') {
-                if (s[lookahead] == ':' && lookahead + 1 < s.size() && 
-                    (std::isspace(static_cast<unsigned char>(s[lookahead + 1])) || s[lookahead + 1] == '\n')) {
+                if (s[lookahead] == ':' && lookahead + 1 < s.size() &&
+                    (std::isspace(static_cast<unsigned char>(s[lookahead + 1])) ||
+                     s[lookahead + 1] == '\n')) {
                     has_colon = true;
                     break;
                 }

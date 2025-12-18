@@ -25,46 +25,48 @@ namespace {
     std::string extract_format_hint(const std::string& text) {
         // Only check first line
         size_t first_newline = text.find('\n');
-        std::string first_line = (first_newline != std::string::npos) 
-            ? text.substr(0, first_newline) 
-            : text;
-        
+        std::string first_line =
+                    (first_newline != std::string::npos) ? text.substr(0, first_newline) : text;
+
         // Skip if first line doesn't start with a comment character
         size_t start = 0;
-        while (start < first_line.size() && std::isspace(static_cast<unsigned char>(first_line[start]))) {
+        while (start < first_line.size() &&
+               std::isspace(static_cast<unsigned char>(first_line[start]))) {
             ++start;
         }
         if (start >= first_line.size() || (first_line[start] != '#' && first_line[start] != ';')) {
-            return ""; // No comment on first line
+            return "";  // No comment on first line
         }
-        
+
         // Convert to lowercase for case-insensitive matching
         std::string lower_line = first_line;
-        std::transform(lower_line.begin(), lower_line.end(), lower_line.begin(),
-            [](unsigned char c) { return std::tolower(c); });
-        
+        std::transform(
+                    lower_line.begin(), lower_line.end(), lower_line.begin(), [](unsigned char c) {
+                        return std::tolower(c);
+                    });
+
         // Try vim modeline: "vim: set filetype=X:" or "vim: ft=X"
         std::regex vim_pattern(R"(vim:\s*(?:set\s+)?(?:filetype|ft)\s*=\s*(\w+))");
         std::smatch match;
         if (std::regex_search(lower_line, match, vim_pattern)) {
             return match[1].str();
         }
-        
+
         // Try emacs mode line: "-*- mode: X -*-"
         std::regex emacs_pattern(R"(-\*-\s*mode:\s*(\w+)\s*-\*-)");
         if (std::regex_search(lower_line, match, emacs_pattern)) {
             return match[1].str();
         }
-        
+
         // Try simple format pragma: "format: X"
         std::regex format_pattern(R"(format:\s*(\w+))");
         if (std::regex_search(lower_line, match, format_pattern)) {
             return match[1].str();
         }
-        
-        return ""; // No format hint found
+
+        return "";  // No format hint found
     }
-    
+
     // Heuristic to estimate the intended format based on content
     std::string guess_format(const std::string& text) {
         // Skip leading whitespace
@@ -72,9 +74,9 @@ namespace {
         while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start]))) {
             ++start;
         }
-        
+
         if (start >= text.size()) {
-            return "JSON"; // Empty or whitespace-only, default to JSON
+            return "JSON";  // Empty or whitespace-only, default to JSON
         }
 
         // Count format indicators
@@ -85,11 +87,11 @@ namespace {
         int ron_score = 0;
 
         char first_char = text[start];
-        
+
         // JSON typically starts with { or [
         if (first_char == '{' || first_char == '[') {
             json_score += 3;
-            ron_score += 2; // RON also uses these
+            ron_score += 2;  // RON also uses these
         }
 
         // Look for format-specific patterns
@@ -103,7 +105,8 @@ namespace {
                         // Check if it's followed by newline or end (INI pattern)
                         size_t k = j + 1;
                         while (k < text.size() && (text[k] == ' ' || text[k] == '\t')) ++k;
-                        if (k >= text.size() || text[k] == '\n' || text[k] == '\r' || text[k] == ';' || text[k] == '#') {
+                        if (k >= text.size() || text[k] == '\n' || text[k] == '\r' ||
+                            text[k] == ';' || text[k] == '#') {
                             looks_like_ini_section = true;
                         }
                         break;
@@ -112,7 +115,7 @@ namespace {
                 }
                 if (looks_like_ini_section) {
                     ini_score += 2;
-                    toml_score += 1; // TOML also has sections
+                    toml_score += 1;  // TOML also has sections
                 }
             }
 
@@ -124,14 +127,15 @@ namespace {
             // YAML indicators
             if (i == 0 || text[i - 1] == '\n') {
                 if (text[i] == '-' && i + 1 < text.size() && text[i + 1] == ' ') {
-                    yaml_score += 2; // List item
+                    yaml_score += 2;  // List item
                 }
                 // YAML key: value at start of line
                 size_t colon_pos = i;
-                while (colon_pos < text.size() && text[colon_pos] != '\n' && text[colon_pos] != ':') {
+                while (colon_pos < text.size() && text[colon_pos] != '\n' &&
+                       text[colon_pos] != ':') {
                     ++colon_pos;
                 }
-                if (colon_pos < text.size() && text[colon_pos] == ':' && 
+                if (colon_pos < text.size() && text[colon_pos] == ':' &&
                     colon_pos + 1 < text.size() && text[colon_pos + 1] == ' ') {
                     yaml_score += 1;
                 }
@@ -168,7 +172,8 @@ namespace {
             }
 
             // INI/TOML key=value
-            if (text[i] == '=' && (i == 0 || (text[i - 1] != '=' && text[i - 1] != '!' && text[i - 1] != '<' && text[i - 1] != '>'))) {
+            if (text[i] == '=' && (i == 0 || (text[i - 1] != '=' && text[i - 1] != '!' &&
+                                              text[i - 1] != '<' && text[i - 1] != '>'))) {
                 ini_score += 1;
                 toml_score += 1;
             }
@@ -176,18 +181,18 @@ namespace {
 
         // Determine most likely format
         int max_score = std::max({json_score, ini_score, toml_score, yaml_score, ron_score});
-        
+
         if (max_score == 0) {
-            return "JSON"; // Default
+            return "JSON";  // Default
         }
-        
+
         if (json_score == max_score) return "JSON";
         if (toml_score == max_score) return "TOML";
         if (ini_score == max_score) return "INI";
         if (yaml_score == max_score) return "YAML";
         if (ron_score == max_score) return "RON";
-        
-        return "JSON"; // Fallback
+
+        return "JSON";  // Fallback
     }
 }
 
@@ -234,10 +239,13 @@ Dictionary parse(const std::string& text, bool verbose) {
                 return d;
             }
             // If hint is unrecognized, fall through to normal auto-detection
-            if (verbose) std::cerr << "Unrecognized hint '" << hint << "' - falling back to auto-detection\n";
+            if (verbose)
+                std::cerr << "Unrecognized hint '" << hint
+                          << "' - falling back to auto-detection\n";
         } catch (const std::exception& e) {
             parser_errors[hint] = e.what();
-            if (verbose) std::cerr << "Parser error for hint '" << hint << "': " << e.what() << "\n";
+            if (verbose)
+                std::cerr << "Parser error for hint '" << hint << "': " << e.what() << "\n";
             // Re-throw to preserve original behavior for hinted parse failures
             throw;
         }
@@ -313,7 +321,8 @@ Dictionary parse(const std::string& text, bool verbose) {
         }
         // If there were any parsers we considered via hint but not standard names
         for (const auto& p : parser_errors) {
-            if (std::find(attempted_parsers.begin(), attempted_parsers.end(), p.first) == attempted_parsers.end()) {
+            if (std::find(attempted_parsers.begin(), attempted_parsers.end(), p.first) ==
+                attempted_parsers.end()) {
                 std::cerr << " - " << p.first << ": error: " << p.second << "\n";
             }
         }

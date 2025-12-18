@@ -15,7 +15,9 @@
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec --validate [--no-defaults] <schema.json> <file>\n  parsec --convert <yaml|json|ron> <input> <output>\n";
+        std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec "
+                     "--validate [--no-defaults] <schema.json> <file>\n  parsec --convert "
+                     "<yaml|json|ron> <input> <output>\n";
         return 2;
     }
 
@@ -25,7 +27,7 @@ int main(int argc, char** argv) {
         int schema_idx = 2;
         int data_idx = 3;
         int expected_argc = 4;
-        
+
         // Check for --no-defaults flag
         if (argc >= 3 && std::string(argv[2]) == "--no-defaults") {
             apply_defaults = false;
@@ -33,7 +35,7 @@ int main(int argc, char** argv) {
             data_idx = 4;
             expected_argc = 5;
         }
-        
+
         if (argc != expected_argc) {
             std::cerr << "usage: parsec --validate [--no-defaults] <schema.json> <file>\n";
             return 2;
@@ -45,7 +47,8 @@ int main(int argc, char** argv) {
             std::cerr << "error: cannot open schema: " << schema_path << "\n";
             return 2;
         }
-        std::string schema_content((std::istreambuf_iterator<char>(sin)), std::istreambuf_iterator<char>());
+        std::string schema_content((std::istreambuf_iterator<char>(sin)),
+                                   std::istreambuf_iterator<char>());
         try {
             auto schema = ps::parse_json(schema_content);
 
@@ -54,7 +57,8 @@ int main(int argc, char** argv) {
                 std::cerr << "error: cannot open file: " << data_path << "\n";
                 return 2;
             }
-            std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            std::string content((std::istreambuf_iterator<char>(in)),
+                                std::istreambuf_iterator<char>());
 
             // Try parse as JSON first, then RON
             ps::Dictionary data;
@@ -97,7 +101,8 @@ int main(int argc, char** argv) {
             std::cerr << "error: cannot open file: " << in_path << "\n";
             return 2;
         }
-        std::string content((std::istreambuf_iterator<char>(in_file)), std::istreambuf_iterator<char>());
+        std::string content((std::istreambuf_iterator<char>(in_file)),
+                            std::istreambuf_iterator<char>());
 
         try {
             ps::Dictionary data = ps::parse(content);
@@ -116,12 +121,13 @@ int main(int argc, char** argv) {
             } else if (fmt == "ron" || fmt == "--ron") {
                 out_file << ps::dump_ron(data);
             } else {
-                std::cerr << "error: unknown format '" << fmt << "' (expected 'yaml', 'json' or 'ron')\n";
+                std::cerr << "error: unknown format '" << fmt
+                          << "' (expected 'yaml', 'json' or 'ron')\n";
                 return 2;
             }
 
             return 0;
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             std::cerr << "parse error: " << e.what() << "\n";
             return 1;
         }
@@ -184,7 +190,8 @@ int main(int argc, char** argv) {
                 size_t shown = 0;
                 for (auto const& p : val.items()) {
                     if (shown++ >= 3) break;
-                    ss << (shown == 1 ? " " : ", ") << p.first << "=" << shorten(p.second.to_string());
+                    ss << (shown == 1 ? " " : ", ") << p.first << "="
+                       << shorten(p.second.to_string());
                 }
                 if (n > 3) ss << ", ...";
                 return ss.str();

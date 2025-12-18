@@ -6,14 +6,15 @@ using namespace ps;
 using Catch::Approx;
 using Catch::Matchers::Contains;
 
-
 TEST_CASE("Prevent precision issues") {
-    std::string c = R"({"object w/array that get reparsed with int + double members":{"array":[1.0,1.0e+200]}})";
+    std::string c =
+                R"({"object w/array that get reparsed with int + double members":{"array":[1.0,1.0e+200]}})";
     auto dict = parse_json(c);
     auto reparse = parse_json(dict.dump());
     REQUIRE_NOTHROW(reparse.dump(4));
     INFO(reparse.dump(4));
-    const auto& array = dict.at("object w/array that get reparsed with int + double members").at("array");
+    const auto& array =
+                dict.at("object w/array that get reparsed with int + double members").at("array");
     REQUIRE(array.type() == Dictionary::DoubleArray);
 }
 
@@ -44,7 +45,7 @@ TEST_CASE("Can merge two JSON objects into a new JSON object") {
 TEST_CASE("Demonstrate how to get a Json object from a dict formatted string") {
     SECTION("Object") {
         std::string settings_string =
-            R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
+                    R"({"pokemon":{"name":"Pikachu", "nicknames":["pika", "pikachu", "yellow rat"]}})";
         auto dict_object = parse_json(settings_string);
         REQUIRE(dict_object.at("pokemon").at("name").asString() == "Pikachu");
     }

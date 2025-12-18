@@ -6,7 +6,7 @@
 
 namespace ps {
 
-static std::string escape_string_ron(const std::string &s) {
+static std::string escape_string_ron(const std::string& s) {
     std::ostringstream ss;
     ss << '"';
     for (char c : s) {
@@ -24,7 +24,7 @@ static std::string escape_string_ron(const std::string &s) {
     return ss.str();
 }
 
-std::string dump_ron(const Dictionary &d) {
+std::string dump_ron(const Dictionary& d) {
     std::ostringstream out;
 
     std::function<void(const Dictionary&, int)> emit;
@@ -32,7 +32,7 @@ std::string dump_ron(const Dictionary &d) {
         for (int i = 0; i < n; ++i) out.put(' ');
     };
 
-    auto is_simple = [](const Dictionary &v) {
+    auto is_simple = [](const Dictionary& v) {
         switch (v.type()) {
             case Dictionary::TYPE::Null:
             case Dictionary::TYPE::Boolean:
@@ -45,7 +45,7 @@ std::string dump_ron(const Dictionary &d) {
         }
     };
 
-    emit = [&](const Dictionary &val, int indent) {
+    emit = [&](const Dictionary& val, int indent) {
         switch (val.type()) {
             case Dictionary::TYPE::Null:
                 out << "null";
@@ -73,7 +73,11 @@ std::string dump_ron(const Dictionary &d) {
                 }
 
                 bool all_simple = true;
-                for (int i = 0; i < val.size(); ++i) if (!is_simple(val.at(i))) { all_simple = false; break; }
+                for (int i = 0; i < val.size(); ++i)
+                    if (!is_simple(val.at(i))) {
+                        all_simple = false;
+                        break;
+                    }
 
                 // Inline small/simple arrays, otherwise use multi-line style
                 if (all_simple && val.size() <= 6) {
@@ -105,9 +109,9 @@ std::string dump_ron(const Dictionary &d) {
                 out << '{' << '\n';
                 auto items = val.items();
                 for (size_t idx = 0; idx < items.size(); ++idx) {
-                    const auto &p = items[idx];
+                    const auto& p = items[idx];
                     indent_spaces(indent + 2);
-                    
+
                     // Quote key if it contains characters not allowed in unquoted identifiers
                     // Allowed: alphanumeric, underscore, dollar sign
                     bool needs_quoting = false;
@@ -115,21 +119,22 @@ std::string dump_ron(const Dictionary &d) {
                         needs_quoting = true;
                     } else {
                         for (char c : p.first) {
-                            if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '$')) {
+                            if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' ||
+                                  c == '$')) {
                                 needs_quoting = true;
                                 break;
                             }
                         }
                     }
-                    
+
                     if (needs_quoting) {
                         out << escape_string_ron(p.first);
                     } else {
                         out << p.first;
                     }
                     out << ": ";
-                    
-                    const Dictionary &v = p.second;
+
+                    const Dictionary& v = p.second;
                     if (is_simple(v)) {
                         emit(v, indent + 2);
                     } else {
@@ -154,4 +159,4 @@ std::string dump_ron(const Dictionary &d) {
     return out.str();
 }
 
-} // namespace ps
+}  // namespace ps

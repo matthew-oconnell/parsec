@@ -16,7 +16,7 @@ namespace {
         IniParser(const std::string& str) : s(str) {}
 
         char peek() const { return i < s.size() ? s[i] : '\0'; }
-        
+
         char get() {
             if (i < s.size()) {
                 char c = s[i++];
@@ -75,7 +75,7 @@ namespace {
             if (peek() != ']') {
                 throw std::runtime_error(parse_error("unterminated section name, expected ']'"));
             }
-            get(); // consume ']'
+            get();  // consume ']'
 
             return trim(name);
         }
@@ -102,7 +102,7 @@ namespace {
             if (separator != '=' && separator != ':') {
                 throw std::runtime_error(parse_error("expected '=' or ':' after key"));
             }
-            get(); // consume separator
+            get();  // consume separator
 
             skip_ws_inline();
 
@@ -128,7 +128,7 @@ namespace {
             for (char& c : lower) {
                 c = std::tolower(static_cast<unsigned char>(c));
             }
-            
+
             if (lower == "true" || lower == "yes" || lower == "on" || lower == "1") {
                 Dictionary d;
                 d = true;
@@ -145,9 +145,9 @@ namespace {
             bool is_float = false;
             size_t idx = 0;
             int dot_count = 0;
-            
+
             if (str[idx] == '+' || str[idx] == '-') ++idx;
-            
+
             if (idx >= str.size() || !std::isdigit(static_cast<unsigned char>(str[idx]))) {
                 is_int = false;
             } else {
@@ -202,7 +202,7 @@ namespace {
 
             // Default to string
             Dictionary d;
-            
+
             // Remove quotes if present
             std::string unquoted = str;
             if (unquoted.size() >= 2) {
@@ -211,7 +211,7 @@ namespace {
                     unquoted = unquoted.substr(1, unquoted.size() - 2);
                 }
             }
-            
+
             d = unquoted;
             return d;
         }
@@ -224,7 +224,7 @@ namespace {
                 skip_ws_inline();
 
                 char c = peek();
-                
+
                 // Skip empty lines
                 if (c == '\n' || c == '\r') {
                     get();
@@ -240,7 +240,7 @@ namespace {
                 // Section header
                 if (c == '[') {
                     current_section = parse_section_name();
-                    
+
                     // Create nested structure for dotted sections
                     if (current_section.find('.') != std::string::npos) {
                         // Support dotted section names like [section.subsection]

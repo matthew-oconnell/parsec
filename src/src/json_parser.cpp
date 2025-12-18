@@ -10,7 +10,8 @@ namespace ps {
 namespace {
     struct JsonParseError : public std::runtime_error {
         size_t line, col;
-        JsonParseError(const std::string& msg, size_t l, size_t c) : std::runtime_error(msg), line(l), col(c) {}
+        JsonParseError(const std::string& msg, size_t l, size_t c)
+            : std::runtime_error(msg), line(l), col(c) {}
     };
 
     struct Parser {
@@ -18,7 +19,7 @@ namespace {
         size_t i = 0;
         size_t line = 1;
         size_t col = 1;
-            std::vector<std::string> key_stack;
+        std::vector<std::string> key_stack;
 
         struct Opener {
             char ch;
@@ -185,15 +186,15 @@ namespace {
             if (std::isalpha(static_cast<unsigned char>(c))) {
                 // capture a short token to inspect
                 size_t j = i;
-                while (j < s.size() and (std::isalnum(static_cast<unsigned char>(s[j])) or s[j] == '_' or s[j] == '/' or
-                                         s[j] == '.' or s[j] == '-'))
+                while (j < s.size() and (std::isalnum(static_cast<unsigned char>(s[j])) or
+                                         s[j] == '_' or s[j] == '/' or s[j] == '.' or s[j] == '-'))
                     ++j;
                 std::string token = s.substr(i, j - i);
                 if (token == "True" or token == "False") {
                     std::string sug = (token == "True") ? "true" : "false";
                     throw JsonParseError(format_error(std::string("unexpected token while parsing "
                                                                   "value — did you mean '") +
-                                                          sug + "' (lowercase)?",
+                                                                  sug + "' (lowercase)?",
                                                       line,
                                                       col),
                                          line,
@@ -201,22 +202,23 @@ namespace {
                 }
                 // path-like or dotted identifiers that should probably be quoted
                 if (token.find('/') != std::string::npos or token.find('.') != std::string::npos) {
-                    throw JsonParseError(format_error(std::string("unexpected token while parsing value — "
-                                                                  "unquoted path/identifier '") +
-                                                          token + "'; did you mean to quote it?",
-                                                      line,
-                                                      col),
-                                         line,
-                                         col);
+                    throw JsonParseError(
+                                format_error(std::string("unexpected token while parsing value — "
+                                                         "unquoted path/identifier '") +
+                                                         token + "'; did you mean to quote it?",
+                                             line,
+                                             col),
+                                line,
+                                col);
                 }
             }
-            throw JsonParseError(
-                format_error(std::string("unexpected character '" + std::to_string(static_cast<int>(c)) +
-                                         "' while parsing value"),
-                             line,
-                             col),
-                line,
-                col);
+            throw JsonParseError(format_error(std::string("unexpected character '" +
+                                                          std::to_string(static_cast<int>(c)) +
+                                                          "' while parsing value"),
+                                              line,
+                                              col),
+                                 line,
+                                 col);
         }
 
         Dictionary parse_null() {
@@ -282,7 +284,8 @@ namespace {
                 if (c == '"') break;
                 if (c == '\\') {
                     char e = get();
-                    if (e == '\0') throw JsonParseError("unexpected end in string escape", line, col);
+                    if (e == '\0')
+                        throw JsonParseError("unexpected end in string escape", line, col);
                     switch (e) {
                         case '"':
                             out.push_back('"');
@@ -313,9 +316,11 @@ namespace {
                             int v = 0;
                             for (int k = 0; k < 4; ++k) {
                                 char h = get();
-                                if (h == '\0') throw JsonParseError("unterminated unicode escape", line, col);
+                                if (h == '\0')
+                                    throw JsonParseError("unterminated unicode escape", line, col);
                                 int hv = hex_val(h);
-                                if (hv < 0) throw JsonParseError("invalid unicode escape", line, col);
+                                if (hv < 0)
+                                    throw JsonParseError("invalid unicode escape", line, col);
                                 v = (v << 4) | hv;
                             }
                             encode_utf8(static_cast<uint32_t>(v), out);
@@ -380,7 +385,8 @@ namespace {
             // push opener for diagnostics
             opener_stack.push_back(Opener{'[', line, col});
             std::vector<Dictionary> out_values;
-            bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+            bool allInt = true, allDouble = true, allString = true, allBool = true,
+                 allObject = true;
             skip_ws();
             if (peek() == ']') {
                 get();
@@ -449,8 +455,8 @@ namespace {
                 }
                 // Allow implicit separator: if the next token looks like the start of a value,
                 // accept it
-                if (c == '{' or c == '[' or c == '"' or c == 'n' or c == 't' or c == 'f' or c == '-' or
-                    std::isdigit(static_cast<unsigned char>(c))) {
+                if (c == '{' or c == '[' or c == '"' or c == 'n' or c == 't' or c == 'f' or
+                    c == '-' or std::isdigit(static_cast<unsigned char>(c))) {
                     // treat as implicit separator (missing comma)
                     continue;
                 }
@@ -526,36 +532,52 @@ namespace {
                 if (peek() != '"') {
                     // attempt to read an identifier to provide a helpful suggestion
                     size_t start = i;
-                    while (start < s.size() and std::isspace(static_cast<unsigned char>(s[start]))) ++start;
+                    while (start < s.size() and std::isspace(static_cast<unsigned char>(s[start])))
+                        ++start;
                     size_t j = start;
-                    while (j < s.size() and (std::isalnum(static_cast<unsigned char>(s[j])) or s[j] == '_')) ++j;
+                    while (j < s.size() and
+                           (std::isalnum(static_cast<unsigned char>(s[j])) or s[j] == '_'))
+                        ++j;
                     std::string ident;
                     if (j > start) ident = s.substr(start, j - start);
                     std::string base = "expected string key";
-                    if (not ident.empty()) base += std::string(" — are you missing quotes around '") + ident + "'?";
+                    if (not ident.empty())
+                        base += std::string(" — are you missing quotes around '") + ident + "'?";
                     throw JsonParseError(format_error(base, line, col), line, col);
                 }
                 Dictionary k = parse_string();
                 // Allow any quoted key when this object is the value of a "patternProperties" key
                 const std::string keystr = k.asString();
-                bool in_pattern_properties = (!key_stack.empty() && key_stack.back() == "patternProperties");
+                bool in_pattern_properties =
+                            (!key_stack.empty() && key_stack.back() == "patternProperties");
                 if (!in_pattern_properties) {
-                    // Keys may start with an ASCII letter, a digit, or '$' (allow JSON $schema/$ref and numeric-start keys)
-                    if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) || keystr[0] == '$')) {
-                        throw JsonParseError(format_error("object keys must start with a letter, digit, or '$'", line, col), line, col);
+                    // Keys may start with an ASCII letter, a digit, or '$' (allow JSON $schema/$ref
+                    // and numeric-start keys)
+                    if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) ||
+                                            keystr[0] == '$')) {
+                        throw JsonParseError(format_error("object keys must start with a letter, "
+                                                          "digit, or '$'",
+                                                          line,
+                                                          col),
+                                             line,
+                                             col);
                     }
                 }
                 skip_ws();
                 if (get() != ':')
-                    throw JsonParseError(format_error("expected ':' after object key", line, col), line, col);
+                    throw JsonParseError(format_error("expected ':' after object key", line, col),
+                                         line,
+                                         col);
                 skip_ws();
-                // Push the key so child object parsing can know the parent key (e.g. patternProperties)
+                // Push the key so child object parsing can know the parent key (e.g.
+                // patternProperties)
                 key_stack.push_back(keystr);
                 Dictionary v = parse_value();
                 key_stack.pop_back();
                 // Duplicate keys are not allowed
                 if (d.count(k.asString()) > 0) {
-                    std::string msg = format_error(std::string("duplicate key '") + k.asString() + "'", line, col);
+                    std::string msg = format_error(
+                                std::string("duplicate key '") + k.asString() + "'", line, col);
                     throw JsonParseError(msg, line, col);
                 }
                 d[k.asString()] = v;
@@ -601,15 +623,19 @@ namespace {
                                 }
                             }
                         }
-                        size_t content_end = (closeq != std::string::npos) ? closeq : (i < s.size() ? i : s.size());
+                        size_t content_end = (closeq != std::string::npos)
+                                                         ? closeq
+                                                         : (i < s.size() ? i : s.size());
                         if (content_end < content_start) content_end = content_start;
                         std::string snippet = s.substr(content_start, content_end - content_start);
                         // trim whitespace and trailing comma
                         auto trim = [&](std::string& t) {
                             size_t a = 0;
-                            while (a < t.size() and std::isspace(static_cast<unsigned char>(t[a]))) ++a;
+                            while (a < t.size() and std::isspace(static_cast<unsigned char>(t[a])))
+                                ++a;
                             size_t b = t.size();
-                            while (b > a and std::isspace(static_cast<unsigned char>(t[b - 1]))) --b;
+                            while (b > a and std::isspace(static_cast<unsigned char>(t[b - 1])))
+                                --b;
                             t = t.substr(a, b - a);
                             if (not t.empty() and t.back() == ',') t.pop_back();
                         };
@@ -628,9 +654,13 @@ namespace {
                                 std::string after = line_text.substr(qpos + 1);
                                 // trim
                                 size_t aa = 0;
-                                while (aa < after.size() and std::isspace(static_cast<unsigned char>(after[aa]))) ++aa;
+                                while (aa < after.size() and
+                                       std::isspace(static_cast<unsigned char>(after[aa])))
+                                    ++aa;
                                 size_t bb = after.size();
-                                while (bb > aa and std::isspace(static_cast<unsigned char>(after[bb - 1]))) --bb;
+                                while (bb > aa and
+                                       std::isspace(static_cast<unsigned char>(after[bb - 1])))
+                                    --bb;
                                 snippet = after.substr(aa, bb - aa);
                                 if (snippet.size() > 80) snippet = snippet.substr(0, 77) + "...";
                             }
@@ -651,21 +681,25 @@ namespace {
                                                 // trim
                                                 size_t ta = 0;
                                                 while (ta < val.size() and
-                                                       std::isspace(static_cast<unsigned char>(val[ta])))
+                                                       std::isspace(static_cast<unsigned char>(
+                                                                   val[ta])))
                                                     ++ta;
                                                 size_t tb = val.size();
                                                 while (tb > ta and
-                                                       std::isspace(static_cast<unsigned char>(val[tb - 1])))
+                                                       std::isspace(static_cast<unsigned char>(
+                                                                   val[tb - 1])))
                                                     --tb;
                                                 snippet = val.substr(ta, tb - ta);
-                                                if (snippet.size() > 80) snippet = snippet.substr(0, 77) + "...";
+                                                if (snippet.size() > 80)
+                                                    snippet = snippet.substr(0, 77) + "...";
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                        base += std::string(" — is there a missing closing quote on '") + snippet + "'?";
+                        base += std::string(" — is there a missing closing quote on '") + snippet +
+                                "'?";
                     }
                     std::string msg = format_error(base, line, col);
                     throw JsonParseError(msg, line, col);
@@ -712,8 +746,8 @@ Dictionary parse_json(const std::string& text) {
             }
             if (first_nonws == '"') {
                 // parse remaining as object members
-                // build a Dictionary with the already-parsed value if it was a dict, else include it if
-                // appropriate
+                // build a Dictionary with the already-parsed value if it was a dict, else include
+                // it if appropriate
                 p.i = 0;
                 p.line = 1;
                 p.col = 1;
@@ -723,23 +757,37 @@ Dictionary parse_json(const std::string& text) {
                     p.skip_ws();
                     if (p.peek() != '"')
                         throw JsonParseError(
-                            p.format_error("expected string key in top-level implicit object", p.line, p.col),
-                            p.line,
-                            p.col);
-                        Dictionary k = p.parse_string();
-                                // Allow any quoted key when this object is the value of a "patternProperties" key
-                                const std::string keystr = k.asString();
-                                bool in_pattern_properties = (!p.key_stack.empty() && p.key_stack.back() == "patternProperties");
-                                if (!in_pattern_properties) {
-                                    if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) || keystr[0] == '$')) {
-                                        throw JsonParseError(p.format_error("object keys must start with a letter, digit, or '$'", p.line, p.col), p.line, p.col);
-                                    }
-                                }
-                                p.key_stack.push_back(keystr);
+                                    p.format_error(
+                                                "expected string key in top-level implicit object",
+                                                p.line,
+                                                p.col),
+                                    p.line,
+                                    p.col);
+                    Dictionary k = p.parse_string();
+                    // Allow any quoted key when this object is the value of a "patternProperties"
+                    // key
+                    const std::string keystr = k.asString();
+                    bool in_pattern_properties =
+                                (!p.key_stack.empty() && p.key_stack.back() == "patternProperties");
+                    if (!in_pattern_properties) {
+                        if (keystr.empty() ||
+                            !(std::isalnum(static_cast<unsigned char>(keystr[0])) ||
+                              keystr[0] == '$')) {
+                            throw JsonParseError(p.format_error("object keys must start with a "
+                                                                "letter, digit, or '$'",
+                                                                p.line,
+                                                                p.col),
+                                                 p.line,
+                                                 p.col);
+                        }
+                    }
+                    p.key_stack.push_back(keystr);
                     p.skip_ws();
                     if (p.get() != ':')
                         throw JsonParseError(
-                            p.format_error("expected ':' after object key", p.line, p.col), p.line, p.col);
+                                    p.format_error("expected ':' after object key", p.line, p.col),
+                                    p.line,
+                                    p.col);
                     p.skip_ws();
                     Dictionary v = p.parse_value();
                     root[k.asString()] = v;
@@ -753,11 +801,16 @@ Dictionary parse_json(const std::string& text) {
                     if (c == '\0') break;
                     // allow implicit separator, otherwise error
                     if (c == '"') continue;
-                    throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
+                    throw JsonParseError(
+                                p.format_error("extra data after JSON value", p.line, p.col),
+                                p.line,
+                                p.col);
                 }
                 return root;
             }
-            throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col), p.line, p.col);
+            throw JsonParseError(p.format_error("extra data after JSON value", p.line, p.col),
+                                 p.line,
+                                 p.col);
         }
 
         // Parsed value is already a Dictionary (scalar, object, or array)

@@ -19,7 +19,8 @@ TEST_CASE("parse example JSON files") {
         try {
             std::ifstream in(e.path());
             REQUIRE(in.good());
-            std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            std::string content((std::istreambuf_iterator<char>(in)),
+                                std::istreambuf_iterator<char>());
             auto v = ps::parse_json(content);
             REQUIRE(not v.to_string().empty());
             ++count;

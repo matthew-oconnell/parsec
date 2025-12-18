@@ -57,11 +57,11 @@ TEST_CASE("Pretty print Json", "[dump]") {
     REQUIRE(expected == dict.dump(4));
 }
 
-TEST_CASE(
-    "Pretty print compact will eventually use indentation if the line would go beyond 80 "
-    "characters") {
+TEST_CASE("Pretty print compact will eventually use indentation if the line would go beyond 80 "
+          "characters") {
     Dictionary dict;
-    dict["level1"]["level2"]["level3"]["level4"]["level5"]["level6"]["level7"]["level8"]["level9"]["value"] = 42;
+    dict["level1"]["level2"]["level3"]["level4"]["level5"]["level6"]["level7"]["level8"]["level9"]
+        ["value"] = 42;
     std::string expected = R"({
   "level1": {
     "level2": {
@@ -102,9 +102,9 @@ TEST_CASE("Dictionary dump escapes all special characters") {
     dict["backspace"] = "back\bspace";
     dict["formfeed"] = "form\ffeed";
     dict["mixed"] = "Quote: \" Newline: \n Tab: \t Backslash: \\";
-    
+
     std::string json = dict.dump(0, true);
-    
+
     // Verify escaping in output
     REQUIRE(json.find("\\\\") != std::string::npos);  // backslash escaped
     REQUIRE(json.find("\\n") != std::string::npos);   // newline escaped
@@ -112,7 +112,7 @@ TEST_CASE("Dictionary dump escapes all special characters") {
     REQUIRE(json.find("\\r") != std::string::npos);   // carriage return escaped
     REQUIRE(json.find("\\b") != std::string::npos);   // backspace escaped
     REQUIRE(json.find("\\f") != std::string::npos);   // formfeed escaped
-    
+
     // Verify round-trip: parse it back and check values match
     Dictionary parsed = ps::parse_json(json);
     REQUIRE(parsed.at("backslash").asString() == "C:\\path\\to\\file");
