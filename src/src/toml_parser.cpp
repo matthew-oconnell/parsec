@@ -18,6 +18,7 @@ namespace {
         size_t column = 1;
         Dictionary root;
         std::vector<std::string> current_table;
+        bool is_array_table_context = false;
 
         TomlParser(const std::string& str) : s(str) {}
 
@@ -453,11 +454,23 @@ namespace {
             }
 
             Dictionary* current = &root;
-            for (const auto& key : current_table) {
+            for (size_t idx = 0; idx < current_table.size(); ++idx) {
+                const auto& key = current_table[idx];
                 if (!current->has(key)) {
                     (*current)[key] = Dictionary();
                 }
                 current = &(*current)[key];
+                
+                // If we're in an array-of-tables context and this is the last key,
+                // we need to get the last element of the array
+                if (is_array_table_context && idx == current_table.size() - 1) {
+                    if (current->isArrayObject() && current->size() > 0) {
+                        // Return pointer to the last table in the array
+                        auto tables = current->asObjects();
+                        // We need to return a mutable reference, so we access it differently
+                        return &((*current)[current->size() - 1]);
+                    }
+                }
             }
             return current;
         }
@@ -499,6 +512,7 @@ namespace {
             }
 
             current_table = path;
+            is_array_table_context = is_array_table;
 
             // Create the table if it doesn't exist
             if (is_array_table) {
@@ -533,8 +547,18 @@ namespace {
         }
 
         void parse_key_value() {
-            std::string key = parse_key();
+            // Parse dotted key path (e.g., a.b.c)
+            std::vector<std::string> key_path;
+            key_path.push_back(parse_key());
             skip_ws_inline();
+            
+            // Check for dotted keys
+            while (peek() == '.') {
+                get();  // consume '.'
+                skip_ws_inline();
+                key_path.push_back(parse_key());
+                skip_ws_inline();
+            }
 
             if (get() != '=') {
                 throw std::runtime_error(parse_error("expected '=' after key"));
@@ -543,9 +567,18 @@ namespace {
             skip_ws_inline();
             Dictionary value = parse_value();
 
-            // Set the value in the current table
+            // Navigate/create nested tables for dotted keys
             Dictionary* table = get_current_table();
-            (*table)[key] = value;
+            for (size_t i = 0; i < key_path.size() - 1; ++i) {
+                const std::string& key = key_path[i];
+                if (!table->has(key)) {
+                    (*table)[key] = Dictionary();
+                }
+                table = &(*table)[key];
+            }
+            
+            // Set the final value
+            (*table)[key_path.back()] = value;
         }
 
         Dictionary parse() {

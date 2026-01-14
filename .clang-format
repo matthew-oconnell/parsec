@@ -1,0 +1,12 @@
+BasedOnStyle: Google
+BinPackArguments: false #Long function arg lists, each arg gets a line
+BinPackParameters: false #Long function param lists, each param gets a line
+ContinuationIndentWidth: 12 #line continuation 12 spaces in
+FixNamespaceComments: false #Dont comment the closing namespace bracket
+NamespaceIndentation: Inner #Indent the inner most namespace
+PointerAlignment: Left #pointer is part of type
+DerivePointerAlignment: false #I really mean it!
+AccessModifierOffset: -2 #public and private are only indented 2 spaces
+ColumnLimit: 100
+IndentWidth: 4
+SortIncludes: false #preserve include order (needed for operator overloading)

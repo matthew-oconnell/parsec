@@ -4,6 +4,7 @@
 #include <string>
 #include <stdexcept>
 #include <cctype>
+#include <vector>
 
 namespace ps {
 
@@ -44,18 +45,21 @@ static std::string format_key(const std::string& key) {
     return escape_string_toml(key);
 }
 
-static void emit_value(std::ostringstream& out, const Dictionary& val);
+// Forward declarations
+static void emit_simple_value(std::ostringstream& out, const Dictionary& val);
+static void emit_dotted_object(std::ostringstream& out, const Dictionary& obj, const std::string& prefix);
 
 static void emit_array(std::ostringstream& out, const Dictionary& val) {
     out << '[';
     for (int i = 0; i < val.size(); ++i) {
         if (i > 0) out << ", ";
-        emit_value(out, val.at(i));
+        emit_simple_value(out, val.at(i));
     }
     out << ']';
 }
 
-static void emit_value(std::ostringstream& out, const Dictionary& val) {
+// Emit simple values (no nested dotted keys)
+static void emit_simple_value(std::ostringstream& out, const Dictionary& val) {
     switch (val.type()) {
         case Dictionary::TYPE::Null:
             throw std::runtime_error("TOML does not support null values");
@@ -78,7 +82,7 @@ static void emit_value(std::ostringstream& out, const Dictionary& val) {
             emit_array(out, val);
             break;
         case Dictionary::TYPE::ObjectArray:
-            // Array of tables - emit as inline tables for simplicity
+            // Array of objects - for simple values, use inline tables
             out << '[';
             for (int i = 0; i < val.size(); ++i) {
                 if (i > 0) out << ", ";
@@ -88,7 +92,7 @@ static void emit_value(std::ostringstream& out, const Dictionary& val) {
                 for (size_t j = 0; j < keys.size(); ++j) {
                     if (j > 0) out << ", ";
                     out << format_key(keys[j]) << " = ";
-                    emit_value(out, obj.at(keys[j]));
+                    emit_simple_value(out, obj.at(keys[j]));
                 }
                 out << '}';
             }
@@ -101,10 +105,29 @@ static void emit_value(std::ostringstream& out, const Dictionary& val) {
             for (size_t i = 0; i < keys.size(); ++i) {
                 if (i > 0) out << ", ";
                 out << format_key(keys[i]) << " = ";
-                emit_value(out, val.at(keys[i]));
+                emit_simple_value(out, val.at(keys[i]));
             }
             out << '}';
             break;
+    }
+}
+
+// Recursively emit dotted keys for nested objects
+static void emit_dotted_object(std::ostringstream& out, const Dictionary& obj, const std::string& prefix) {
+    auto keys = obj.keys();
+    for (const auto& key : keys) {
+        const auto& val = obj.at(key);
+        std::string full_key = prefix.empty() ? format_key(key) : prefix + "." + format_key(key);
+        
+        if (val.isMappedObject()) {
+            // Recurse into nested object with dotted syntax
+            emit_dotted_object(out, val, full_key);
+        } else {
+            // Emit the value
+            out << full_key << " = ";
+            emit_simple_value(out, val);
+            out << '\n';
+        }
     }
 }
 
@@ -117,42 +140,35 @@ std::string dump_toml(const Dictionary& d) {
 
     auto keys = d.keys();
     
-    // First, emit simple key-value pairs
+    // First pass: emit simple key-value pairs (non-tables, non-array-of-tables)
     for (const auto& key : keys) {
         const auto& val = d.at(key);
         
         // Skip tables and array-of-tables for the first pass
-        if (val.isMappedObject() || val.isArrayObject()) {
-            if (val.isArrayObject() && val.size() > 0 && val.at(0).isMappedObject()) {
-                continue; // Array of tables, handle in second pass
-            }
-            if (val.isMappedObject()) {
-                continue; // Table, handle in second pass
-            }
+        if (val.isMappedObject()) {
+            continue; // Table, handle in second pass
+        }
+        if (val.isArrayObject() && val.size() > 0 && val.at(0).isMappedObject()) {
+            continue; // Array of tables, handle in third pass
         }
         
         out << format_key(key) << " = ";
-        emit_value(out, val);
+        emit_simple_value(out, val);
         out << '\n';
     }
 
-    // Second, emit tables
+    // Second pass: emit tables with dotted key syntax for nested objects
     for (const auto& key : keys) {
         const auto& val = d.at(key);
         
         if (val.isMappedObject()) {
             out << '\n';
             out << '[' << format_key(key) << "]\n";
-            auto subkeys = val.keys();
-            for (const auto& subkey : subkeys) {
-                out << format_key(subkey) << " = ";
-                emit_value(out, val.at(subkey));
-                out << '\n';
-            }
+            emit_dotted_object(out, val, "");
         }
     }
 
-    // Third, emit array of tables
+    // Third pass: emit array of tables with dotted key syntax
     for (const auto& key : keys) {
         const auto& val = d.at(key);
         
@@ -161,12 +177,7 @@ std::string dump_toml(const Dictionary& d) {
                 out << '\n';
                 out << "[[" << format_key(key) << "]]\n";
                 const auto& table = val.at(i);
-                auto subkeys = table.keys();
-                for (const auto& subkey : subkeys) {
-                    out << format_key(subkey) << " = ";
-                    emit_value(out, table.at(subkey));
-                    out << '\n';
-                }
+                emit_dotted_object(out, table, "");
             }
         }
     }
