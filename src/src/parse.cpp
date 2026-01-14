@@ -194,15 +194,52 @@ namespace {
 
         return "JSON";  // Fallback
     }
+
+    // Extract format from filename extension
+    std::string format_from_filename(const std::string& filename) {
+        if (filename.empty()) return "";
+        
+        size_t dot_pos = filename.rfind('.');
+        if (dot_pos == std::string::npos || dot_pos == filename.size() - 1) {
+            return "";  // No extension
+        }
+        
+        std::string ext = filename.substr(dot_pos + 1);
+        // Convert to lowercase
+        std::transform(ext.begin(), ext.end(), ext.begin(), 
+                      [](unsigned char c) { return std::tolower(c); });
+        
+        if (ext == "json") return "json";
+        if (ext == "ron") return "ron";
+        if (ext == "toml") return "toml";
+        if (ext == "ini") return "ini";
+        if (ext == "yaml" || ext == "yml") return "yaml";
+        
+        return "";  // Unknown extension
+    }
 }
 
-Dictionary parse(const std::string& text, bool verbose) {
+Dictionary parse(const std::string& text, bool verbose, const std::string& filename) {
+    auto [dict, format] = parse_report_format(text, verbose, filename);
+    return dict;
+}
+
+std::pair<Dictionary, std::string> parse_report_format(const std::string& text, bool verbose, const std::string& filename) {
     // Track attempts and errors to support verbose reporting
     std::vector<std::string> attempted_parsers;
     std::map<std::string, std::string> parser_errors;
 
-    // Check for explicit format hint in first line comment
-    std::string hint = extract_format_hint(text);
+    // Check for filename-based format hint first
+    std::string hint = format_from_filename(filename);
+    if (!hint.empty() && verbose) {
+        std::cerr << "Format hint from filename: '" << hint << "'\n";
+    }
+    
+    // Check for explicit format hint in first line comment (overrides filename)
+    std::string content_hint = extract_format_hint(text);
+    if (!content_hint.empty()) {
+        hint = content_hint;
+    }
     if (!hint.empty()) {
         if (verbose) std::cerr << "Format hint found: '" << hint << "'\n";
         // If user provided an explicit hint, use ONLY that parser
@@ -212,31 +249,31 @@ Dictionary parse(const std::string& text, bool verbose) {
                 attempted_parsers.emplace_back("JSON");
                 Dictionary d = parse_json(text);
                 if (verbose) std::cerr << "Used parser: JSON (from hint)\n";
-                return d;
+                return {d, "JSON"};
             }
             if (hint == "ron") {
                 attempted_parsers.emplace_back("RON");
                 Dictionary d = parse_ron(text);
                 if (verbose) std::cerr << "Used parser: RON (from hint)\n";
-                return d;
+                return {d, "RON"};
             }
             if (hint == "toml") {
                 attempted_parsers.emplace_back("TOML");
                 Dictionary d = parse_toml(text);
                 if (verbose) std::cerr << "Used parser: TOML (from hint)\n";
-                return d;
+                return {d, "TOML"};
             }
             if (hint == "ini") {
                 attempted_parsers.emplace_back("INI");
                 Dictionary d = parse_ini(text);
                 if (verbose) std::cerr << "Used parser: INI (from hint)\n";
-                return d;
+                return {d, "INI"};
             }
             if (hint == "yaml" || hint == "yml") {
                 attempted_parsers.emplace_back("YAML");
                 Dictionary d = parse_yaml(text);
                 if (verbose) std::cerr << "Used parser: YAML (from hint)\n";
-                return d;
+                return {d, "YAML"};
             }
             // If hint is unrecognized, fall through to normal auto-detection
             if (verbose)
@@ -257,7 +294,7 @@ Dictionary parse(const std::string& text, bool verbose) {
         Dictionary d = parse_json(text);
         if (verbose) std::cerr << "Attempted parsers: JSON => success\n";
         if (verbose) std::cerr << "Used parser: JSON\n";
-        return d;
+        return {d, "JSON"};
     } catch (const std::exception& e) {
         parser_errors["JSON"] = e.what();
     }
@@ -268,7 +305,7 @@ Dictionary parse(const std::string& text, bool verbose) {
         Dictionary d = parse_ron(text);
         if (verbose) std::cerr << "Attempted parsers: RON => success\n";
         if (verbose) std::cerr << "Used parser: RON\n";
-        return d;
+        return {d, "RON"};
     } catch (const std::exception& e) {
         parser_errors["RON"] = e.what();
     }
@@ -279,7 +316,7 @@ Dictionary parse(const std::string& text, bool verbose) {
         Dictionary d = parse_toml(text);
         if (verbose) std::cerr << "Attempted parsers: TOML => success\n";
         if (verbose) std::cerr << "Used parser: TOML\n";
-        return d;
+        return {d, "TOML"};
     } catch (const std::exception& e) {
         parser_errors["TOML"] = e.what();
     }
@@ -290,7 +327,7 @@ Dictionary parse(const std::string& text, bool verbose) {
         Dictionary d = parse_yaml(text);
         if (verbose) std::cerr << "Attempted parsers: YAML => success\n";
         if (verbose) std::cerr << "Used parser: YAML\n";
-        return d;
+        return {d, "YAML"};
     } catch (const std::exception& e) {
         parser_errors["YAML"] = e.what();
     }
@@ -301,7 +338,7 @@ Dictionary parse(const std::string& text, bool verbose) {
         Dictionary d = parse_ini(text);
         if (verbose) std::cerr << "Attempted parsers: INI => success\n";
         if (verbose) std::cerr << "Used parser: INI\n";
-        return d;
+        return {d, "INI"};
     } catch (const std::exception& e) {
         parser_errors["INI"] = e.what();
     }
@@ -319,7 +356,6 @@ Dictionary parse(const std::string& text, bool verbose) {
                 std::cerr << " - " << name << ": success\n";
             }
         }
-        // If there were any parsers we considered via hint but not standard names
         for (const auto& p : parser_errors) {
             if (std::find(attempted_parsers.begin(), attempted_parsers.end(), p.first) ==
                 attempted_parsers.end()) {

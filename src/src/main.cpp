@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         std::string schema_content((std::istreambuf_iterator<char>(sin)),
                                    std::istreambuf_iterator<char>());
         try {
-            auto schema = ps::parse_json(schema_content);
+            auto schema = ps::parse(schema_content);
 
             std::ifstream in(data_path);
             if (!in) {
@@ -60,13 +60,7 @@ int main(int argc, char** argv) {
             std::string content((std::istreambuf_iterator<char>(in)),
                                 std::istreambuf_iterator<char>());
 
-            // Try parse as JSON first, then RON
-            ps::Dictionary data;
-            try {
-                data = ps::parse_json(content);
-            } catch (...) {
-                data = ps::parse_ron(content);
-            }
+            ps::Dictionary data = ps::parse(content);
 
             // Apply defaults from schema if requested
             if (apply_defaults) {
@@ -105,7 +99,7 @@ int main(int argc, char** argv) {
                             std::istreambuf_iterator<char>());
 
         try {
-            ps::Dictionary data = ps::parse(content);
+            ps::Dictionary data = ps::parse(content, false, in_path);
 
             std::ofstream out_file(out_path);
             if (!out_file) {
@@ -164,18 +158,10 @@ int main(int argc, char** argv) {
             v = ps::parse_ini(content);
             used = "INI";
         } else {
-            // auto mode: let ps::parse decide between JSON and RON
-            v = ps::parse(content);
-            // ps::parse doesn't indicate which was used; we try to guess for display
-            // prefer extension hint if present
-            if (path.size() >= 4 && path.substr(path.size() - 4) == ".ron")
-                used = "RON";
-            else if (path.size() >= 5 && path.substr(path.size() - 5) == ".toml")
-                used = "TOML";
-            else if (path.size() >= 4 && path.substr(path.size() - 4) == ".ini")
-                used = "INI";
-            else
-                used = "JSON_or_RON";
+            // auto mode: let ps::parse decide based on filename and content
+            auto [dict, format] = ps::parse_report_format(content, false, path);
+            v = dict;
+            used = format;
         }
         auto shorten = [](const std::string& s, size_t n = 40) {
             if (s.size() <= n) return s;
@@ -260,7 +246,7 @@ int main(int argc, char** argv) {
             return val.to_string();
         };
 
-        std::cout << "OK: parsed " << used << "; value: " << v.to_string() << "\n";
+        std::cout << "OK: parsed as " << used << "\n";
         std::cout << "Preview: " << preview(v) << "\n";
         return 0;
     } catch (const std::exception& e) {

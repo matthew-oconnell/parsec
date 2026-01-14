@@ -6,36 +6,80 @@
 namespace ps {
 
 namespace {
+    struct YamlParseError : public std::runtime_error {
+        size_t line, col;
+        YamlParseError(const std::string& msg, size_t l, size_t c)
+            : std::runtime_error(msg), line(l), col(c) {}
+    };
+
     struct YamlParser {
         const std::string& s;
         size_t i = 0;
+        size_t line = 1;
+        size_t col = 1;
         int current_indent = 0;
 
         YamlParser(const std::string& str) : s(str) {}
 
         char peek() const { return i < s.size() ? s[i] : '\0'; }
-        char get() { return i < s.size() ? s[i++] : '\0'; }
+        
+        char get() {
+            if (i >= s.size()) return '\0';
+            char c = s[i++];
+            if (c == '\n') {
+                ++line;
+                col = 1;
+            } else {
+                ++col;
+            }
+            return c;
+        }
+
+        std::string format_error(const std::string& base, size_t err_line, size_t err_col) const {
+            // find start of error line
+            size_t pos = 0;
+            size_t cur = 1;
+            while (cur < err_line && pos < s.size()) {
+                if (s[pos] == '\n') ++cur;
+                ++pos;
+            }
+            size_t line_start = pos;
+            size_t line_end = pos;
+            while (line_end < s.size() && s[line_end] != '\n') ++line_end;
+            std::string line_text = s.substr(line_start, line_end - line_start);
+            
+            // build caret (position columns as bytes)
+            size_t caret_pos = err_col > 0 ? err_col - 1 : 0;
+            if (caret_pos > line_text.size()) caret_pos = line_text.size();
+            std::string caret(caret_pos, ' ');
+            caret.push_back('^');
+
+            std::ostringstream ss;
+            ss << base << " (line " << err_line << ", column " << err_col << ")\n";
+            ss << line_text << "\n" << caret;
+            return ss.str();
+        }
 
         void skip_ws_inline() {
             // Skip spaces and tabs, but not newlines
             while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) {
-                ++i;
+                get();
             }
         }
 
         void skip_ws() {
             // Skip all whitespace including newlines
             while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) {
-                ++i;
+                get();
             }
         }
 
         void skip_to_eol() {
             while (i < s.size() && s[i] != '\n') {
-                ++i;
+                get();
             }
             if (i < s.size() && s[i] == '\n') {
-                ++i;
+                get();
             }
         }
 
@@ -63,11 +107,16 @@ namespace {
 
             if (peek() == '"') {
                 // Quoted string
+                size_t quote_line = line, quote_col = col;
                 get();  // consume opening quote
                 std::string out;
                 while (true) {
                     char c = get();
-                    if (c == '\0') throw std::runtime_error("unterminated quoted string in YAML");
+                    if (c == '\0') {
+                        throw YamlParseError(
+                            format_error("YAML parse error: unterminated quoted string", quote_line, quote_col),
+                            quote_line, quote_col);
+                    }
                     if (c == '"') break;
                     if (c == '\\') {
                         char e = get();
@@ -86,11 +135,16 @@ namespace {
                 return out;
             } else if (peek() == '\'') {
                 // Single-quoted string
+                size_t quote_line = line, quote_col = col;
                 get();  // consume opening quote
                 std::string out;
                 while (true) {
                     char c = get();
-                    if (c == '\0') throw std::runtime_error("unterminated quoted string in YAML");
+                    if (c == '\0') {
+                        throw YamlParseError(
+                            format_error("YAML parse error: unterminated quoted string", quote_line, quote_col),
+                            quote_line, quote_col);
+                    }
                     if (c == '\'') {
                         // Check for escaped single quote
                         if (peek() == '\'') {
@@ -202,7 +256,7 @@ namespace {
 
                 // Consume indent
                 for (int j = 0; j < indent; ++j) {
-                    if (s[i] == ' ' || s[i] == '\t') ++i;
+                    get();  // Use get() to properly track line/col
                 }
 
                 if (peek() != '-') break;
@@ -306,12 +360,21 @@ namespace {
                         }
 
                         // Consume indent
-                        i += indent;  // Simply skip forward by the indent amount
+                        for (int j = 0; j < indent; ++j) {
+                            get();  // Use get() to properly track line/col
+                        }
                         break;
                     }
                 }
 
                 if (i >= s.size()) break;
+
+                // If we encounter a '-' at this indent level, we're done with this object
+                // (we're in an array and this is the next array element)
+                if (peek() == '-' && i + 1 < s.size() && 
+                    std::isspace(static_cast<unsigned char>(s[i + 1]))) {
+                    return d;
+                }
 
                 // Parse key
                 std::string key;
@@ -332,17 +395,33 @@ namespace {
 
                 // Keys must start with an ASCII letter
                 if (!std::isalpha(static_cast<unsigned char>(key[0]))) {
-                    throw std::runtime_error(std::string(
-                                "YAML parse error: invalid key: keys must start with a letter"));
+                    // Calculate the position of the start of the key
+                    size_t key_pos = i - key.length();
+                    size_t key_line = 1, key_col = 1;
+                    for (size_t p = 0; p < key_pos && p < s.size(); ++p) {
+                        if (s[p] == '\n') {
+                            ++key_line;
+                            key_col = 1;
+                        } else {
+                            ++key_col;
+                        }
+                    }
+                    throw YamlParseError(
+                        format_error("YAML parse error: invalid key '" + key + "': keys must start with a letter", key_line, key_col),
+                        key_line, key_col);
                 }
 
                 if (peek() != ':') {
-                    throw std::runtime_error("expected ':' after key in YAML object");
+                    throw YamlParseError(
+                        format_error("YAML parse error: expected ':' after key '" + key + "'", line, col),
+                        line, col);
                 }
                 get();  // consume ':'
 
                 if (d.has(key)) {
-                    throw std::runtime_error("duplicate key '" + key + "' in YAML object");
+                    throw YamlParseError(
+                        format_error("YAML parse error: duplicate key '" + key + "'", line, col),
+                        line, col);
                 }
 
                 skip_ws_inline();
@@ -359,7 +438,8 @@ namespace {
                     int next_indent = get_indent();
                     if (next_indent > base_indent) {
                         // Don't consume the indent here - let the recursive parser handle it
-                        if (s[i + next_indent] == '-') {
+                        char next_char = (i + next_indent < s.size()) ? s[i + next_indent] : '\0';
+                        if (next_char == '-') {
                             // It's an array
                             value = parse_array(next_indent);
                         } else {
@@ -387,6 +467,28 @@ namespace {
 
         Dictionary parse_value(int base_indent = 0) {
             skip_ws_inline();
+
+            // If we're at a newline, the value is on the next line(s)
+            if (peek() == '\n' || peek() == '#' || peek() == '\0') {
+                if (peek() == '#')
+                    skip_to_eol();
+                else if (peek() == '\n')
+                    get();
+
+                // Check what's next
+                int next_indent = get_indent();
+                if (next_indent >= base_indent) {
+                    // Don't consume the indent - let the recursive parser handle it
+                    if (s[i + next_indent] == '-') {
+                        return parse_array(next_indent);
+                    } else {
+                        return parse_object(next_indent);
+                    }
+                } else {
+                    // Empty value
+                    return Dictionary::null();
+                }
+            }
 
             // Check for array marker
             if (peek() == '-' && i + 1 < s.size() &&

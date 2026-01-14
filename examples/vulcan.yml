@@ -1,0 +1,418 @@
+HyperSolve:
+  boundary conditions:
+    - 
+      mesh boundary tags: Bottom
+      type: extrapolation
+    - 
+      mesh boundary tags: Inflow_Air
+      state: inflow_Air
+      type: dirichlet
+    - 
+      mesh boundary tags: Inflow_H2
+      state: inflow_H2
+      type: dirichlet
+    - 
+      mesh boundary tags: Outflow
+      type: extrapolation
+    - 
+      mesh boundary tags: Top
+      type: extrapolation
+    - 
+      mesh boundary tags: Wall
+      type: no slip
+      wall temperature: adiabatic
+  discretization settings:
+    flux function: ldfss
+    mass diffusion gradient: "mass-fraction"
+    vulcan boundary coeff: 0
+    vulcan inviscid gradient: "C-LSQ"
+    vulcan viscous gradient: "C-LSQ"
+  equation type: "vulcan-turbulent"
+  initialization regions:
+    - 
+      hi:
+        - 1
+        - 0
+        - 1
+      lo:
+        - 0
+        - -0.125
+        - 0
+      state: inflow_Air
+      type: aabb
+    - 
+      hi:
+        - 1
+        - 0.125
+        - 1
+      lo:
+        - 0
+        - 0
+        - 0
+      state: inflow_H2
+      type: aabb
+  nondimensional reference state: inflow_H2
+  nonlinear solver settings:
+    limit turbulent updates: false
+    percent update limiting: 0.75
+    solver: Kokkos
+  profiling:
+    ranks to trace:
+      - 0
+  states:
+    inflow_Air:
+      density: 0.351553
+      mass fractions:
+        - 0
+        - 0.2314
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0.7686
+      speed: 1200
+      temperature: 1000
+    inflow_H2:
+      density: 0.0245685
+      mass fractions:
+        - 1
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+        - 0
+      speed: 3800
+      temperature: 1000
+  thermodynamics:
+    Schmidt number: 0.22
+    reaction model filename: reac_mod.Westbrook_H2_9x19
+    species:
+      - H2
+      - O2
+      - H2O
+      - OH
+      - H
+      - O
+      - HO2
+      - H2O2
+      - N2
+    transport: vulcan
+    turbulent Prandtl number: 0.9
+    vulcan kinetics: true
+  time accuracy:
+    type: local timestepping
+  turbulence model:
+    eddy viscosity ratio: 0.01
+    first order: false
+    turbulence intensity: 0.001
+    turbulent Schmidt number: 0.5
+    type: "sst-2003m"
+checkpoint frequency: 1000
+mesh filename: ../../grids/splitter_plate_2d.su2
+restart: false
+sequence:
+  - 
+    HyperSolve:
+      discretization settings:
+        flux function: rusanov
+        slope limiter: first order
+      linear solver settings:
+        max krylov search directions: 50
+      nonlinear solver settings:
+        residual stopping tolerance: 1e-08
+      thermodynamics:
+        chemical nonequilibrium: false
+    steps: 150
+    templates:
+      - jfnk
+  - 
+    HyperSolve:
+      discretization settings:
+        flux function: ldfss
+        slope limiter: first order
+      linear solver settings:
+        max krylov search directions: 50
+      nonlinear solver settings:
+        residual stopping tolerance: 1e-08
+      thermodynamics:
+        chemical nonequilibrium: false
+    steps: 200
+    templates:
+      - jfnk
+  - 
+    HyperSolve:
+      discretization settings:
+        flux function: ldfss
+        slope limiter: first order
+      linear solver settings:
+        max krylov search directions: 1
+      nonlinear solver settings:
+        cfl bounds:
+          - 0.1
+          - 1000
+        cfl increase factor: 1.03
+        residual stopping tolerance: 1e-11
+        starting cfl: 0.1
+      thermodynamics:
+        chemical nonequilibrium: true
+    steps: 2000
+    templates:
+      - dfci
+  - 
+    HyperSolve:
+      discretization settings:
+        flux function: ldfss
+        lock limiter: 1500
+        slope limiter: venkat
+      linear solver settings:
+        max krylov search directions: 1
+      nonlinear solver settings:
+        cfl bounds:
+          - 0.1
+          - 30
+        cfl increase factor: 1.03
+        residual stopping tolerance: 1e-11
+        starting cfl: 0.1
+      thermodynamics:
+        chemical nonequilibrium: true
+    steps: 3000
+    templates:
+      - dfci
+steps: 10000
+visualization:
+  - 
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - "mass-fraction-*"
+      - "eddy-viscosity"
+      - mach
+      - "y-plus"
+      - k
+      - log(omega)
+    filename: domain.vtk
+    type: volume
+  - 
+    a:
+      - 0.1
+      - -0.13
+      - 0
+    b:
+      - 0.1
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line1.csv
+    type: line
+  - 
+    a:
+      - 0.3
+      - -0.13
+      - 0
+    b:
+      - 0.3
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line2.csv
+    type: line
+  - 
+    a:
+      - 0.5
+      - -0.13
+      - 0
+    b:
+      - 0.5
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line3.csv
+    type: line
+  - 
+    a:
+      - 0.6
+      - -0.13
+      - 0
+    b:
+      - 0.6
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line4.csv
+    type: line
+  - 
+    a:
+      - 0.7
+      - -0.13
+      - 0
+    b:
+      - 0.7
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line5.csv
+    type: line
+  - 
+    a:
+      - 0.8
+      - -0.13
+      - 0
+    b:
+      - 0.8
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line6.csv
+    type: line
+  - 
+    a:
+      - 0.9
+      - -0.13
+      - 0
+    b:
+      - 0.9
+      - 0.13
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line7.csv
+    type: line
+  - 
+    a:
+      - 0
+      - 0
+      - 0
+    b:
+      - 0.5
+      - 0
+      - 0
+    fields:
+      - u
+      - v
+      - w
+      - temperature
+      - pressure
+      - density
+      - "mass-fraction-*cell"
+      - viscosity
+      - "thermal-conductivity"
+      - "eddy-viscosity"
+      - "eddy-viscosity-ratio"
+      - mach
+      - k
+      - log(omega)
+    filename:
+      - line8.csv
+    type: line
