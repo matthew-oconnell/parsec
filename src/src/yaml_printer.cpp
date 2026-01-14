@@ -84,6 +84,34 @@ std::string dump_yaml(const Dictionary& dict) {
         return std::string();
     };
 
+    // Attempt to render certain arrays inline as '[a, b, c]'. Returns empty
+    // string if the array should be emitted in block form.
+    auto array_to_inline = [&](const Dictionary& arr) -> std::string {
+        // Only allow primitive arrays (no object arrays)
+        if (arr.type() == Dictionary::TYPE::ObjectArray) return std::string();
+        const int max_elems = 8;
+        const std::size_t max_len = 80;
+        if (arr.size() > max_elems) return std::string();
+
+        std::ostringstream ss;
+        ss << '[';
+        for (int i = 0; i < arr.size(); ++i) {
+            const Dictionary& el = arr.at(i);
+            bool el_is_simple = (el.type() == Dictionary::TYPE::Null ||
+                                 el.type() == Dictionary::TYPE::Boolean ||
+                                 el.type() == Dictionary::TYPE::Integer ||
+                                 el.type() == Dictionary::TYPE::Double ||
+                                 el.type() == Dictionary::TYPE::String);
+            if (!el_is_simple) return std::string();
+            if (i) ss << ", ";
+            ss << scalar_to_yaml(el);
+        }
+        ss << ']';
+        std::string s = ss.str();
+        if (s.size() > max_len) return std::string();
+        return s;
+    };
+
     // emit_inline_or_block: emits scalars inline and containers in block
     // style with increased indentation as needed.
     emit_inline_or_block = [&](const Dictionary& d, int indent) {
@@ -101,11 +129,18 @@ std::string dump_yaml(const Dictionary& dict) {
             case Dictionary::TYPE::StringArray:
             case Dictionary::TYPE::BoolArray:
             case Dictionary::TYPE::ObjectArray: {
-                // Emit each element on its own "- " line
+                // Try inline first for short primitive arrays
                 if (d.size() == 0) {
                     out << "[]";
                     break;
                 }
+                std::string inline_s = array_to_inline(d);
+                if (!inline_s.empty()) {
+                    out << inline_s;
+                    break;
+                }
+
+                // Fallback: Emit each element on its own "- " line
                 for (int i = 0; i < d.size(); ++i) {
                     const Dictionary& el = d.at(i);
                     indent_spaces(indent);
@@ -145,8 +180,26 @@ std::string dump_yaml(const Dictionary& dict) {
                     if (val_is_simple) {
                         out << " " << scalar_to_yaml(val) << '\n';
                     } else {
-                        out << '\n';
-                        emit(val, indent + 2);
+                        // If the value is an array that can be printed inline,
+                        // print it after the colon on the same line.
+                        std::string arr_inline;
+                        switch (val.type()) {
+                            case Dictionary::TYPE::IntArray:
+                            case Dictionary::TYPE::DoubleArray:
+                            case Dictionary::TYPE::StringArray:
+                            case Dictionary::TYPE::BoolArray:
+                            case Dictionary::TYPE::ObjectArray:
+                                arr_inline = array_to_inline(val);
+                                break;
+                            default:
+                                break;
+                        }
+                        if (!arr_inline.empty()) {
+                            out << " " << arr_inline << '\n';
+                        } else {
+                            out << '\n';
+                            emit(val, indent + 2);
+                        }
                     }
                 }
                 break;
