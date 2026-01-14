@@ -22,6 +22,7 @@ target_sources(parsec_lib
     src/parsec.cpp
     src/ron_parser.cpp
     src/toml_parser.cpp
+    src/toml_printer.cpp
     src/ini_parser.cpp
     src/yaml_parser.cpp
     src/yaml_printer.cpp

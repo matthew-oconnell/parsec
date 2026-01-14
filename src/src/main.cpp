@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec "
                      "--validate [--no-defaults] <schema.json> <file>\n  parsec --convert "
-                     "<yaml|json|ron> <input> <output>\n";
+                     "<yaml|json|ron|toml> <input> <output>\n";
         return 2;
     }
 
@@ -80,10 +80,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Convert mode: --convert <yaml|json> <input> <output>
+    // Convert mode: --convert <yaml|json|ron|toml> <input> <output>
     if (std::string(argv[1]) == "--convert") {
         if (argc != 5) {
-            std::cerr << "usage: parsec --convert <yaml|json|ron> <input> <output>\n";
+            std::cerr << "usage: parsec --convert <yaml|json|ron|toml> <input> <output>\n";
             return 2;
         }
         std::string fmt = argv[2];
@@ -114,9 +114,11 @@ int main(int argc, char** argv) {
                 out_file << data.dump(4, false) << std::endl;
             } else if (fmt == "ron" || fmt == "--ron") {
                 out_file << ps::dump_ron(data);
+            } else if (fmt == "toml" || fmt == "--toml") {
+                out_file << ps::dump_toml(data);
             } else {
                 std::cerr << "error: unknown format '" << fmt
-                          << "' (expected 'yaml', 'json' or 'ron')\n";
+                          << "' (expected 'yaml', 'json', 'ron' or 'toml')\n";
                 return 2;
             }
 
