@@ -16,7 +16,8 @@
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec "
-                     "--validate [--no-defaults] <schema.json> <file>\n  parsec --convert "
+                     "--validate [--no-defaults] <schema.json> <file>\n  parsec --fill-defaults "
+                     "<schema.json> <input> <output>\n  parsec --convert "
                      "<yaml|json|ron|toml> <input> <output>\n";
         return 2;
     }
@@ -77,6 +78,50 @@ int main(int argc, char** argv) {
         } catch (const std::exception& e) {
             std::cerr << "schema parse error: " << e.what() << "\n";
             return 2;
+        }
+    }
+
+    // Fill defaults mode: --fill-defaults <schema.json> <input> <output>
+    if (std::string(argv[1]) == "--fill-defaults") {
+        if (argc != 5) {
+            std::cerr << "usage: parsec --fill-defaults <schema.json> <input> <output>\n";
+            return 2;
+        }
+        std::string schema_path = argv[2];
+        std::string data_path = argv[3];
+        std::string out_path = argv[4];
+
+        std::ifstream sin(schema_path);
+        if (!sin) {
+            std::cerr << "error: cannot open schema: " << schema_path << "\n";
+            return 2;
+        }
+        std::string schema_content((std::istreambuf_iterator<char>(sin)), std::istreambuf_iterator<char>());
+
+        std::ifstream in(data_path);
+        if (!in) {
+            std::cerr << "error: cannot open file: " << data_path << "\n";
+            return 2;
+        }
+        std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+
+        try {
+            auto schema = ps::parse(schema_content);
+            ps::Dictionary data = ps::parse(content);
+
+            ps::Dictionary completed = ps::setDefaults(data, schema);
+
+            std::ofstream out_file(out_path);
+            if (!out_file) {
+                std::cerr << "error: cannot open output: " << out_path << "\n";
+                return 2;
+            }
+            // Write pretty JSON with indentation
+            out_file << completed.dump(4, false) << std::endl;
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "error: " << e.what() << "\n";
+            return 1;
         }
     }
 
