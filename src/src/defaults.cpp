@@ -40,6 +40,25 @@ static Dictionary apply_defaults_to_object(const Dictionary& input,
                                            const Dictionary& schema_root,
                                            const Dictionary& schema_node) {
     Dictionary out = input;  // copy existing
+    
+    // Handle allOf: recursively apply defaults from each schema in the array
+    if (schema_node.has("allOf") && schema_node.at("allOf").isArrayObject()) {
+        const Dictionary& allOfArray = schema_node.at("allOf");
+        for (int i = 0; i < allOfArray.size(); ++i) {
+            const Dictionary* subSchema = &allOfArray[i];
+            
+            // Resolve $ref if present
+            if (subSchema->has("$ref") && subSchema->at("$ref").type() == Dictionary::String) {
+                const std::string ref = subSchema->at("$ref").asString();
+                subSchema = resolve_local_ref(schema_root, ref);
+                if (!subSchema) continue;
+            }
+            
+            // Recursively apply defaults from this sub-schema
+            out = apply_defaults_to_object(out, schema_root, *subSchema);
+        }
+        return out;
+    }
 
     // properties
     const Dictionary* props = nullptr;
