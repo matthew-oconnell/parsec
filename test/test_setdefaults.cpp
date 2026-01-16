@@ -56,3 +56,109 @@ TEST_CASE("setDefaults: additionalProperties schema applied to existing extras",
     REQUIRE(extra.has("y"));
     REQUIRE(extra.at("y").asInt() == 2);
 }
+
+TEST_CASE("setDefaults: allOf composition applies defaults from all schemas", "[defaults]") {
+    // Create a base schema with some properties
+    Dictionary baseSchema;
+    baseSchema["type"] = "object";
+    Dictionary baseProps;
+    baseProps["name"] = Dictionary{{"type", "string"}, {"default", "unknown"}};
+    baseProps["count"] = Dictionary{{"type", "integer"}, {"default", int64_t(0)}};
+    baseSchema["properties"] = baseProps;
+    
+    // Store base schema in definitions
+    Dictionary definitions;
+    definitions["BaseObject"] = baseSchema;
+    
+    // Create a schema using allOf
+    Dictionary allOfItem;
+    allOfItem["$ref"] = "#/definitions/BaseObject";
+    
+    std::vector<Dictionary> allOfArray;
+    allOfArray.push_back(allOfItem);
+    
+    Dictionary composedSchema;
+    composedSchema["allOf"] = allOfArray;
+    
+    // Create root schema with definitions
+    Dictionary rootSchema;
+    rootSchema["type"] = "object";
+    rootSchema["definitions"] = definitions;
+    Dictionary rootProps;
+    rootProps["config"] = composedSchema;
+    rootSchema["properties"] = rootProps;
+    
+    // Input with config object but missing the properties that have defaults
+    Dictionary input;
+    input["config"] = Dictionary();
+    
+    auto out = setDefaults(input, rootSchema);
+    REQUIRE(out.has("config"));
+    REQUIRE(out.at("config").has("name"));
+    REQUIRE(out.at("config").at("name").asString() == "unknown");
+    REQUIRE(out.at("config").has("count"));
+    REQUIRE(out.at("config").at("count").asInt() == 0);
+}
+
+TEST_CASE("setDefaults: allOf with nested $ref applies defaults correctly", "[defaults]") {
+    // Simulates the HyperSolve -> HyperSolveRequired -> HyperSolveBase -> Discretization Settings structure
+    
+    // Create the innermost schema (like Discretization Settings)
+    Dictionary discSettings;
+    discSettings["type"] = "object";
+    Dictionary discProps;
+    discProps["lock limiter"] = Dictionary{{"type", "integer"}, {"default", int64_t(-1)}};
+    discProps["buffer limiter"] = Dictionary{{"type", "integer"}, {"default", int64_t(1)}};
+    discSettings["properties"] = discProps;
+    
+    // Create a base schema that references discSettings (like HyperSolveBase)
+    Dictionary baseSchema;
+    baseSchema["type"] = "object";
+    Dictionary baseProps;
+    baseProps["discretization settings"] = Dictionary{{"$ref", "#/definitions/Discretization Settings"}};
+    baseSchema["properties"] = baseProps;
+    
+    // Create a composed schema with allOf (like HyperSolveRequired)
+    Dictionary allOfItem;
+    allOfItem["$ref"] = "#/definitions/HyperSolveBase";
+    
+    std::vector<Dictionary> allOfArray;
+    allOfArray.push_back(allOfItem);
+    
+    Dictionary composedSchema;
+    composedSchema["allOf"] = allOfArray;
+    
+    // Create root schema with definitions
+    Dictionary rootSchema;
+    rootSchema["type"] = "object";
+    Dictionary definitions;
+    definitions["Discretization Settings"] = discSettings;
+    definitions["HyperSolveBase"] = baseSchema;
+    definitions["HyperSolveRequired"] = composedSchema;
+    rootSchema["definitions"] = definitions;
+    
+    Dictionary rootProps;
+    rootProps["HyperSolve"] = Dictionary{{"$ref", "#/definitions/HyperSolveRequired"}};
+    rootSchema["properties"] = rootProps;
+    
+    // Input with HyperSolve.discretization settings present but missing lock limiter
+    Dictionary input;
+    Dictionary hyperSolve;
+    Dictionary discSettingsInput;
+    discSettingsInput["buffer limiter"] = int64_t(2);  // User provided this
+    hyperSolve["discretization settings"] = discSettingsInput;
+    input["HyperSolve"] = hyperSolve;
+    
+    auto out = setDefaults(input, rootSchema);
+    REQUIRE(out.has("HyperSolve"));
+    REQUIRE(out.at("HyperSolve").has("discretization settings"));
+    auto disc = out.at("HyperSolve").at("discretization settings");
+    
+    // User-provided value should be preserved
+    REQUIRE(disc.has("buffer limiter"));
+    REQUIRE(disc.at("buffer limiter").asInt() == 2);
+    
+    // Default should be applied for missing property
+    REQUIRE(disc.has("lock limiter"));
+    REQUIRE(disc.at("lock limiter").asInt() == -1);
+}
