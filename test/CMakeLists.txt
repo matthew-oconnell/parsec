@@ -29,6 +29,7 @@ add_executable(parsec_tests
   test_validate_medium_schema.cpp
   test_validate_medium_schema_fail.cpp
   test_anyof_defaults.cpp
+  test_deprecated.cpp
 )
 target_link_libraries(parsec_tests PRIVATE parsec_lib Catch2::Catch2WithMain)
 target_include_directories(parsec_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/include)

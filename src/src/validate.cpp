@@ -569,6 +569,25 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 return std::optional<std::string>(msg);
             }
         }
+        
+        // Check if the matched alternative is deprecated
+        if (matches == 1 && !matched_indices.empty()) {
+            int matched_idx = matched_indices[0];
+            const Dictionary& matched_schema = arr[matched_idx];
+            if (matched_schema.has("deprecated") && 
+                matched_schema.at("deprecated").type() == Dictionary::Boolean &&
+                matched_schema.at("deprecated").asBool()) {
+                std::string msg = "Using deprecated option";
+                if (matched_schema.has("const")) {
+                    msg = "Value '" + matched_schema.at("const").dump() + "' is deprecated";
+                }
+                if (matched_schema.has("description") && 
+                    matched_schema.at("description").type() == Dictionary::String) {
+                    msg += ": " + matched_schema.at("description").asString();
+                }
+                return std::optional<std::string>(msg);
+            }
+        }
     }
 
     // type check
@@ -692,6 +711,19 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                      *subSchema,
                                                      path.empty() ? key : path + "." + key))
                             return err;
+                        
+                        // Check if property is deprecated
+                        if (propSchema.has("deprecated") && 
+                            propSchema.at("deprecated").type() == Dictionary::Boolean &&
+                            propSchema.at("deprecated").asBool()) {
+                            std::string full_key = path.empty() ? key : path + "." + key;
+                            std::string msg = "Property '" + full_key + "' is deprecated";
+                            if (propSchema.has("description") && 
+                                propSchema.at("description").type() == Dictionary::String) {
+                                msg += ": " + propSchema.at("description").asString();
+                            }
+                            return std::optional<std::string>(msg);
+                        }
                     }
                 }
             }

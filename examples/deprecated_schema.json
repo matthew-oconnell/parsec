@@ -1,0 +1,43 @@
+{
+  "type": "object",
+  "properties": {
+    "server_port": {
+      "type": "integer",
+      "deprecated": true,
+      "description": "DEPRECATED: Use 'port' instead. This property will be removed in v2.0."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The server port number (replaces deprecated 'server_port')"
+    },
+    "host": {
+      "type": "string",
+      "description": "The server hostname"
+    },
+    "boundary_type": {
+      "oneOf": [
+        {
+          "const": "supersonic inflow",
+          "description": "Supersonic inflow boundary condition"
+        },
+        {
+          "const": "supersonic outflow",
+          "description": "Supersonic outflow boundary condition"
+        },
+        {
+          "const": "dirichlet",
+          "deprecated": true,
+          "description": "DEPRECATED: Use 'supersonic inflow' instead. Renamed for clarity in compressible flow contexts."
+        },
+        {
+          "const": "extrapolation",
+          "deprecated": true,
+          "description": "DEPRECATED: Use 'supersonic outflow' instead. Renamed to better describe physical meaning."
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}
