@@ -551,12 +551,12 @@ namespace {
                 bool in_pattern_properties =
                             (!key_stack.empty() && key_stack.back() == "patternProperties");
                 if (!in_pattern_properties) {
-                    // Keys may start with an ASCII letter, a digit, or '$' (allow JSON $schema/$ref
-                    // and numeric-start keys)
+                    // Keys may start with an ASCII letter, a digit, '$', or '@' (allow JSON $schema/$ref,
+                    // @-prefixed schema keys, and numeric-start keys)
                     if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) ||
-                                            keystr[0] == '$')) {
+                                            keystr[0] == '$' || keystr[0] == '@')) {
                         throw JsonParseError(format_error("object keys must start with a letter, "
-                                                          "digit, or '$'",
+                                                          "digit, '$', or '@'",
                                                           line,
                                                           col),
                                              line,
@@ -772,9 +772,9 @@ Dictionary parse_json(const std::string& text) {
                     if (!in_pattern_properties) {
                         if (keystr.empty() ||
                             !(std::isalnum(static_cast<unsigned char>(keystr[0])) ||
-                              keystr[0] == '$')) {
+                              keystr[0] == '$' || keystr[0] == '@')) {
                             throw JsonParseError(p.format_error("object keys must start with a "
-                                                                "letter, digit, or '$'",
+                                                                "letter, digit, '$', or '@'",
                                                                 p.line,
                                                                 p.col),
                                                  p.line,

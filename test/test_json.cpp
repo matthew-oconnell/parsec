@@ -117,3 +117,22 @@ TEST_CASE("Empty array gives object as array type") {
     Dictionary d = parse_json(config);
     REQUIRE(d.at("empty array").type() == Dictionary::ObjectArray);
 }
+
+TEST_CASE("Parse JSON with @-prefixed keys") {
+    std::string config = R"({
+    "@SCHEMA_ROOT_KEY@": {
+        "type": "object",
+        "properties": {
+            "nested": {
+                "type": "string"
+            }
+        }
+    },
+    "regular_key": "value"
+})";
+    Dictionary d = parse_json(config);
+    REQUIRE(d.has("@SCHEMA_ROOT_KEY@"));
+    REQUIRE(d.has("regular_key"));
+    REQUIRE(d.at("@SCHEMA_ROOT_KEY@").at("type").asString() == "object");
+    REQUIRE(d.at("regular_key").asString() == "value");
+}
