@@ -645,6 +645,32 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             // Enforce parent-level required names even if no explicit "properties" are listed
             for (auto const& rn : required_names) {
                 if (!data.has(rn)) {
+                    // Before reporting as missing, check if a deprecated alternative exists
+                    // that should be validated instead
+                    bool found_deprecated_alternative = false;
+                    if (properties) {
+                        for (auto const& dprop : data.items()) {
+                            const std::string& candidate = dprop.first;
+                            // Check if this key is in properties and marked as deprecated
+                            if (properties->has(candidate)) {
+                                const Dictionary& prop_schema = properties->at(candidate);
+                                if (prop_schema.has("deprecated") &&
+                                    prop_schema.at("deprecated").type() == Dictionary::Boolean &&
+                                    prop_schema.at("deprecated").asBool()) {
+                                    // Found a deprecated alternative - it will be validated below
+                                    found_deprecated_alternative = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (found_deprecated_alternative) {
+                        // Don't report as missing - the deprecated alternative will be
+                        // validated and flagged in the property iteration below
+                        continue;
+                    }
+                    
                     // Check if there's a similar key in the data that might be a typo of the
                     // required name. Only suggest keys that are NOT already allowed by the schema.
                     std::string suggestion;
