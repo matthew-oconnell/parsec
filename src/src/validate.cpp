@@ -313,7 +313,11 @@ static const Dictionary* resolve_local_ref(const Dictionary& root, const std::st
 static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const Dictionary& schema_root,
                                                 const Dictionary& schema_node,
-                                                const std::string& path);
+                                                const std::string& path,
+                                                const std::string& raw_content = "");
+
+// Forward declaration for line number finding
+static int find_line_number(const std::string& raw_content, const std::string& path);
 
 // Helper: get a child schema dictionary from a Value that is expected to be an
 // object. Some schema positions allow either a schema object or a string
@@ -453,7 +457,8 @@ static std::optional<std::string> check_enum(const Dictionary& data,
 static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const Dictionary& schema_root,
                                                 const Dictionary& schema_node,
-                                                const std::string& path) {
+                                                const std::string& path,
+                                                const std::string& raw_content) {
     // Minimal validator: primarily checks declared "type", numeric constraints and enum.
     if (std::getenv("PS_VALIDATE_DEBUG")) {
         std::cerr << "validate_node enter: path='" << path << "' data=" << data.dump()
@@ -472,7 +477,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         const std::string ref = schema_node.at("$ref").asString();
         const Dictionary* target = resolve_local_ref(schema_root, ref);
         if (!target) return std::optional<std::string>("unresolved $ref '" + ref + "' at " + path);
-        return validate_node(data, schema_root, *target, path);
+        return validate_node(data, schema_root, *target, path, raw_content);
     }
 
     // enum check
@@ -494,7 +499,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            if (auto err = validate_node(data, schema_root, *subSchema, path)) return err;
+            if (auto err = validate_node(data, schema_root, *subSchema, path, raw_content)) return err;
         }
     }
     // anyOf
@@ -506,7 +511,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            auto err = validate_node(data, schema_root, *subSchema, path);
+            auto err = validate_node(data, schema_root, *subSchema, path, raw_content);
             if (!err.has_value()) {
                 matched = true;
                 break;
@@ -538,7 +543,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            auto err = validate_node(data, schema_root, *subSchema, path);
+            auto err = validate_node(data, schema_root, *subSchema, path, raw_content);
             if (!err.has_value()) {
                 ++matches;
                 matched_indices.push_back(i);
@@ -709,7 +714,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                         if (auto err = validate_node(data.at(key),
                                                      schema_root,
                                                      *subSchema,
-                                                     path.empty() ? key : path + "." + key))
+                                                     path.empty() ? key : path + "." + key,
+                                                     raw_content))
                             return err;
                         
                         // Check if property is deprecated
@@ -721,6 +727,13 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             if (propSchema.has("description") && 
                                 propSchema.at("description").type() == Dictionary::String) {
                                 msg += ": " + propSchema.at("description").asString();
+                            }
+                            // Add line number if raw_content is available
+                            if (!raw_content.empty()) {
+                                int line = find_line_number(raw_content, full_key);
+                                if (line > 0) {
+                                    msg = "line " + std::to_string(line) + ": " + msg;
+                                }
                             }
                             return std::optional<std::string>(msg);
                         }
@@ -747,7 +760,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                     data.at(key),
                                                     schema_root,
                                                     *sub,
-                                                    path.empty() ? key : path + "." + key))
+                                                    path.empty() ? key : path + "." + key,
+                                                    raw_content))
                                         return err;
                                 }
                                 handled = true;
@@ -800,7 +814,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                         if (auto err = validate_node(data.at(key),
                                                      schema_root,
                                                      *sub,
-                                                     path.empty() ? key : path + "." + key))
+                                                     path.empty() ? key : path + "." + key,
+                                                     raw_content))
                             return err;
                     }
                 }
@@ -855,7 +870,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                 if (auto err = validate_node(data[i],
                                                              schema_root,
                                                              *sub,
-                                                             path + "[" + std::to_string(i) + "]"))
+                                                             path + "[" + std::to_string(i) + "]",
+                                                             raw_content))
                                     return err;
                             }
                         } else {
@@ -872,7 +888,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                         data[i],
                                                         schema_root,
                                                         *sub,
-                                                        path + "[" + std::to_string(i) + "]"))
+                                                        path + "[" + std::to_string(i) + "]",
+                                                        raw_content))
                                             return err;
                                     }
                                 }
@@ -886,7 +903,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             if (auto err = validate_node(data[i],
                                                          schema_root,
                                                          *sub,
-                                                         path + "[" + std::to_string(i) + "]"))
+                                                         path + "[" + std::to_string(i) + "]",
+                                                         raw_content))
                                 return err;
                         }
                     }
@@ -1059,56 +1077,42 @@ static int find_line_number(const std::string& raw_content, const std::string& p
 std::optional<std::string> validate(const Dictionary& data,
                                     const Dictionary& schema,
                                     const std::string& raw_content) {
-    auto result = validate(data, schema);
-    if (!result.has_value()) {
-        return result;
-    }
-
-    // Extract the path from the error message and find line number
-    std::string error = *result;
-
-    // Try to extract path from error message patterns like:
-    // "key 'xxx' not valid in 'yyy'"
-    // "'xxx.yyy.zzz' has value"
-    std::string path;
-
-    // Pattern 1: key 'xxx' not valid in 'yyy'
-    size_t in_pos = error.find(" in '");
-    if (in_pos != std::string::npos) {
-        size_t start = in_pos + 5;  // skip " in '"
-        size_t end = error.find("'", start);
-        if (end != std::string::npos) {
-            std::string parent_path = error.substr(start, end - start);
-
-            // Also extract the key name
-            size_t key_start = error.find("key '");
-            if (key_start != std::string::npos) {
-                key_start += 5;  // skip "key '"
-                size_t key_end = error.find("'", key_start);
-                if (key_end != std::string::npos) {
-                    std::string key = error.substr(key_start, key_end - key_start);
-                    path = parent_path + "." + key;
-                }
+    // Call validate_node directly with raw_content instead of post-processing
+    std::optional<std::string> result;
+    
+    // Support convenience form (same logic as 2-parameter validate)
+    const std::set<std::string> schema_keys = {"type",
+                                               "properties",
+                                               "items",
+                                               "additionalProperties",
+                                               "patternProperties",
+                                               "required",
+                                               "enum",
+                                               "allOf",
+                                               "anyOf",
+                                               "oneOf",
+                                               "minItems",
+                                               "maxItems",
+                                               "minProperties",
+                                               "maxProperties",
+                                               "uniqueItems"};
+    bool contains_schema_keyword = false;
+    if (schema.isMappedObject()) {
+        for (auto const& p : schema.items()) {
+            if (schema_keys.find(p.first) != schema_keys.end()) {
+                contains_schema_keyword = true;
+                break;
             }
         }
     }
-
-    // Pattern 2: 'xxx.yyy.zzz' has value
-    if (path.empty() && error[0] == '\'') {
-        size_t end = error.find("'", 1);
-        if (end != std::string::npos) {
-            path = error.substr(1, end - 1);
-        }
+    if (schema.isMappedObject() && !contains_schema_keyword && !schema.has("properties")) {
+        Dictionary wrapper;
+        wrapper["type"] = std::string("object");
+        wrapper["properties"] = schema;
+        result = validate_node(data, schema, wrapper, "", raw_content);
+    } else {
+        result = validate_node(data, schema, schema, "", raw_content);
     }
-
-    if (!path.empty()) {
-        int line_num = find_line_number(raw_content, path);
-        if (line_num > 1) {
-            return std::optional<std::string>("on line " + std::to_string(line_num) + ": \n" +
-                                              error);
-        }
-    }
-
     return result;
 }
 
