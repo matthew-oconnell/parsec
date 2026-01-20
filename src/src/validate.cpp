@@ -670,7 +670,25 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                         return std::optional<std::string>(msg);
                     }
                     std::string full_key = path.empty() ? rn : path + "." + rn;
-                    return std::optional<std::string>("missing required key '" + full_key + "'");
+                    std::string msg = "missing required key '" + full_key + "'";
+                    // Add line number context if available
+                    if (!raw_content.empty()) {
+                        int line = -1;
+                        if (!path.empty()) {
+                            // For nested objects, find the parent object
+                            line = find_line_number(raw_content, path);
+                        } else if (data.size() > 0) {
+                            // For root level, find the first existing key for context
+                            for (auto const& item : data.items()) {
+                                line = find_line_number(raw_content, item.first);
+                                if (line > 0) break;
+                            }
+                        }
+                        if (line > 0) {
+                            msg = "line " + std::to_string(line) + ": " + msg;
+                        }
+                    }
+                    return std::optional<std::string>(msg);
                 }
             }
 
@@ -698,13 +716,29 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     auto itreq = propSchema.has("required") ? &propSchema.at("required") : nullptr;
                     if (!has) {
                         std::string full_key = path.empty() ? key : path + "." + key;
+                        std::string msg = "missing required key '" + full_key + "'";
+                        // Add line number context if available
+                        if (!raw_content.empty()) {
+                            int line = -1;
+                            if (!path.empty()) {
+                                // For nested objects, find the parent object
+                                line = find_line_number(raw_content, path);
+                            } else if (data.size() > 0) {
+                                // For root level, find the first existing key for context
+                                for (auto const& item : data.items()) {
+                                    line = find_line_number(raw_content, item.first);
+                                    if (line > 0) break;
+                                }
+                            }
+                            if (line > 0) {
+                                msg = "line " + std::to_string(line) + ": " + msg;
+                            }
+                        }
                         if (itreq != nullptr && itreq->type() == Dictionary::Boolean &&
                             itreq->asBool())
-                            return std::optional<std::string>("missing required key '" + full_key +
-                                                              "'");
+                            return std::optional<std::string>(msg);
                         if (required_names.find(key) != required_names.end())
-                            return std::optional<std::string>("missing required key '" + full_key +
-                                                              "'");
+                            return std::optional<std::string>(msg);
                         continue;
                     }
                     // validate present property
