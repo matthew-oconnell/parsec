@@ -939,6 +939,25 @@ static inline std::string escape_json_string(const std::string& s) {
 }
 
 inline std::string Dictionary::dump(int indent, bool compact) const {
+    // Helper to check if an object contains only scalar values (no nested objects/arrays)
+    std::function<bool(const Dictionary&)> is_simple_object;
+    is_simple_object = [&](const Dictionary& d) -> bool {
+        if (d.my_type != TYPE::Object) return false;
+        for (auto const& p : d.m_object_map) {
+            const Dictionary& val = p.second;
+            // Allow scalars only
+            if (val.my_type == TYPE::Object || 
+                val.my_type == TYPE::IntArray ||
+                val.my_type == TYPE::DoubleArray ||
+                val.my_type == TYPE::StringArray ||
+                val.my_type == TYPE::BoolArray ||
+                val.my_type == TYPE::ObjectArray) {
+                return false;
+            }
+        }
+        return true;
+    };
+    
     std::function<std::string(const Dictionary&)> make_pretty_compact;
     make_pretty_compact = [&](const Dictionary& d) -> std::string {
         switch (d.my_type) {
@@ -1106,6 +1125,18 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
             out << "{}";
             return;
         }
+        
+        // For non-compact mode with indentation, check if this is a simple object
+        // (only scalars, no nested structures) that would fit on one line
+        if (!compactObjects && !force_expand && is_simple_object(d)) {
+            std::string one = make_pretty_compact(d);
+            if (one.size() <= 80) {
+                out << one;
+                return;
+            }
+        }
+        
+        // Original compact mode logic
         if (compactObjects && !force_expand) {
             std::string one = make_pretty_compact(d);
             if (one.size() <= 80) {
@@ -1113,6 +1144,7 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 return;
             }
         }
+        
         out << "{\n";
         auto items = d.items();
         for (size_t i = 0; i < items.size(); ++i) {

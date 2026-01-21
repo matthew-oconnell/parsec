@@ -62,6 +62,8 @@ TEST_CASE("Pretty print compact will eventually use indentation if the line woul
     Dictionary dict;
     dict["level1"]["level2"]["level3"]["level4"]["level5"]["level6"]["level7"]["level8"]["level9"]
         ["value"] = 42;
+    // The deeply nested structure is expanded, but the innermost simple object
+    // {"value":42} is collapsed since it only contains scalars and fits on one line
     std::string expected = R"({
   "level1": {
     "level2": {
@@ -71,9 +73,7 @@ TEST_CASE("Pretty print compact will eventually use indentation if the line woul
             "level6": {
               "level7": {
                 "level8": {
-                  "level9": {
-                    "value": 42
-                  }
+                  "level9": {"value":42}
                 }
               }
             }
@@ -175,4 +175,28 @@ TEST_CASE("Pretty print does not create overly long lines with nested compact ob
     REQUIRE(newline_after_bracket != std::string::npos);
     // The newline should come soon after the bracket, indicating expansion
     REQUIRE(newline_after_bracket - bracket_pos < 5);
+}
+
+TEST_CASE("Pretty print collapses simple objects containing only scalars", "[dump]") {
+    Dictionary dict;
+    
+    // Create a nested structure where some objects only contain scalars
+    // and others contain nested structures
+    dict["properties"]["name"]["type"] = "string";
+    dict["properties"]["name"]["maxLength"] = 100;
+    
+    dict["properties"]["items"]["type"] = "array";
+    dict["properties"]["items"]["items"]["type"] = "number";
+    dict["properties"]["items"]["minItems"] = 1;
+    
+    std::string result = dict.dump(4);
+    
+    // The inner "items" object that only contains {"type":"number"} should be collapsed
+    REQUIRE(result.find("{\"type\":\"number\"}") != std::string::npos);
+    
+    // The "name" object should also be collapsed since it only has scalars
+    // and fits on one line (key order may vary)
+    bool has_collapsed_name = (result.find("{\"maxLength\":100,\"type\":\"string\"}") != std::string::npos ||
+                                result.find("{\"type\":\"string\",\"maxLength\":100}") != std::string::npos);
+    REQUIRE(has_collapsed_name);
 }
