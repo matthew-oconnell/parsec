@@ -1375,6 +1375,33 @@ static void validate_node_collect(const Dictionary& data,
                 }
             }
         }
+
+        // Also check for other object-level errors using validate_node
+        // This catches: additionalProperties, patternProperties, minProperties/maxProperties, etc.
+        auto object_error = validate_node(data, schema_root, *effective_schema, path, raw_content);
+        if (object_error.has_value()) {
+            // Only add if it's not a missing required or deprecated error (we already handled
+            // those)
+            if (object_error->find("missing required") == std::string::npos &&
+                object_error->find("deprecated") == std::string::npos) {
+                int line = find_line_number(raw_content, path);
+                ErrorCategory cat = ErrorCategory::OTHER;
+                if (object_error->find("not valid") != std::string::npos ||
+                    object_error->find("not allowed") != std::string::npos) {
+                    cat = ErrorCategory::ADDITIONAL_PROPERTY;
+                } else if (object_error->find("fewer properties") != std::string::npos ||
+                           object_error->find("more properties") != std::string::npos) {
+                    cat = ErrorCategory::OTHER;
+                }
+
+                errors.emplace_back(display_path(path),
+                                    *object_error,
+                                    line,
+                                    depth,
+                                    ErrorSeverity::ERROR,
+                                    cat);
+            }
+        }
     } else if (effective_schema->has("type") &&
                effective_schema->at("type").type() == Dictionary::String) {
         std::string t = effective_schema->at("type").asString();
@@ -1402,18 +1429,14 @@ static void validate_node_collect(const Dictionary& data,
             auto array_error =
                         validate_node(data, schema_root, *effective_schema, path, raw_content);
             if (array_error.has_value()) {
-                // Check if it's about items (skip, we handled that) or about array constraints
-                if (array_error->find("too few items") != std::string::npos ||
-                    array_error->find("too many items") != std::string::npos ||
-                    array_error->find("duplicate items") != std::string::npos) {
-                    int line = find_line_number(raw_content, path);
-                    errors.emplace_back(display_path(path),
-                                        *array_error,
-                                        line,
-                                        depth,
-                                        ErrorSeverity::ERROR,
-                                        ErrorCategory::ARRAY_SIZE);
-                }
+                // Capture any array-level errors (constraints, tuple validation, etc.)
+                int line = find_line_number(raw_content, path);
+                errors.emplace_back(display_path(path),
+                                    *array_error,
+                                    line,
+                                    depth,
+                                    ErrorSeverity::ERROR,
+                                    ErrorCategory::ARRAY_SIZE);
             }
         } else {
             // For primitives or non-matching types, use validate_node
@@ -1472,41 +1495,14 @@ std::optional<std::string> validate(const Dictionary& data, const Dictionary& sc
     if (std::getenv("PS_VALIDATE_DEBUG")) {
         std::cerr << "validate debug: data=" << data.dump() << " schema=" << schema.dump() << "\n";
     }
-    // Support a convenience form where the top-level schema is a map of
-    // property-name -> property-schema (without an explicit { "type": "object" }).
-    // Only apply this when the supplied schema does not itself look like a
-    // schema object (i.e. does not contain known schema keywords).
-    const std::set<std::string> schema_keys = {"type",
-                                               "properties",
-                                               "items",
-                                               "additionalProperties",
-                                               "patternProperties",
-                                               "required",
-                                               "enum",
-                                               "allOf",
-                                               "anyOf",
-                                               "oneOf",
-                                               "minItems",
-                                               "maxItems",
-                                               "minProperties",
-                                               "maxProperties",
-                                               "uniqueItems"};
-    bool contains_schema_keyword = false;
-    if (schema.isMappedObject()) {
-        for (auto const& p : schema.items()) {
-            if (schema_keys.find(p.first) != schema_keys.end()) {
-                contains_schema_keyword = true;
-                break;
-            }
-        }
+    // Call validate_all and convert result to std::optional<std::string>
+    ValidationResult result = validate_all(data, schema, "");
+
+    if (result.is_valid()) {
+        return std::nullopt;
     }
-    if (schema.isMappedObject() && !contains_schema_keyword && !schema.has("properties")) {
-        Dictionary wrapper;
-        wrapper["type"] = std::string("object");
-        wrapper["properties"] = schema;
-        return validate_node(data, schema, wrapper, "");
-    }
-    return validate_node(data, schema, schema, "");
+
+    return result.format();
 }
 
 // Helper: find line number for a key in raw JSON/RON content
@@ -1574,43 +1570,14 @@ static int find_line_number(const std::string& raw_content, const std::string& p
 std::optional<std::string> validate(const Dictionary& data,
                                     const Dictionary& schema,
                                     const std::string& raw_content) {
-    // Call validate_node directly with raw_content instead of post-processing
-    std::optional<std::string> result;
+    // Call validate_all with raw_content and convert result to std::optional<std::string>
+    ValidationResult result = validate_all(data, schema, raw_content);
 
-    // Support convenience form (same logic as 2-parameter validate)
-    const std::set<std::string> schema_keys = {"type",
-                                               "properties",
-                                               "items",
-                                               "additionalProperties",
-                                               "patternProperties",
-                                               "required",
-                                               "enum",
-                                               "allOf",
-                                               "anyOf",
-                                               "oneOf",
-                                               "minItems",
-                                               "maxItems",
-                                               "minProperties",
-                                               "maxProperties",
-                                               "uniqueItems"};
-    bool contains_schema_keyword = false;
-    if (schema.isMappedObject()) {
-        for (auto const& p : schema.items()) {
-            if (schema_keys.find(p.first) != schema_keys.end()) {
-                contains_schema_keyword = true;
-                break;
-            }
-        }
+    if (result.is_valid()) {
+        return std::nullopt;
     }
-    if (schema.isMappedObject() && !contains_schema_keyword && !schema.has("properties")) {
-        Dictionary wrapper;
-        wrapper["type"] = std::string("object");
-        wrapper["properties"] = schema;
-        result = validate_node(data, schema, wrapper, "", raw_content);
-    } else {
-        result = validate_node(data, schema, schema, "", raw_content);
-    }
-    return result;
+
+    return result.format();
 }
 
 // New API: validate and collect all errors
