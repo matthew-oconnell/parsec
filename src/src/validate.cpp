@@ -395,8 +395,27 @@ static std::optional<std::string> check_enum(const Dictionary& data,
     if (!schema_node.has("enum")) return std::nullopt;
     const Dictionary& ev = schema_node.at("enum");
     if (!ev.isArrayObject()) return std::nullopt;
+
+    if (std::getenv("PS_VALIDATE_DEBUG")) {
+        std::cerr << "check_enum at path '" << path << "' data=" << data.dump() << "\n";
+        std::cerr << "  enum options: ";
+        for (int i = 0; i < ev.size(); ++i) {
+            std::cerr << ev[i].dump() << " ";
+        }
+        std::cerr << "\n";
+    }
+
     for (int i = 0; i < ev.size(); ++i) {
-        if (ev[i] == data) return std::nullopt;
+        if (ev[i] == data) {
+            if (std::getenv("PS_VALIDATE_DEBUG")) {
+                std::cerr << "  -> MATCHED option " << i << "\n";
+            }
+            return std::nullopt;
+        }
+    }
+
+    if (std::getenv("PS_VALIDATE_DEBUG")) {
+        std::cerr << "  -> NO MATCH, returning error\n";
     }
 
     // Build error message with actual value and list of valid options
@@ -507,6 +526,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     if (schema_node.has("anyOf") && schema_node.at("anyOf").isArrayObject()) {
         const Dictionary& arr = schema_node.at("anyOf");
         bool matched = false;
+        const Dictionary* deprecated_matched_schema = nullptr;
         std::vector<std::string> failures;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
@@ -514,11 +534,28 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             if (!subSchema) continue;
             auto err = validate_node(data, schema_root, *subSchema, path, raw_content);
             if (!err.has_value()) {
+                // This alternative matched
                 matched = true;
-                break;
+
+                // Check if this matched alternative is deprecated
+                const Dictionary* resolved = subSchema;
+                if (subSchema->has("$ref") && subSchema->at("$ref").type() == Dictionary::String) {
+                    resolved = resolve_local_ref(schema_root, subSchema->at("$ref").asString());
+                    if (!resolved) resolved = subSchema;
+                }
+
+                if (resolved->has("deprecated") &&
+                    resolved->at("deprecated").type() == Dictionary::Boolean &&
+                    resolved->at("deprecated").asBool()) {
+                    // Found a deprecated match - save it
+                    deprecated_matched_schema = resolved;
+                }
+
+                // Continue checking other alternatives to find deprecated matches
+            } else {
+                std::string schemaName = extract_schema_name(*subSchema, schema_root);
+                failures.push_back("Option: " + schemaName + "\n  Doesn't match because: " + *err);
             }
-            std::string schemaName = extract_schema_name(*subSchema, schema_root);
-            failures.push_back("Option: " + schemaName + "\n  Doesn't match because: " + *err);
         }
         if (!matched) {
             std::string msg = "anyOf did not match any schema at '" + display_path(path) + "'";
@@ -532,6 +569,19 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             }
             return std::optional<std::string>(msg);
         }
+
+        // Check if any deprecated alternative matched
+        if (matched && deprecated_matched_schema != nullptr) {
+            std::string msg = "Using deprecated option";
+            if (deprecated_matched_schema->has("const")) {
+                msg = "Value '" + deprecated_matched_schema->at("const").dump() + "' is deprecated";
+            }
+            if (deprecated_matched_schema->has("description") &&
+                deprecated_matched_schema->at("description").type() == Dictionary::String) {
+                msg += ": " + deprecated_matched_schema->at("description").asString();
+            }
+            return std::optional<std::string>(msg);
+        }
     }
 
     // oneOf
@@ -540,6 +590,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         int matches = 0;
         std::vector<std::string> failures;
         std::vector<int> matched_indices;
+        std::vector<const Dictionary*> matched_schemas;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
@@ -548,6 +599,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             if (!err.has_value()) {
                 ++matches;
                 matched_indices.push_back(i);
+                matched_schemas.push_back(subSchema);
             } else {
                 std::string schemaName = extract_schema_name(*subSchema, schema_root);
                 failures.push_back("Option: " + schemaName + "\n  Failed because: " + *err);
@@ -576,127 +628,192 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             }
         }
 
-        // Check if the matched alternative is deprecated
-        if (matches == 1 && !matched_indices.empty()) {
-            int matched_idx = matched_indices[0];
-            const Dictionary& matched_schema = arr[matched_idx];
-            if (matched_schema.has("deprecated") &&
-                matched_schema.at("deprecated").type() == Dictionary::Boolean &&
-                matched_schema.at("deprecated").asBool()) {
-                std::string msg = "Using deprecated option";
-                if (matched_schema.has("const")) {
-                    msg = "Value '" + matched_schema.at("const").dump() + "' is deprecated";
+        // Check if any of the matched alternatives are deprecated
+        if (matches >= 1) {
+            for (const Dictionary* matched_schema : matched_schemas) {
+                // Resolve $ref if present
+                const Dictionary* resolved_schema = matched_schema;
+                if (matched_schema->has("$ref") &&
+                    matched_schema->at("$ref").type() == Dictionary::String) {
+                    resolved_schema = resolve_local_ref(schema_root,
+                                                        matched_schema->at("$ref").asString());
+                    if (!resolved_schema) resolved_schema = matched_schema;
                 }
-                if (matched_schema.has("description") &&
-                    matched_schema.at("description").type() == Dictionary::String) {
-                    msg += ": " + matched_schema.at("description").asString();
+
+                if (resolved_schema->has("deprecated") &&
+                    resolved_schema->at("deprecated").type() == Dictionary::Boolean &&
+                    resolved_schema->at("deprecated").asBool()) {
+                    std::string msg = "Using deprecated option";
+                    if (resolved_schema->has("const")) {
+                        msg = "Value '" + resolved_schema->at("const").dump() + "' is deprecated";
+                    }
+                    if (resolved_schema->has("description") &&
+                        resolved_schema->at("description").type() == Dictionary::String) {
+                        msg += ": " + resolved_schema->at("description").asString();
+                    }
+                    return std::optional<std::string>(msg);
                 }
-                return std::optional<std::string>(msg);
             }
         }
     }
 
     // type check
+    // Infer object type if schema has "properties" even without explicit "type": "object"
+    bool should_validate_as_object = false;
     if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String) {
         std::string t = schema_node.at("type").asString();
         if (t == "object") {
-            // Validate mapped object: properties, required, additionalProperties,
-            // patternProperties, minProperties/maxProperties
-            if (!data.isMappedObject())
-                return std::optional<std::string>(limit_line_length(
-                            "expected type 'object' at '" + display_path(path) + "' but found '" +
-                            value_type_name(data) + "' (value: " + value_preview(data) + ")"));
+            should_validate_as_object = true;
+        }
+    } else if (data.isMappedObject() &&
+               (schema_node.has("properties") || schema_node.has("required") ||
+                schema_node.has("additionalProperties") || schema_node.has("patternProperties"))) {
+        // Schema has object-specific fields but no type - infer it's meant for objects
+        should_validate_as_object = true;
+    }
 
-            // gather property schemas
-            const Dictionary* properties = nullptr;
-            if (schema_node.has("properties") && schema_node.at("properties").isMappedObject()) {
-                properties = &schema_node.at("properties");
-            }
+    if (should_validate_as_object) {
+        // Validate mapped object: properties, required, additionalProperties,
+        // patternProperties, minProperties/maxProperties
+        if (!data.isMappedObject())
+            return std::optional<std::string>(limit_line_length(
+                        "expected type 'object' at '" + display_path(path) + "' but found '" +
+                        value_type_name(data) + "' (value: " + value_preview(data) + ")"));
 
-            // patternProperties
-            const Dictionary* patternProps = nullptr;
-            if (schema_node.has("patternProperties") &&
-                schema_node.at("patternProperties").isMappedObject()) {
-                patternProps = &schema_node.at("patternProperties");
-            }
+        // gather property schemas
+        const Dictionary* properties = nullptr;
+        if (schema_node.has("properties") && schema_node.at("properties").isMappedObject()) {
+            properties = &schema_node.at("properties");
+        }
 
-            // additionalProperties may be boolean or schema
-            const Dictionary* it_add = nullptr;
-            if (schema_node.has("additionalProperties"))
-                it_add = &schema_node.at("additionalProperties");
+        // patternProperties
+        const Dictionary* patternProps = nullptr;
+        if (schema_node.has("patternProperties") &&
+            schema_node.at("patternProperties").isMappedObject()) {
+            patternProps = &schema_node.at("patternProperties");
+        }
 
-            // required can be specified in two styles: per-property boolean or parent-level array
-            std::set<std::string> required_names;
-            if (schema_node.has("required")) {
-                const Dictionary& r = schema_node.at("required");
-                // support string array or object array containing strings
-                try {
-                    auto svec = r.asStrings();
-                    for (auto const& s : svec) required_names.insert(s);
-                } catch (...) {
-                    if (r.isArrayObject()) {
-                        for (int i = 0; i < r.size(); ++i) {
-                            const Dictionary& e = r[i];
-                            if (e.type() == Dictionary::String) required_names.insert(e.asString());
-                        }
+        // additionalProperties may be boolean or schema
+        const Dictionary* it_add = nullptr;
+        if (schema_node.has("additionalProperties"))
+            it_add = &schema_node.at("additionalProperties");
+
+        // required can be specified in two styles: per-property boolean or parent-level array
+        std::set<std::string> required_names;
+        if (schema_node.has("required")) {
+            const Dictionary& r = schema_node.at("required");
+            // support string array or object array containing strings
+            try {
+                auto svec = r.asStrings();
+                for (auto const& s : svec) required_names.insert(s);
+            } catch (...) {
+                if (r.isArrayObject()) {
+                    for (int i = 0; i < r.size(); ++i) {
+                        const Dictionary& e = r[i];
+                        if (e.type() == Dictionary::String) required_names.insert(e.asString());
                     }
                 }
             }
+        }
 
-            // Enforce parent-level required names even if no explicit "properties" are listed
-            for (auto const& rn : required_names) {
-                if (!data.has(rn)) {
-                    // Before reporting as missing, check if a deprecated alternative exists
-                    // that should be validated instead
-                    bool found_deprecated_alternative = false;
-                    if (properties) {
-                        for (auto const& dprop : data.items()) {
-                            const std::string& candidate = dprop.first;
-                            // Check if this key is in properties and marked as deprecated
-                            if (properties->has(candidate)) {
-                                const Dictionary& prop_schema = properties->at(candidate);
-                                if (prop_schema.has("deprecated") &&
-                                    prop_schema.at("deprecated").type() == Dictionary::Boolean &&
-                                    prop_schema.at("deprecated").asBool()) {
-                                    // Found a deprecated alternative - it will be validated below
-                                    found_deprecated_alternative = true;
-                                    break;
-                                }
+        // Enforce parent-level required names even if no explicit "properties" are listed
+        for (auto const& rn : required_names) {
+            if (!data.has(rn)) {
+                // Before reporting as missing, check if a deprecated alternative exists
+                // that should be validated instead
+                bool found_deprecated_alternative = false;
+                if (properties) {
+                    for (auto const& dprop : data.items()) {
+                        const std::string& candidate = dprop.first;
+                        // Check if this key is in properties and marked as deprecated
+                        if (properties->has(candidate)) {
+                            const Dictionary& prop_schema = properties->at(candidate);
+                            if (prop_schema.has("deprecated") &&
+                                prop_schema.at("deprecated").type() == Dictionary::Boolean &&
+                                prop_schema.at("deprecated").asBool()) {
+                                // Found a deprecated alternative - it will be validated below
+                                found_deprecated_alternative = true;
+                                break;
                             }
                         }
                     }
+                }
 
-                    if (found_deprecated_alternative) {
-                        // Don't report as missing - the deprecated alternative will be
-                        // validated and flagged in the property iteration below
-                        continue;
+                if (found_deprecated_alternative) {
+                    // Don't report as missing - the deprecated alternative will be
+                    // validated and flagged in the property iteration below
+                    continue;
+                }
+
+                // Check if there's a similar key in the data that might be a typo of the
+                // required name. Only suggest keys that are NOT already allowed by the schema.
+                std::string suggestion;
+                for (auto const& dprop : data.items()) {
+                    const std::string& candidate = dprop.first;
+                    // Skip if this key is explicitly allowed in properties
+                    if (properties && properties->has(candidate)) continue;
+
+                    int d = levenshtein_distance(candidate, rn);
+                    size_t maxlen = std::max(candidate.size(), rn.size());
+                    double ratio =
+                                maxlen == 0 ? 0.0
+                                            : static_cast<double>(d) / static_cast<double>(maxlen);
+                    if (ratio <= 0.40 || d <= 2) {
+                        suggestion = candidate;
+                        break;
                     }
+                }
 
-                    // Check if there's a similar key in the data that might be a typo of the
-                    // required name. Only suggest keys that are NOT already allowed by the schema.
-                    std::string suggestion;
-                    for (auto const& dprop : data.items()) {
-                        const std::string& candidate = dprop.first;
-                        // Skip if this key is explicitly allowed in properties
-                        if (properties && properties->has(candidate)) continue;
-
-                        int d = levenshtein_distance(candidate, rn);
-                        size_t maxlen = std::max(candidate.size(), rn.size());
-                        double ratio = maxlen == 0 ? 0.0
-                                                   : static_cast<double>(d) /
-                                                                 static_cast<double>(maxlen);
-                        if (ratio <= 0.40 || d <= 2) {
-                            suggestion = candidate;
-                            break;
+                if (!suggestion.empty()) {
+                    std::string msg = "key '" + suggestion + "' not allowed";
+                    msg += " Did you mean '" + rn + "'?";
+                    return std::optional<std::string>(msg);
+                }
+                std::string full_key = path.empty() ? rn : path + "." + rn;
+                std::string msg = "missing required key '" + full_key + "'";
+                // Add line number context if available
+                if (!raw_content.empty()) {
+                    int line = -1;
+                    if (!path.empty()) {
+                        // For nested objects, find the parent object
+                        line = find_line_number(raw_content, path);
+                    } else if (data.size() > 0) {
+                        // For root level, find the first existing key for context
+                        for (auto const& item : data.items()) {
+                            line = find_line_number(raw_content, item.first);
+                            if (line > 0) break;
                         }
                     }
-
-                    if (!suggestion.empty()) {
-                        std::string msg = "key '" + suggestion + "' not allowed";
-                        msg += " Did you mean '" + rn + "'?";
-                        return std::optional<std::string>(msg);
+                    if (line > 0) {
+                        msg = "line " + std::to_string(line) + ": " + msg;
                     }
-                    std::string full_key = path.empty() ? rn : path + "." + rn;
+                }
+                return std::optional<std::string>(msg);
+            }
+        }
+
+        // minProperties/maxProperties
+        if (schema_node.has("minProperties") &&
+            schema_node.at("minProperties").type() == Dictionary::Integer) {
+            if (data.size() < schema_node.at("minProperties").asInt())
+                return std::optional<std::string>("object has fewer properties than minProperties");
+        }
+        if (schema_node.has("maxProperties") &&
+            schema_node.at("maxProperties").type() == Dictionary::Integer) {
+            if (data.size() > schema_node.at("maxProperties").asInt())
+                return std::optional<std::string>("object has more properties than maxProperties");
+        }
+
+        // iterate expected properties
+        if (properties) {
+            for (auto const& p : properties->items()) {
+                const std::string& key = p.first;
+                const Dictionary& propSchema = p.second;
+                bool has = data.has(key);
+                // per-property required as boolean
+                auto itreq = propSchema.has("required") ? &propSchema.at("required") : nullptr;
+                if (!has) {
+                    std::string full_key = path.empty() ? key : path + "." + key;
                     std::string msg = "missing required key '" + full_key + "'";
                     // Add line number context if available
                     if (!raw_content.empty()) {
@@ -715,175 +832,132 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             msg = "line " + std::to_string(line) + ": " + msg;
                         }
                     }
-                    return std::optional<std::string>(msg);
+                    if (itreq != nullptr && itreq->type() == Dictionary::Boolean && itreq->asBool())
+                        return std::optional<std::string>(msg);
+                    if (required_names.find(key) != required_names.end())
+                        return std::optional<std::string>(msg);
+                    continue;
                 }
-            }
+                // validate present property
+                const Dictionary& subSchemaValue = propSchema;
+                const Dictionary* subSchema = schema_from_value(schema_root, subSchemaValue);
+                if (subSchema) {
+                    if (auto err = validate_node(data.at(key),
+                                                 schema_root,
+                                                 *subSchema,
+                                                 path.empty() ? key : path + "." + key,
+                                                 raw_content))
+                        return err;
 
-            // minProperties/maxProperties
-            if (schema_node.has("minProperties") &&
-                schema_node.at("minProperties").type() == Dictionary::Integer) {
-                if (data.size() < schema_node.at("minProperties").asInt())
-                    return std::optional<std::string>(
-                                "object has fewer properties than minProperties");
-            }
-            if (schema_node.has("maxProperties") &&
-                schema_node.at("maxProperties").type() == Dictionary::Integer) {
-                if (data.size() > schema_node.at("maxProperties").asInt())
-                    return std::optional<std::string>(
-                                "object has more properties than maxProperties");
-            }
-
-            // iterate expected properties
-            if (properties) {
-                for (auto const& p : properties->items()) {
-                    const std::string& key = p.first;
-                    const Dictionary& propSchema = p.second;
-                    bool has = data.has(key);
-                    // per-property required as boolean
-                    auto itreq = propSchema.has("required") ? &propSchema.at("required") : nullptr;
-                    if (!has) {
+                    // Check if property is deprecated
+                    if (propSchema.has("deprecated") &&
+                        propSchema.at("deprecated").type() == Dictionary::Boolean &&
+                        propSchema.at("deprecated").asBool()) {
                         std::string full_key = path.empty() ? key : path + "." + key;
-                        std::string msg = "missing required key '" + full_key + "'";
-                        // Add line number context if available
+                        std::string msg = "Property '" + full_key + "' is deprecated";
+                        if (propSchema.has("description") &&
+                            propSchema.at("description").type() == Dictionary::String) {
+                            msg += ": " + propSchema.at("description").asString();
+                        }
+                        // Add line number if raw_content is available
                         if (!raw_content.empty()) {
-                            int line = -1;
-                            if (!path.empty()) {
-                                // For nested objects, find the parent object
-                                line = find_line_number(raw_content, path);
-                            } else if (data.size() > 0) {
-                                // For root level, find the first existing key for context
-                                for (auto const& item : data.items()) {
-                                    line = find_line_number(raw_content, item.first);
-                                    if (line > 0) break;
-                                }
-                            }
+                            int line = find_line_number(raw_content, full_key);
                             if (line > 0) {
                                 msg = "line " + std::to_string(line) + ": " + msg;
                             }
                         }
-                        if (itreq != nullptr && itreq->type() == Dictionary::Boolean &&
-                            itreq->asBool())
-                            return std::optional<std::string>(msg);
-                        if (required_names.find(key) != required_names.end())
-                            return std::optional<std::string>(msg);
-                        continue;
-                    }
-                    // validate present property
-                    const Dictionary& subSchemaValue = propSchema;
-                    const Dictionary* subSchema = schema_from_value(schema_root, subSchemaValue);
-                    if (subSchema) {
-                        if (auto err = validate_node(data.at(key),
-                                                     schema_root,
-                                                     *subSchema,
-                                                     path.empty() ? key : path + "." + key,
-                                                     raw_content))
-                            return err;
-
-                        // Check if property is deprecated
-                        if (propSchema.has("deprecated") &&
-                            propSchema.at("deprecated").type() == Dictionary::Boolean &&
-                            propSchema.at("deprecated").asBool()) {
-                            std::string full_key = path.empty() ? key : path + "." + key;
-                            std::string msg = "Property '" + full_key + "' is deprecated";
-                            if (propSchema.has("description") &&
-                                propSchema.at("description").type() == Dictionary::String) {
-                                msg += ": " + propSchema.at("description").asString();
-                            }
-                            // Add line number if raw_content is available
-                            if (!raw_content.empty()) {
-                                int line = find_line_number(raw_content, full_key);
-                                if (line > 0) {
-                                    msg = "line " + std::to_string(line) + ": " + msg;
-                                }
-                            }
-                            return std::optional<std::string>(msg);
-                        }
-                    }
-                }
-            }
-
-            // now check each data property for patternProperties/additionalProperties
-            for (auto const& dprop : data.items()) {
-                const std::string& key = dprop.first;
-                bool handled = false;
-                if (properties && properties->has(key)) {
-                    handled = true;
-                }
-                // check patternProperties
-                if (!handled && patternProps) {
-                    for (auto const& pp : patternProps->items()) {
-                        try {
-                            std::regex rx(pp.first);
-                            if (std::regex_match(key, rx)) {
-                                const Dictionary* sub = schema_from_value(schema_root, pp.second);
-                                if (sub) {
-                                    if (auto err = validate_node(
-                                                    data.at(key),
-                                                    schema_root,
-                                                    *sub,
-                                                    path.empty() ? key : path + "." + key,
-                                                    raw_content))
-                                        return err;
-                                }
-                                handled = true;
-                                break;
-                            }
-                        } catch (...) {
-                            // invalid regex - ignore
-                        }
-                    }
-                }
-                if (handled) continue;
-
-                // additionalProperties
-                if (it_add == nullptr) {
-                    // allowed by default
-                    continue;
-                }
-                const Dictionary& ap = *it_add;
-                if (ap.type() == Dictionary::Boolean) {
-                    if (!ap.asBool()) {
-                        // Try to suggest nearby property names from the declared properties
-                        std::vector<std::string> suggestions = find_nearby_keys(key, properties);
-                        std::string msg = "key '" + key + "' not valid";
-                        if (!path.empty()) {
-                            msg += " in '" + path + "'";
-                        }
-                        msg += ".";
-                        if (!suggestions.empty()) {
-                            msg += "\nDid you mean ";
-                            if (suggestions.size() == 1) {
-                                msg += "'" + suggestions[0] + "'?";
-                            } else {
-                                for (size_t si = 0; si < suggestions.size(); ++si) {
-                                    if (si > 0) {
-                                        if (si + 1 == suggestions.size())
-                                            msg += " or ";
-                                        else
-                                            msg += ", ";
-                                    }
-                                    msg += "'" + suggestions[si] + "'";
-                                }
-                                msg += "?";
-                            }
-                        }
                         return std::optional<std::string>(msg);
                     }
-                } else {
-                    const Dictionary* sub = schema_from_value(schema_root, ap);
-                    if (sub) {
-                        if (auto err = validate_node(data.at(key),
-                                                     schema_root,
-                                                     *sub,
-                                                     path.empty() ? key : path + "." + key,
-                                                     raw_content))
-                            return err;
+                }
+            }
+        }
+
+        // now check each data property for patternProperties/additionalProperties
+        for (auto const& dprop : data.items()) {
+            const std::string& key = dprop.first;
+            bool handled = false;
+            if (properties && properties->has(key)) {
+                handled = true;
+            }
+            // check patternProperties
+            if (!handled && patternProps) {
+                for (auto const& pp : patternProps->items()) {
+                    try {
+                        std::regex rx(pp.first);
+                        if (std::regex_match(key, rx)) {
+                            const Dictionary* sub = schema_from_value(schema_root, pp.second);
+                            if (sub) {
+                                if (auto err = validate_node(data.at(key),
+                                                             schema_root,
+                                                             *sub,
+                                                             path.empty() ? key : path + "." + key,
+                                                             raw_content))
+                                    return err;
+                            }
+                            handled = true;
+                            break;
+                        }
+                    } catch (...) {
+                        // invalid regex - ignore
                     }
                 }
             }
+            if (handled) continue;
 
-            return std::nullopt;
-        } else if (t == "array") {
+            // additionalProperties
+            if (it_add == nullptr) {
+                // allowed by default
+                continue;
+            }
+            const Dictionary& ap = *it_add;
+            if (ap.type() == Dictionary::Boolean) {
+                if (!ap.asBool()) {
+                    // Try to suggest nearby property names from the declared properties
+                    std::vector<std::string> suggestions = find_nearby_keys(key, properties);
+                    std::string msg = "key '" + key + "' not valid";
+                    if (!path.empty()) {
+                        msg += " in '" + path + "'";
+                    }
+                    msg += ".";
+                    if (!suggestions.empty()) {
+                        msg += "\nDid you mean ";
+                        if (suggestions.size() == 1) {
+                            msg += "'" + suggestions[0] + "'?";
+                        } else {
+                            for (size_t si = 0; si < suggestions.size(); ++si) {
+                                if (si > 0) {
+                                    if (si + 1 == suggestions.size())
+                                        msg += " or ";
+                                    else
+                                        msg += ", ";
+                                }
+                                msg += "'" + suggestions[si] + "'";
+                            }
+                            msg += "?";
+                        }
+                    }
+                    return std::optional<std::string>(msg);
+                }
+            } else {
+                const Dictionary* sub = schema_from_value(schema_root, ap);
+                if (sub) {
+                    if (auto err = validate_node(data.at(key),
+                                                 schema_root,
+                                                 *sub,
+                                                 path.empty() ? key : path + "." + key,
+                                                 raw_content))
+                        return err;
+                }
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    // Continue with type checking for other types
+    if (schema_node.has("type") && schema_node.at("type").type() == Dictionary::String) {
+        std::string t = schema_node.at("type").asString();
+        if (t == "array") {
             if (!data.isArrayObject())
                 return std::optional<std::string>(limit_line_length(
                             "expected type 'array' at '" + display_path(path) + "' but found '" +
@@ -973,7 +1047,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             }
 
             return std::nullopt;
-        } else if (t == "string") {
+        }
+        if (t == "string") {
             if (data.type() != Dictionary::String)
                 return std::optional<std::string>(limit_line_length(
                             "expected type 'string' at '" + display_path(path) + "' but found '" +
@@ -1002,21 +1077,24 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 }
             }
             return std::nullopt;
-        } else if (t == "integer") {
+        }
+        if (t == "integer") {
             if (data.type() != Dictionary::Integer)
                 return std::optional<std::string>(limit_line_length(
                             "expected type 'integer' at '" + display_path(path) + "' but found '" +
                             value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
-        } else if (t == "number") {
+        }
+        if (t == "number") {
             if (!(data.type() == Dictionary::Double || data.type() == Dictionary::Integer))
                 return std::optional<std::string>(limit_line_length(
                             "expected type 'number' at '" + display_path(path) + "' but found '" +
                             value_type_name(data) + "' (value: " + value_preview(data) + ")"));
             if (auto e = check_numeric_constraints(data, schema_node, path)) return e;
             return std::nullopt;
-        } else if (t == "boolean") {
+        }
+        if (t == "boolean") {
             if (data.type() != Dictionary::Boolean)
                 return std::optional<std::string>(limit_line_length(
                             "expected type 'boolean' at '" + display_path(path) + "' but found '" +

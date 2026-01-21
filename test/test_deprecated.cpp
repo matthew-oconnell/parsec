@@ -99,3 +99,124 @@ TEST_CASE("deprecated enum value in oneOf is reported", "[validate][deprecated][
         REQUIRE(msg.find("Use 'supersonic inflow' instead") != std::string::npos);
     }
 }
+
+TEST_CASE("deprecated object in anyOf with $ref is reported", "[validate][deprecated][anyOf]") {
+    // Minimal test case based on the actual input.schema.json structure
+    std::string schemaStr = R"({
+        "type": "object",
+        "definitions": {
+            "Supersonic Outflow": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "const": "supersonic outflow"},
+                    "mesh boundary tags": {"type": "integer"}
+                },
+                "additionalProperties": false
+            },
+            "Extrapolation": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "const": "extrapolation"},
+                    "mesh boundary tags": {"type": "integer"}
+                },
+                "additionalProperties": false,
+                "deprecated": true,
+                "description": "DEPRECATED: Use <supersonic outflow> instead."
+            }
+        },
+        "properties": {
+            "boundary condition": {
+                "anyOf": [
+                    {"$ref": "#/definitions/Supersonic Outflow"},
+                    {"$ref": "#/definitions/Extrapolation"}
+                ]
+            }
+        }
+    })";
+
+    Dictionary schema = parse_json(schemaStr);
+
+    SECTION("using current boundary condition passes validation") {
+        std::string dataStr = R"({
+            "boundary condition": {
+                "type": "supersonic outflow",
+                "mesh boundary tags": 1
+            }
+        })";
+        Dictionary data = parse_json(dataStr);
+
+        auto err = validate(data, schema);
+        REQUIRE_FALSE(err.has_value());
+    }
+
+    SECTION("using deprecated boundary condition returns error") {
+        std::string dataStr = R"({
+            "boundary condition": {
+                "type": "extrapolation",
+                "mesh boundary tags": 1
+            }
+        })";
+        Dictionary data = parse_json(dataStr);
+
+        auto err = validate(data, schema);
+        REQUIRE(err.has_value());
+
+        std::string msg = err.value();
+        REQUIRE(msg.find("deprecated") != std::string::npos);
+        REQUIRE(msg.find("Use <supersonic outflow>") != std::string::npos);
+    }
+}
+
+TEST_CASE("deprecated object in oneOf with $ref is reported", "[validate][deprecated][oneOf]") {
+    std::string schemaStr = R"({
+        "type": "object",
+        "definitions": {
+            "Fast Mode": {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "const": "fast"}
+                },
+                "additionalProperties": false
+            },
+            "Turbo Mode": {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "const": "turbo"}
+                },
+                "additionalProperties": false,
+                "deprecated": true,
+                "description": "DEPRECATED: Use 'fast' mode instead."
+            }
+        },
+        "properties": {
+            "mode config": {
+                "oneOf": [
+                    {"$ref": "#/definitions/Fast Mode"},
+                    {"$ref": "#/definitions/Turbo Mode"}
+                ]
+            }
+        }
+    })";
+
+    Dictionary schema = parse_json(schemaStr);
+
+    SECTION("using current mode passes validation") {
+        std::string dataStr = R"({"mode config": {"mode": "fast"}})";
+        Dictionary data = parse_json(dataStr);
+
+        auto err = validate(data, schema);
+        REQUIRE_FALSE(err.has_value());
+    }
+
+    SECTION("using deprecated mode returns error") {
+        std::string dataStr = R"({"mode config": {"mode": "turbo"}})";
+        Dictionary data = parse_json(dataStr);
+
+        auto err = validate(data, schema);
+        REQUIRE(err.has_value());
+
+        std::string msg = err.value();
+        REQUIRE(msg.find("deprecated") != std::string::npos);
+        REQUIRE(msg.find("Use 'fast' mode instead") != std::string::npos);
+    }
+}

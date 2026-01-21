@@ -113,7 +113,7 @@ void runTestCase(const std::string& test_name,
 }
 
 int main() {
-    // Test case 1: Simple schema with just the field with default
+// Test case 1: Simple schema with just the field with default
     {
         std::string schema = R\"({
             \"type\": \"object\",

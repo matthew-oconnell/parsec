@@ -179,24 +179,25 @@ TEST_CASE("Pretty print does not create overly long lines with nested compact ob
 
 TEST_CASE("Pretty print collapses simple objects containing only scalars", "[dump]") {
     Dictionary dict;
-    
+
     // Create a nested structure where some objects only contain scalars
     // and others contain nested structures
     dict["properties"]["name"]["type"] = "string";
     dict["properties"]["name"]["maxLength"] = 100;
-    
+
     dict["properties"]["items"]["type"] = "array";
     dict["properties"]["items"]["items"]["type"] = "number";
     dict["properties"]["items"]["minItems"] = 1;
-    
+
     std::string result = dict.dump(4);
-    
+
     // The inner "items" object that only contains {"type":"number"} should be collapsed
     REQUIRE(result.find("{\"type\":\"number\"}") != std::string::npos);
-    
+
     // The "name" object should also be collapsed since it only has scalars
     // and fits on one line (key order may vary)
-    bool has_collapsed_name = (result.find("{\"maxLength\":100,\"type\":\"string\"}") != std::string::npos ||
-                                result.find("{\"type\":\"string\",\"maxLength\":100}") != std::string::npos);
+    bool has_collapsed_name =
+                (result.find("{\"maxLength\":100,\"type\":\"string\"}") != std::string::npos ||
+                 result.find("{\"type\":\"string\",\"maxLength\":100}") != std::string::npos);
     REQUIRE(has_collapsed_name);
 }
