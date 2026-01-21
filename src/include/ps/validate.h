@@ -71,6 +71,13 @@ ValidationResult validate_all(const Dictionary& data,
                               const Dictionary& schema,
                               const std::string& raw_content = "");
 
+// Set schema context for better error messages (optional)
+// Call this before validate_all to provide schema file information in error messages
+void set_schema_context(const std::string& filename, const std::string& content);
+
+// Set data filename for better error messages (optional)
+void set_data_filename(const std::string& filename);
+
 // Backward compatible API - returns first error message
 // Returns std::nullopt on success, or an error message on failure.
 std::optional<std::string> validate(const Dictionary& data, const Dictionary& schema);

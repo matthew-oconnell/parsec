@@ -53,6 +53,9 @@ int main(int argc, char** argv) {
         try {
             auto schema = ps::parse(schema_content);
 
+            // Set schema context for better error messages
+            ps::set_schema_context(schema_path, schema_content);
+
             std::ifstream in(data_path);
             if (!in) {
                 std::cerr << "error: cannot open file: " << data_path << "\n";
@@ -60,6 +63,9 @@ int main(int argc, char** argv) {
             }
             std::string content((std::istreambuf_iterator<char>(in)),
                                 std::istreambuf_iterator<char>());
+
+            // Set data filename for better error messages
+            ps::set_data_filename(data_path);
 
             ps::Dictionary data = ps::parse(content);
 

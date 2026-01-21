@@ -569,3 +569,30 @@ TEST_CASE("setDefaults: Default should not override existing nested values", "[d
 //     type").asString() ==
 //             "finite-difference");
 // }
+
+TEST_CASE("Schema error: enum must be an array", "[validate][exception]") {
+    Dictionary schema;
+    schema["type"] = "string";
+    schema["enum"] = "not-an-array";  // Invalid: should be an array
+
+    Dictionary data = "some-value";
+
+    REQUIRE_THROWS_WITH(validate(data, schema),
+                        Catch::Matchers::ContainsSubstring("Invalid schema file"));
+}
+
+TEST_CASE("Schema error: enum as string in nested schema", "[validate][exception]") {
+    Dictionary bc_schema;
+    bc_schema["type"] = "string";
+    bc_schema["enum"] = "back pressure";  // Invalid JSON Schema syntax
+
+    Dictionary root_schema;
+    root_schema["type"] = "object";
+    root_schema["properties"]["bc"] = bc_schema;
+
+    Dictionary data;
+    data["bc"] = "supersonic outflow";
+
+    REQUIRE_THROWS_WITH(validate(data, root_schema),
+                        Catch::Matchers::ContainsSubstring("Invalid schema file"));
+}

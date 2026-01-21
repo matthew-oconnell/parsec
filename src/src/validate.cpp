@@ -505,13 +505,106 @@ static std::optional<std::string> check_numeric_constraints(const Dictionary& da
     return std::nullopt;
 }
 
+// Helper: Find line number of "enum" keyword in schema
+static int find_enum_in_schema(const std::string& schema_content, const std::string& enum_value) {
+    // Search for the pattern: "enum" followed by : and the value
+    int line = 1;
+    size_t pos = 0;
+
+    while (pos < schema_content.size()) {
+        // Look for "enum" as a key
+        if (schema_content.compare(pos, 6, "\"enum\"") == 0) {
+            // Check if this is followed by the problematic value
+            size_t colon_pos = schema_content.find(':', pos + 6);
+            if (colon_pos != std::string::npos) {
+                size_t value_start = colon_pos + 1;
+                // Skip whitespace
+                while (value_start < schema_content.size() &&
+                       (schema_content[value_start] == ' ' ||
+                        schema_content[value_start] == '\t')) {
+                    value_start++;
+                }
+                // Check if this matches our enum value
+                if (value_start < schema_content.size()) {
+                    std::string found_val;
+                    if (schema_content[value_start] == '"') {
+                        // String value - extract it
+                        size_t end_quote = schema_content.find('"', value_start + 1);
+                        if (end_quote != std::string::npos) {
+                            found_val = schema_content.substr(value_start + 1,
+                                                              end_quote - value_start - 1);
+                            if (found_val == enum_value) {
+                                return line;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (schema_content[pos] == '\n') {
+            line++;
+        }
+        pos++;
+    }
+
+    return -1;
+}
+
+// Global variables to store schema context for error messages
+static std::string g_schema_filename;
+static std::string g_schema_content;
+static std::string g_data_filename;
+
 // Check enum keyword: schema_node.data["enum"] should be an array of literal values
 static std::optional<std::string> check_enum(const Dictionary& data,
                                              const Dictionary& schema_node,
-                                             const std::string& path) {
+                                             const std::string& path,
+                                             const std::string& raw_content) {
     if (!schema_node.has("enum")) return std::nullopt;
     const Dictionary& ev = schema_node.at("enum");
-    if (!ev.isArrayObject()) return std::nullopt;
+    if (!ev.isArrayObject()) {
+        int data_line = find_line_number(raw_content, path);
+
+        // Build detailed error message
+        std::ostringstream msg;
+        msg << "Invalid schema file";
+        if (!g_schema_filename.empty()) {
+            msg << " '" << g_schema_filename << "'";
+        }
+        msg << ":\n";
+
+        // Try to find the line in the schema where the bad enum is
+        std::string enum_str_val;
+        if (ev.type() == Dictionary::String) {
+            enum_str_val = ev.asString();
+            int schema_line = find_enum_in_schema(g_schema_content, enum_str_val);
+            if (schema_line > 0) {
+                msg << "Line " << schema_line << ": uses \"enum\":\"" << enum_str_val
+                    << "\" but enums must be arrays of strings.\n";
+                msg << "Suggestion: change \"enum\":\"" << enum_str_val << "\" to \"enum\":[\""
+                    << enum_str_val << "\"]";
+            } else {
+                msg << "Uses \"enum\":\"" << enum_str_val
+                    << "\" but enums must be arrays of strings.\n";
+                msg << "Suggestion: change \"enum\":\"" << enum_str_val << "\" to \"enum\":[\""
+                    << enum_str_val << "\"]";
+            }
+        } else {
+            msg << "The 'enum' keyword at path '" << path
+                << "' must be an array, but found non-array type.";
+        }
+
+        if (data_line > 0 && !raw_content.empty()) {
+            msg << "\n(Triggered while validating ";
+            if (!g_data_filename.empty()) {
+                msg << g_data_filename << " ";
+            }
+            msg << "at line " << data_line << ")";
+        }
+
+        throw std::runtime_error(msg.str());
+    }
 
     if (std::getenv("PS_VALIDATE_DEBUG")) {
         std::cerr << "check_enum at path '" << path << "' data=" << data.dump() << "\n";
@@ -618,7 +711,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
 
     // enum check
     if (schema_node.has("enum")) {
-        if (auto e = check_enum(data, schema_node, path)) return e;
+        if (auto e = check_enum(data, schema_node, path, raw_content)) return e;
     }
 
     // const keyword: value must equal the provided literal
@@ -1221,7 +1314,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     }
 
     // fallback: apply numeric/enum constraints if present
-    if (auto e = check_enum(data, schema_node, path)) return e;
+    if (auto e = check_enum(data, schema_node, path, raw_content)) return e;
     if (auto e2 = check_numeric_constraints(data, schema_node, path)) return e2;
 
     return std::nullopt;
@@ -1579,6 +1672,15 @@ std::optional<std::string> validate(const Dictionary& data,
 
     return result.format();
 }
+
+// Function to set schema context for error messages
+void set_schema_context(const std::string& filename, const std::string& content) {
+    g_schema_filename = filename;
+    g_schema_content = content;
+}
+
+// Function to set data filename for error messages
+void set_data_filename(const std::string& filename) { g_data_filename = filename; }
 
 // New API: validate and collect all errors
 ValidationResult validate_all(const Dictionary& data,
