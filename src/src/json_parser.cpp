@@ -551,7 +551,8 @@ namespace {
                 bool in_pattern_properties =
                             (!key_stack.empty() && key_stack.back() == "patternProperties");
                 if (!in_pattern_properties) {
-                    // Keys may start with an ASCII letter, a digit, '$', or '@' (allow JSON $schema/$ref,
+                    // Keys may start with an ASCII letter, a digit, '$', or '@' (allow JSON
+                    // $schema/$ref,
                     // @-prefixed schema keys, and numeric-start keys)
                     if (keystr.empty() || !(std::isalnum(static_cast<unsigned char>(keystr[0])) ||
                                             keystr[0] == '$' || keystr[0] == '@')) {

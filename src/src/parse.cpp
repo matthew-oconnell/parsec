@@ -198,23 +198,24 @@ namespace {
     // Extract format from filename extension
     std::string format_from_filename(const std::string& filename) {
         if (filename.empty()) return "";
-        
+
         size_t dot_pos = filename.rfind('.');
         if (dot_pos == std::string::npos || dot_pos == filename.size() - 1) {
             return "";  // No extension
         }
-        
+
         std::string ext = filename.substr(dot_pos + 1);
         // Convert to lowercase
-        std::transform(ext.begin(), ext.end(), ext.begin(), 
-                      [](unsigned char c) { return std::tolower(c); });
-        
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
         if (ext == "json") return "json";
         if (ext == "ron") return "ron";
         if (ext == "toml") return "toml";
         if (ext == "ini") return "ini";
         if (ext == "yaml" || ext == "yml") return "yaml";
-        
+
         return "";  // Unknown extension
     }
 }
@@ -224,7 +225,9 @@ Dictionary parse(const std::string& text, bool verbose, const std::string& filen
     return dict;
 }
 
-std::pair<Dictionary, std::string> parse_report_format(const std::string& text, bool verbose, const std::string& filename) {
+std::pair<Dictionary, std::string> parse_report_format(const std::string& text,
+                                                       bool verbose,
+                                                       const std::string& filename) {
     // Track attempts and errors to support verbose reporting
     std::vector<std::string> attempted_parsers;
     std::map<std::string, std::string> parser_errors;
@@ -234,7 +237,7 @@ std::pair<Dictionary, std::string> parse_report_format(const std::string& text, 
     if (!hint.empty() && verbose) {
         std::cerr << "Format hint from filename: '" << hint << "'\n";
     }
-    
+
     // Check for explicit format hint in first line comment (overrides filename)
     std::string content_hint = extract_format_hint(text);
     if (!content_hint.empty()) {

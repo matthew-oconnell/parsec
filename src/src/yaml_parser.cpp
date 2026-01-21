@@ -22,7 +22,7 @@ namespace {
         YamlParser(const std::string& str) : s(str) {}
 
         char peek() const { return i < s.size() ? s[i] : '\0'; }
-        
+
         char get() {
             if (i >= s.size()) return '\0';
             char c = s[i++];
@@ -47,7 +47,7 @@ namespace {
             size_t line_end = pos;
             while (line_end < s.size() && s[line_end] != '\n') ++line_end;
             std::string line_text = s.substr(line_start, line_end - line_start);
-            
+
             // build caret (position columns as bytes)
             size_t caret_pos = err_col > 0 ? err_col - 1 : 0;
             if (caret_pos > line_text.size()) caret_pos = line_text.size();
@@ -114,8 +114,11 @@ namespace {
                     char c = get();
                     if (c == '\0') {
                         throw YamlParseError(
-                            format_error("YAML parse error: unterminated quoted string", quote_line, quote_col),
-                            quote_line, quote_col);
+                                    format_error("YAML parse error: unterminated quoted string",
+                                                 quote_line,
+                                                 quote_col),
+                                    quote_line,
+                                    quote_col);
                     }
                     if (c == '"') break;
                     if (c == '\\') {
@@ -142,8 +145,11 @@ namespace {
                     char c = get();
                     if (c == '\0') {
                         throw YamlParseError(
-                            format_error("YAML parse error: unterminated quoted string", quote_line, quote_col),
-                            quote_line, quote_col);
+                                    format_error("YAML parse error: unterminated quoted string",
+                                                 quote_line,
+                                                 quote_col),
+                                    quote_line,
+                                    quote_col);
                     }
                     if (c == '\'') {
                         // Check for escaped single quote
@@ -371,7 +377,7 @@ namespace {
 
                 // If we encounter a '-' at this indent level, we're done with this object
                 // (we're in an array and this is the next array element)
-                if (peek() == '-' && i + 1 < s.size() && 
+                if (peek() == '-' && i + 1 < s.size() &&
                     std::isspace(static_cast<unsigned char>(s[i + 1]))) {
                     return d;
                 }
@@ -407,21 +413,31 @@ namespace {
                         }
                     }
                     throw YamlParseError(
-                        format_error("YAML parse error: invalid key '" + key + "': keys must start with a letter", key_line, key_col),
-                        key_line, key_col);
+                                format_error("YAML parse error: invalid key '" + key +
+                                                         "': keys must start with a letter",
+                                             key_line,
+                                             key_col),
+                                key_line,
+                                key_col);
                 }
 
                 if (peek() != ':') {
-                    throw YamlParseError(
-                        format_error("YAML parse error: expected ':' after key '" + key + "'", line, col),
-                        line, col);
+                    throw YamlParseError(format_error("YAML parse error: expected ':' after key '" +
+                                                                  key + "'",
+                                                      line,
+                                                      col),
+                                         line,
+                                         col);
                 }
                 get();  // consume ':'
 
                 if (d.has(key)) {
                     throw YamlParseError(
-                        format_error("YAML parse error: duplicate key '" + key + "'", line, col),
-                        line, col);
+                                format_error("YAML parse error: duplicate key '" + key + "'",
+                                             line,
+                                             col),
+                                line,
+                                col);
                 }
 
                 skip_ws_inline();

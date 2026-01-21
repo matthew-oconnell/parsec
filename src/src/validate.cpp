@@ -499,7 +499,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            if (auto err = validate_node(data, schema_root, *subSchema, path, raw_content)) return err;
+            if (auto err = validate_node(data, schema_root, *subSchema, path, raw_content))
+                return err;
         }
     }
     // anyOf
@@ -574,19 +575,19 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 return std::optional<std::string>(msg);
             }
         }
-        
+
         // Check if the matched alternative is deprecated
         if (matches == 1 && !matched_indices.empty()) {
             int matched_idx = matched_indices[0];
             const Dictionary& matched_schema = arr[matched_idx];
-            if (matched_schema.has("deprecated") && 
+            if (matched_schema.has("deprecated") &&
                 matched_schema.at("deprecated").type() == Dictionary::Boolean &&
                 matched_schema.at("deprecated").asBool()) {
                 std::string msg = "Using deprecated option";
                 if (matched_schema.has("const")) {
                     msg = "Value '" + matched_schema.at("const").dump() + "' is deprecated";
                 }
-                if (matched_schema.has("description") && 
+                if (matched_schema.has("description") &&
                     matched_schema.at("description").type() == Dictionary::String) {
                     msg += ": " + matched_schema.at("description").asString();
                 }
@@ -664,13 +665,13 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                             }
                         }
                     }
-                    
+
                     if (found_deprecated_alternative) {
                         // Don't report as missing - the deprecated alternative will be
                         // validated and flagged in the property iteration below
                         continue;
                     }
-                    
+
                     // Check if there's a similar key in the data that might be a typo of the
                     // required name. Only suggest keys that are NOT already allowed by the schema.
                     std::string suggestion;
@@ -777,14 +778,14 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                      path.empty() ? key : path + "." + key,
                                                      raw_content))
                             return err;
-                        
+
                         // Check if property is deprecated
-                        if (propSchema.has("deprecated") && 
+                        if (propSchema.has("deprecated") &&
                             propSchema.at("deprecated").type() == Dictionary::Boolean &&
                             propSchema.at("deprecated").asBool()) {
                             std::string full_key = path.empty() ? key : path + "." + key;
                             std::string msg = "Property '" + full_key + "' is deprecated";
-                            if (propSchema.has("description") && 
+                            if (propSchema.has("description") &&
                                 propSchema.at("description").type() == Dictionary::String) {
                                 msg += ": " + propSchema.at("description").asString();
                             }
@@ -1139,7 +1140,7 @@ std::optional<std::string> validate(const Dictionary& data,
                                     const std::string& raw_content) {
     // Call validate_node directly with raw_content instead of post-processing
     std::optional<std::string> result;
-    
+
     // Support convenience form (same logic as 2-parameter validate)
     const std::set<std::string> schema_keys = {"type",
                                                "properties",

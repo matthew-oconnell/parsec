@@ -16,7 +16,9 @@ Dictionary parse(const std::string& text, bool verbose = false, const std::strin
 
 // Same as parse() but returns a pair containing the Dictionary and the format name used.
 // Format names: "JSON", "RON", "TOML", "INI", "YAML"
-std::pair<Dictionary, std::string> parse_report_format(const std::string& text, bool verbose = false, const std::string& filename = "");
+std::pair<Dictionary, std::string> parse_report_format(const std::string& text,
+                                                       bool verbose = false,
+                                                       const std::string& filename = "");
 
 Dictionary parse_json(const std::string& text);
 Dictionary parse_ron(const std::string& text);

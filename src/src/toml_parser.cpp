@@ -460,7 +460,7 @@ namespace {
                     (*current)[key] = Dictionary();
                 }
                 current = &(*current)[key];
-                
+
                 // If we're in an array-of-tables context and this is the last key,
                 // we need to get the last element of the array
                 if (is_array_table_context && idx == current_table.size() - 1) {
@@ -551,7 +551,7 @@ namespace {
             std::vector<std::string> key_path;
             key_path.push_back(parse_key());
             skip_ws_inline();
-            
+
             // Check for dotted keys
             while (peek() == '.') {
                 get();  // consume '.'
@@ -576,7 +576,7 @@ namespace {
                 }
                 table = &(*table)[key];
             }
-            
+
             // Set the final value
             (*table)[key_path.back()] = value;
         }

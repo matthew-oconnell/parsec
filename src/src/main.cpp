@@ -96,7 +96,8 @@ int main(int argc, char** argv) {
             std::cerr << "error: cannot open schema: " << schema_path << "\n";
             return 2;
         }
-        std::string schema_content((std::istreambuf_iterator<char>(sin)), std::istreambuf_iterator<char>());
+        std::string schema_content((std::istreambuf_iterator<char>(sin)),
+                                   std::istreambuf_iterator<char>());
 
         std::ifstream in(data_path);
         if (!in) {
