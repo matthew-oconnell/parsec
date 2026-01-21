@@ -1046,26 +1046,42 @@ inline std::string Dictionary::dump(int indent, bool compact) const {
                 // no spaces between elements (e.g. "[1,2,3]"). Also, for
                 // readability, allow small arrays to be printed inline with
                 // the same no-space format even when `compact` is false.
+                // However, if the compacted array would exceed 80 characters,
+                // expand it to multi-line format.
                 if (compact) {
-                    out << '[';
+                    // Try to build compact representation and check length
+                    std::ostringstream temp;
+                    temp << '[';
                     for (size_t i = 0; i < L.size(); ++i) {
-                        if (i) out << ",";
-                        out << make_pretty_compact(L[i]);
+                        if (i) temp << ",";
+                        temp << make_pretty_compact(L[i]);
                     }
-                    out << ']';
-                    return;
+                    temp << ']';
+                    std::string compact_repr = temp.str();
+                    if (compact_repr.size() <= 80) {
+                        out << compact_repr;
+                        return;
+                    }
+                    // Fall through to expanded format if too long
                 }
 
                 // Print small arrays inline (no spaces) even when not in
                 // compact mode. We consider arrays of up to 3 elements "small".
+                // Check length to avoid overly long lines.
                 if (!compact && L.size() <= 3) {
-                    out << '[';
+                    std::ostringstream temp;
+                    temp << '[';
                     for (size_t i = 0; i < L.size(); ++i) {
-                        if (i) out << ",";
-                        out << make_pretty_compact(L[i]);
+                        if (i) temp << ",";
+                        temp << make_pretty_compact(L[i]);
                     }
-                    out << ']';
-                    return;
+                    temp << ']';
+                    std::string compact_repr = temp.str();
+                    if (compact_repr.size() <= 80) {
+                        out << compact_repr;
+                        return;
+                    }
+                    // Fall through to expanded format if too long
                 }
                 out << "[\n";
                 for (size_t i = 0; i < L.size(); ++i) {

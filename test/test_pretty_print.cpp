@@ -120,3 +120,59 @@ TEST_CASE("Dictionary dump escapes all special characters") {
     REQUIRE(parsed.at("tab").asString() == "col1\tcol2");
     REQUIRE(parsed.at("mixed").asString() == "Quote: \" Newline: \n Tab: \t Backslash: \\");
 }
+
+TEST_CASE("Pretty print does not create overly long lines with nested compact objects", "[dump]") {
+    // Create a scenario similar to the user's example: an array containing
+    // multiple small objects that individually can be compacted, but together
+    // would exceed 80 characters on a single line.
+    Dictionary dict;
+
+    // Create an array with multiple compact objects
+    dict["examples"][0]["hi"][0] = 1;
+    dict["examples"][0]["hi"][1] = 1.2;
+    dict["examples"][0]["hi"][2] = 2;
+    dict["examples"][0]["lo"][0] = 0;
+    dict["examples"][0]["lo"][1] = 0.2;
+    dict["examples"][0]["lo"][2] = 1;
+    dict["examples"][0]["state"] = "box region";
+    dict["examples"][0]["type"] = "aabb";
+
+    dict["examples"][1]["hi"][0] = -10;
+    dict["examples"][1]["hi"][1] = 100;
+    dict["examples"][1]["hi"][2] = 100;
+    dict["examples"][1]["lo"][0] = 0;
+    dict["examples"][1]["lo"][1] = -100;
+    dict["examples"][1]["lo"][2] = -100;
+    dict["examples"][1]["state"] = "wake region";
+    dict["examples"][1]["type"] = "box";
+
+    // With indent=4, this should expand the array to multi-line because
+    // the compact representation would be too long
+    std::string result = dict.dump(4);
+
+    // The result should have the array expanded to multiple lines
+    // Each line should be <= 80 characters (accounting for indentation)
+    std::istringstream iss(result);
+    std::string line;
+    while (std::getline(iss, line)) {
+        // Allow some flexibility for the examples line itself
+        INFO("Line: " << line);
+        INFO("Length: " << line.size());
+        // We want to verify that no single line is excessively long
+        // In practice, with proper formatting, lines should be under 80
+        // but we'll allow up to 100 to account for deep nesting
+        REQUIRE(line.size() <= 100);
+    }
+
+    // Verify that "examples" array is expanded (contains newlines within it)
+    // If it's on one line, it would look like: "examples": [...]
+    // If expanded, we'd see "examples": [\n
+    size_t examples_pos = result.find("\"examples\"");
+    REQUIRE(examples_pos != std::string::npos);
+    size_t bracket_pos = result.find("[", examples_pos);
+    REQUIRE(bracket_pos != std::string::npos);
+    size_t newline_after_bracket = result.find("\n", bracket_pos);
+    REQUIRE(newline_after_bracket != std::string::npos);
+    // The newline should come soon after the bracket, indicating expansion
+    REQUIRE(newline_after_bracket - bracket_pos < 5);
+}
