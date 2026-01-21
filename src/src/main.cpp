@@ -68,9 +68,9 @@ int main(int argc, char** argv) {
                 data = ps::setDefaults(data, schema);
             }
 
-            auto err = ps::validate(data, schema, content);
-            if (err.has_value()) {
-                std::cerr << "validation error: " << *err << "\n";
+            auto result = ps::validate_all(data, schema, content);
+            if (!result.is_valid()) {
+                std::cerr << result.format();
                 return 1;
             }
             std::cout << "OK: validation passed\n";

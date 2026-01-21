@@ -11,6 +11,114 @@
 #include <iostream>
 
 namespace ps {
+
+// Implementation of ValidationResult methods
+int ValidationResult::error_count() const {
+    int count = 0;
+    for (const auto& err : errors) {
+        if (err.severity == ErrorSeverity::ERROR) count++;
+    }
+    return count;
+}
+
+int ValidationResult::warning_count() const {
+    int count = 0;
+    for (const auto& err : errors) {
+        if (err.severity == ErrorSeverity::WARNING) count++;
+    }
+    return count;
+}
+
+int ValidationResult::deprecation_count() const {
+    int count = 0;
+    for (const auto& err : errors) {
+        if (err.severity == ErrorSeverity::DEPRECATION) count++;
+    }
+    return count;
+}
+
+std::string ValidationResult::format() const {
+    if (errors.empty()) {
+        return "validation passed";
+    }
+
+    // Sort errors by line number (errors without line numbers go last)
+    std::vector<ValidationError> sorted_errors = errors;
+    std::sort(sorted_errors.begin(),
+              sorted_errors.end(),
+              [](const ValidationError& a, const ValidationError& b) {
+                  // Errors with line numbers come first, sorted by line
+                  if (a.line_number > 0 && b.line_number > 0) {
+                      return a.line_number < b.line_number;
+                  }
+                  if (a.line_number > 0) return true;
+                  if (b.line_number > 0) return false;
+                  // Both have no line number - preserve order
+                  return false;
+              });
+
+    std::stringstream ss;
+
+    // Count errors by severity
+    int errs = error_count();
+    int warns = warning_count();
+    int depr = deprecation_count();
+
+    // Header
+    ss << "Validation failed with " << errors.size() << " issue";
+    if (errors.size() != 1) ss << "s";
+    ss << " (";
+
+    std::vector<std::string> counts;
+    if (errs > 0) {
+        counts.push_back(std::to_string(errs) + " error" + (errs != 1 ? "s" : ""));
+    }
+    if (warns > 0) {
+        counts.push_back(std::to_string(warns) + " warning" + (warns != 1 ? "s" : ""));
+    }
+    if (depr > 0) {
+        counts.push_back(std::to_string(depr) + " deprecation" + (depr != 1 ? "s" : ""));
+    }
+
+    for (size_t i = 0; i < counts.size(); i++) {
+        if (i > 0) ss << ", ";
+        ss << counts[i];
+    }
+    ss << "):\n\n";
+
+    // List each error
+    for (const auto& err : sorted_errors) {
+        // Severity label
+        switch (err.severity) {
+            case ErrorSeverity::ERROR:
+                ss << "ERROR";
+                break;
+            case ErrorSeverity::WARNING:
+                ss << "WARNING";
+                break;
+            case ErrorSeverity::DEPRECATION:
+                ss << "DEPRECATION";
+                break;
+        }
+
+        // Location
+        if (err.line_number > 0) {
+            ss << " at line " << err.line_number;
+        }
+        if (!err.path.empty() && err.path != "root") {
+            ss << " (" << err.path << ")";
+        } else if (err.path.empty() || err.path == "root") {
+            ss << " (root)";
+        }
+        ss << ":\n";
+
+        // Message (indented)
+        ss << "  " << err.message << "\n\n";
+    }
+
+    return ss.str();
+}
+
 // Helper: convert string to lowercase
 static std::string to_lower(const std::string& s) {
     std::string result = s;
@@ -315,6 +423,15 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const Dictionary& schema_node,
                                                 const std::string& path,
                                                 const std::string& raw_content = "");
+
+// New error-collecting validator
+static void validate_node_collect(const Dictionary& data,
+                                  const Dictionary& schema_root,
+                                  const Dictionary& schema_node,
+                                  const std::string& path,
+                                  int depth,
+                                  const std::string& raw_content,
+                                  std::vector<ValidationError>& errors);
 
 // Forward declaration for line number finding
 static int find_line_number(const std::string& raw_content, const std::string& path);
@@ -1110,6 +1227,247 @@ static std::optional<std::string> validate_node(const Dictionary& data,
     return std::nullopt;
 }
 
+// Error-collecting validator - traverses schema and collects all errors
+static void validate_node_collect(const Dictionary& data,
+                                  const Dictionary& schema_root,
+                                  const Dictionary& schema_node,
+                                  const std::string& path,
+                                  int depth,
+                                  const std::string& raw_content,
+                                  std::vector<ValidationError>& errors) {
+    // Resolve $ref if present before continuing
+    const Dictionary* effective_schema = &schema_node;
+    if (schema_node.has("$ref") && schema_node.at("$ref").type() == Dictionary::String) {
+        const std::string ref = schema_node.at("$ref").asString();
+        const Dictionary* target = resolve_local_ref(schema_root, ref);
+        if (target) {
+            effective_schema = target;
+        } else {
+            errors.emplace_back(display_path(path),
+                                "unresolved $ref '" + ref + "' at " + path,
+                                find_line_number(raw_content, path),
+                                depth,
+                                ErrorSeverity::ERROR,
+                                ErrorCategory::OTHER);
+            return;  // Can't continue without resolving ref
+        }
+    }
+
+    // Check if this is an object validation
+    bool is_object_validation = false;
+    if (effective_schema->has("type") &&
+        effective_schema->at("type").type() == Dictionary::String) {
+        std::string t = effective_schema->at("type").asString();
+        is_object_validation = (t == "object");
+    } else if (data.isMappedObject() &&
+               (effective_schema->has("properties") || effective_schema->has("required") ||
+                effective_schema->has("additionalProperties") ||
+                effective_schema->has("patternProperties"))) {
+        is_object_validation = true;
+    }
+
+    if (is_object_validation && data.isMappedObject()) {
+        // For objects, we collect multiple errors ourselves instead of relying on validate_node
+
+        const Dictionary* properties = nullptr;
+        if (effective_schema->has("properties") &&
+            effective_schema->at("properties").isMappedObject()) {
+            properties = &effective_schema->at("properties");
+        }
+
+        // Collect required property names
+        std::set<std::string> required_names;
+        if (effective_schema->has("required")) {
+            const Dictionary& r = effective_schema->at("required");
+            try {
+                auto svec = r.asStrings();
+                for (auto const& s : svec) required_names.insert(s);
+            } catch (...) {
+                if (r.isArrayObject()) {
+                    for (int i = 0; i < r.size(); ++i) {
+                        const Dictionary& e = r[i];
+                        if (e.type() == Dictionary::String) required_names.insert(e.asString());
+                    }
+                }
+            }
+        }
+
+        // Also check per-property required flags
+        std::set<std::string> all_required = required_names;
+        if (properties) {
+            for (auto const& p : properties->items()) {
+                const std::string& key = p.first;
+                const Dictionary& propSchema = p.second;
+                if (propSchema.has("required") &&
+                    propSchema.at("required").type() == Dictionary::Boolean &&
+                    propSchema.at("required").asBool()) {
+                    all_required.insert(key);
+                }
+            }
+        }
+
+        // Check for missing required properties
+        for (auto const& rn : all_required) {
+            if (!data.has(rn)) {
+                std::string full_key = path.empty() ? rn : path + "." + rn;
+                std::string msg = "missing required key '" + full_key + "'";
+
+                int line = -1;
+                if (!raw_content.empty()) {
+                    if (!path.empty()) {
+                        line = find_line_number(raw_content, path);
+                    } else if (data.size() > 0) {
+                        for (auto const& item : data.items()) {
+                            line = find_line_number(raw_content, item.first);
+                            if (line > 0) break;
+                        }
+                    }
+                }
+
+                errors.emplace_back(display_path(full_key),
+                                    msg,
+                                    line,
+                                    depth,
+                                    ErrorSeverity::ERROR,
+                                    ErrorCategory::MISSING_REQUIRED);
+            }
+        }
+
+        // Validate each property that exists
+        if (properties) {
+            for (auto const& p : properties->items()) {
+                const std::string& key = p.first;
+                const Dictionary& propSchema = p.second;
+
+                if (data.has(key)) {
+                    std::string child_path = path.empty() ? key : path + "." + key;
+
+                    // Check if deprecated
+                    if (propSchema.has("deprecated") &&
+                        propSchema.at("deprecated").type() == Dictionary::Boolean &&
+                        propSchema.at("deprecated").asBool()) {
+                        std::string msg = "Property '" + child_path + "' is deprecated";
+                        if (propSchema.has("description") &&
+                            propSchema.at("description").type() == Dictionary::String) {
+                            msg += ": " + propSchema.at("description").asString();
+                        }
+
+                        int line = find_line_number(raw_content, child_path);
+                        errors.emplace_back(display_path(child_path),
+                                            msg,
+                                            line,
+                                            depth + 1,
+                                            ErrorSeverity::DEPRECATION,
+                                            ErrorCategory::DEPRECATED_PROPERTY);
+                    }
+
+                    // Recursively validate the property value
+                    const Dictionary* subSchema = schema_from_value(schema_root, propSchema);
+                    if (subSchema) {
+                        validate_node_collect(data.at(key),
+                                              schema_root,
+                                              *subSchema,
+                                              child_path,
+                                              depth + 1,
+                                              raw_content,
+                                              errors);
+                    }
+                }
+            }
+        }
+    } else if (effective_schema->has("type") &&
+               effective_schema->at("type").type() == Dictionary::String) {
+        std::string t = effective_schema->at("type").asString();
+        if (t == "array" && data.isArrayObject()) {
+            // For arrays, validate each item
+            if (effective_schema->has("items")) {
+                const Dictionary& items_schema = effective_schema->at("items");
+                const Dictionary* item_schema = schema_from_value(schema_root, items_schema);
+
+                if (item_schema) {
+                    for (int i = 0; i < data.size(); ++i) {
+                        std::string child_path = path + "[" + std::to_string(i) + "]";
+                        validate_node_collect(data[i],
+                                              schema_root,
+                                              *item_schema,
+                                              child_path,
+                                              depth + 1,
+                                              raw_content,
+                                              errors);
+                    }
+                }
+            }
+
+            // Also check array-level constraints using validate_node
+            auto array_error =
+                        validate_node(data, schema_root, *effective_schema, path, raw_content);
+            if (array_error.has_value()) {
+                // Check if it's about items (skip, we handled that) or about array constraints
+                if (array_error->find("too few items") != std::string::npos ||
+                    array_error->find("too many items") != std::string::npos ||
+                    array_error->find("duplicate items") != std::string::npos) {
+                    int line = find_line_number(raw_content, path);
+                    errors.emplace_back(display_path(path),
+                                        *array_error,
+                                        line,
+                                        depth,
+                                        ErrorSeverity::ERROR,
+                                        ErrorCategory::ARRAY_SIZE);
+                }
+            }
+        } else {
+            // For primitives or non-matching types, use validate_node
+            auto basic_error =
+                        validate_node(data, schema_root, *effective_schema, path, raw_content);
+            if (basic_error.has_value()) {
+                int line = find_line_number(raw_content, path);
+                ErrorCategory cat = ErrorCategory::OTHER;
+                ErrorSeverity sev = ErrorSeverity::ERROR;
+
+                // Categorize the error
+                if (basic_error->find("deprecated") != std::string::npos) {
+                    cat = ErrorCategory::DEPRECATED_VALUE;
+                    sev = ErrorSeverity::DEPRECATION;
+                } else if (basic_error->find("expected type") != std::string::npos) {
+                    cat = ErrorCategory::TYPE_MISMATCH;
+                } else if (basic_error->find("enum") != std::string::npos ||
+                           basic_error->find("did not match") != std::string::npos) {
+                    cat = ErrorCategory::INVALID_ENUM;
+                } else if (basic_error->find("minimum") != std::string::npos ||
+                           basic_error->find("maximum") != std::string::npos ||
+                           basic_error->find("above") != std::string::npos ||
+                           basic_error->find("below") != std::string::npos) {
+                    cat = ErrorCategory::OUT_OF_RANGE;
+                } else if (basic_error->find("oneOf") != std::string::npos) {
+                    cat = ErrorCategory::ONE_OF_MISMATCH;
+                } else if (basic_error->find("anyOf") != std::string::npos) {
+                    cat = ErrorCategory::ANY_OF_MISMATCH;
+                } else if (basic_error->find("allOf") != std::string::npos) {
+                    cat = ErrorCategory::ALL_OF_FAILURE;
+                }
+
+                errors.emplace_back(display_path(path), *basic_error, line, depth, sev, cat);
+            }
+        }
+    } else {
+        // For other complex schemas (anyOf, oneOf, allOf, etc.), use validate_node
+        auto basic_error = validate_node(data, schema_root, *effective_schema, path, raw_content);
+        if (basic_error.has_value()) {
+            int line = find_line_number(raw_content, path);
+            ErrorCategory cat = ErrorCategory::OTHER;
+            ErrorSeverity sev = ErrorSeverity::ERROR;
+
+            // Check if it's a deprecation
+            if (basic_error->find("deprecated") != std::string::npos) {
+                cat = ErrorCategory::DEPRECATED_VALUE;
+                sev = ErrorSeverity::DEPRECATION;
+            }
+
+            errors.emplace_back(display_path(path), *basic_error, line, depth, sev, cat);
+        }
+    }
+}
+
 std::optional<std::string> validate(const Dictionary& data, const Dictionary& schema) {
     if (std::getenv("PS_VALIDATE_DEBUG")) {
         std::cerr << "validate debug: data=" << data.dump() << " schema=" << schema.dump() << "\n";
@@ -1252,6 +1610,50 @@ std::optional<std::string> validate(const Dictionary& data,
     } else {
         result = validate_node(data, schema, schema, "", raw_content);
     }
+    return result;
+}
+
+// New API: validate and collect all errors
+ValidationResult validate_all(const Dictionary& data,
+                              const Dictionary& schema,
+                              const std::string& raw_content) {
+    ValidationResult result;
+
+    // Support convenience form (same logic as validate)
+    const std::set<std::string> schema_keys = {"type",
+                                               "properties",
+                                               "items",
+                                               "additionalProperties",
+                                               "patternProperties",
+                                               "required",
+                                               "enum",
+                                               "allOf",
+                                               "anyOf",
+                                               "oneOf",
+                                               "minItems",
+                                               "maxItems",
+                                               "minProperties",
+                                               "maxProperties",
+                                               "uniqueItems"};
+    bool contains_schema_keyword = false;
+    if (schema.isMappedObject()) {
+        for (auto const& p : schema.items()) {
+            if (schema_keys.find(p.first) != schema_keys.end()) {
+                contains_schema_keyword = true;
+                break;
+            }
+        }
+    }
+
+    if (schema.isMappedObject() && !contains_schema_keyword && !schema.has("properties")) {
+        Dictionary wrapper;
+        wrapper["type"] = std::string("object");
+        wrapper["properties"] = schema;
+        validate_node_collect(data, schema, wrapper, "", 0, raw_content, result.errors);
+    } else {
+        validate_node_collect(data, schema, schema, "", 0, raw_content, result.errors);
+    }
+
     return result;
 }
 

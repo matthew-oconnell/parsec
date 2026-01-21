@@ -28,6 +28,7 @@ add_executable(parsec_tests
   test_validate_cfd.cpp
   test_validate_medium_schema.cpp
   test_validate_medium_schema_fail.cpp
+  test_validate_multi_errors.cpp
   test_anyof_defaults.cpp
   test_deprecated.cpp
 )
