@@ -180,33 +180,231 @@ namespace {
         }
 
         Dictionary parse_scalar(const std::string& str) {
-            if (str.empty()) {
+            auto trim = [](const std::string& in) {
+                size_t start = 0;
+                while (start < in.size() && std::isspace(static_cast<unsigned char>(in[start]))) {
+                    ++start;
+                }
+                size_t end = in.size();
+                while (end > start && std::isspace(static_cast<unsigned char>(in[end - 1]))) {
+                    --end;
+                }
+                return in.substr(start, end - start);
+            };
+
+            const std::string t = trim(str);
+
+            if (t.empty()) {
                 Dictionary d;
                 d = std::string("");
                 return d;
             }
 
+            // Flow-style empty containers as scalars: '{}' and '[]'
+            if (t == "{}") {
+                return Dictionary();
+            }
+            if (t == "[]") {
+                Dictionary res;
+                res = std::vector<Dictionary>{};
+                return res;
+            }
+
+            // Flow-style sequences like: [1, 2, "three"]
+            if (t.size() >= 2 && t.front() == '[' && t.back() == ']') {
+                const std::string inner = trim(t.substr(1, t.size() - 2));
+                std::vector<Dictionary> out_values;
+                bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+
+                if (!inner.empty()) {
+                    std::vector<std::string> tokens;
+                    std::string cur;
+                    bool in_double = false;
+                    bool in_single = false;
+                    bool escape = false;
+
+                    for (size_t k = 0; k < inner.size(); ++k) {
+                        const char c = inner[k];
+                        if (in_double) {
+                            cur.push_back(c);
+                            if (escape) {
+                                escape = false;
+                            } else if (c == '\\') {
+                                escape = true;
+                            } else if (c == '"') {
+                                in_double = false;
+                            }
+                            continue;
+                        }
+                        if (in_single) {
+                            cur.push_back(c);
+                            if (c == '\'' ) {
+                                in_single = false;
+                            }
+                            continue;
+                        }
+
+                        if (c == '"') {
+                            in_double = true;
+                            cur.push_back(c);
+                            continue;
+                        }
+                        if (c == '\'') {
+                            in_single = true;
+                            cur.push_back(c);
+                            continue;
+                        }
+
+                        if (c == ',') {
+                            tokens.push_back(cur);
+                            cur.clear();
+                            continue;
+                        }
+
+                        cur.push_back(c);
+                    }
+                    tokens.push_back(cur);
+
+                    auto unescape_double_quoted = [](const std::string& q) {
+                        // q includes surrounding quotes
+                        std::string out;
+                        for (size_t p = 1; p + 1 < q.size(); ++p) {
+                            char c = q[p];
+                            if (c == '\\' && p + 1 < q.size() - 1) {
+                                char e = q[++p];
+                                if (e == 'n') out.push_back('\n');
+                                else if (e == 't') out.push_back('\t');
+                                else if (e == 'r') out.push_back('\r');
+                                else out.push_back(e);
+                            } else {
+                                out.push_back(c);
+                            }
+                        }
+                        return out;
+                    };
+
+                    auto unescape_single_quoted = [](const std::string& q) {
+                        // q includes surrounding single quotes; YAML escapes a single quote as ''
+                        std::string out;
+                        for (size_t p = 1; p + 1 < q.size(); ++p) {
+                            char c = q[p];
+                            if (c == '\'' && p + 1 < q.size() - 1 && q[p + 1] == '\'') {
+                                out.push_back('\'');
+                                ++p;
+                            } else {
+                                out.push_back(c);
+                            }
+                        }
+                        return out;
+                    };
+
+                    for (auto& tok_raw : tokens) {
+                        const std::string tok = trim(tok_raw);
+                        if (tok.empty()) continue;
+
+                        Dictionary v;
+                        if (tok.size() >= 2 && tok.front() == '"' && tok.back() == '"') {
+                            v = unescape_double_quoted(tok);
+                        } else if (tok.size() >= 2 && tok.front() == '\'' && tok.back() == '\'') {
+                            v = unescape_single_quoted(tok);
+                        } else {
+                            v = parse_scalar(tok);
+                        }
+
+                        out_values.emplace_back(v);
+
+                        if (!v.isMappedObject()) allObject = false;
+                        switch (v.type()) {
+                            case Dictionary::Integer:
+                                allDouble = false;
+                                allString = false;
+                                allBool = false;
+                                allObject = false;
+                                break;
+                            case Dictionary::Double:
+                                allInt = false;
+                                allString = false;
+                                allBool = false;
+                                allObject = false;
+                                break;
+                            case Dictionary::String:
+                                allInt = false;
+                                allDouble = false;
+                                allBool = false;
+                                allObject = false;
+                                break;
+                            case Dictionary::Boolean:
+                                allInt = false;
+                                allDouble = false;
+                                allString = false;
+                                allObject = false;
+                                break;
+                            case Dictionary::Object:
+                                allInt = false;
+                                allDouble = false;
+                                allString = false;
+                                allBool = false;
+                                break;
+                            default:
+                                allInt = allDouble = allString = allBool = allObject = false;
+                                break;
+                        }
+                    }
+                }
+
+                Dictionary res;
+                if (out_values.empty()) {
+                    res = std::vector<Dictionary>{};
+                    return res;
+                }
+
+                if (allInt) {
+                    std::vector<int> vals;
+                    vals.reserve(out_values.size());
+                    for (auto& v : out_values) vals.push_back(static_cast<int>(v.asInt()));
+                    res = vals;
+                } else if (allDouble) {
+                    std::vector<double> vals;
+                    vals.reserve(out_values.size());
+                    for (auto& v : out_values) vals.push_back(v.asDouble());
+                    res = vals;
+                } else if (allString) {
+                    std::vector<std::string> vals;
+                    vals.reserve(out_values.size());
+                    for (auto& v : out_values) vals.push_back(v.asString());
+                    res = vals;
+                } else if (allBool) {
+                    std::vector<bool> vals;
+                    vals.reserve(out_values.size());
+                    for (auto& v : out_values) vals.push_back(v.asBool());
+                    res = vals;
+                } else {
+                    res = out_values;
+                }
+                return res;
+            }
+
             // Check for null
-            if (str == "null" || str == "~" || str == "Null" || str == "NULL") {
+            if (t == "null" || t == "~" || t == "Null" || t == "NULL") {
                 return Dictionary::null();
             }
 
             // Check for boolean
-            if (str == "true" || str == "True" || str == "TRUE") {
+            if (t == "true" || t == "True" || t == "TRUE") {
                 Dictionary d;
                 d = true;
                 return d;
             }
-            if (str == "false" || str == "False" || str == "FALSE") {
+            if (t == "false" || t == "False" || t == "FALSE") {
                 Dictionary d;
                 d = false;
                 return d;
             }
 
             // Try to parse as number
-            std::istringstream ss(str);
-            if (str.find('.') != std::string::npos || str.find('e') != std::string::npos ||
-                str.find('E') != std::string::npos) {
+            std::istringstream ss(t);
+            if (t.find('.') != std::string::npos || t.find('e') != std::string::npos ||
+                t.find('E') != std::string::npos) {
                 double dval;
                 ss >> dval;
                 if (!ss.fail() && ss.eof()) {
@@ -227,7 +425,7 @@ namespace {
 
             // Default to string
             Dictionary d;
-            d = str;
+            d = t;
             return d;
         }
 

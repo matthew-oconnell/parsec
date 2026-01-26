@@ -73,6 +73,27 @@ numbers:
     REQUIRE(v.at("numbers").at(4).asInt() == 5);
 }
 
+TEST_CASE("parse yaml with flow-style arrays", "[yaml][unit]") {
+    std::string s = R"(
+ints: [1, 2, 3]
+strings: [jfnk, ksp]
+empty: []
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.has("ints"));
+    REQUIRE(v.at("ints").size() == 3);
+    REQUIRE(v.at("ints").at(0).asInt() == 1);
+    REQUIRE(v.at("ints").at(2).asInt() == 3);
+
+    REQUIRE(v.has("strings"));
+    REQUIRE(v.at("strings").size() == 2);
+    REQUIRE(v.at("strings").at(0).asString() == "jfnk");
+    REQUIRE(v.at("strings").at(1).asString() == "ksp");
+
+    REQUIRE(v.has("empty"));
+    REQUIRE(v.at("empty").size() == 0);
+}
+
 TEST_CASE("parse yaml with boolean values") {
     std::string s = R"(
 bool1: true

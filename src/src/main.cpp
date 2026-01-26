@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
         std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec "
                      "--validate [--no-defaults] <schema.json> <file>\n  parsec --fill-defaults "
                      "<schema.json> <input> <output>\n  parsec --convert "
-                     "<yaml|json|ron|toml> <input> <output>\n";
+                     "<yaml|json|ron|toml> <input> [output]\n";
         return 2;
     }
 
@@ -132,15 +132,35 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Convert mode: --convert <yaml|json|ron|toml> <input> <output>
+    // Convert mode: --convert <yaml|json|ron|toml> <input> [output]
     if (std::string(argv[1]) == "--convert") {
-        if (argc != 5) {
-            std::cerr << "usage: parsec --convert <yaml|json|ron|toml> <input> <output>\n";
+        if (argc != 4 && argc != 5) {
+            std::cerr << "usage: parsec --convert <yaml|json|ron|toml> <input> [output]\n";
             return 2;
         }
-        std::string fmt = argv[2];
+
+        auto normalize_format = [](std::string f) {
+            if (f.rfind("--", 0) == 0) f = f.substr(2);
+            std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            return f;
+        };
+
+        auto default_output_path = [](const std::string& in_path, const std::string& fmt) {
+            const std::string ext = (fmt == "yaml") ? ".yaml" : ("." + fmt);
+            const size_t slash = in_path.find_last_of("/\\\\");
+            const std::string dir = (slash == std::string::npos) ? std::string() : in_path.substr(0, slash + 1);
+            const std::string base = (slash == std::string::npos) ? in_path : in_path.substr(slash + 1);
+
+            const size_t dot = base.find_last_of('.');
+            const std::string stem = (dot == std::string::npos) ? base : base.substr(0, dot);
+            return dir + stem + ext;
+        };
+
+        std::string fmt = normalize_format(argv[2]);
         std::string in_path = argv[3];
-        std::string out_path = argv[4];
+        std::string out_path = (argc == 5) ? argv[4] : default_output_path(in_path, fmt);
 
         std::ifstream in_file(in_path);
         if (!in_file) {
@@ -159,14 +179,14 @@ int main(int argc, char** argv) {
                 return 2;
             }
 
-            if (fmt == "yaml" || fmt == "--yaml") {
+            if (fmt == "yaml") {
                 out_file << ps::dump_yaml(data);
-            } else if (fmt == "json" || fmt == "--json") {
+            } else if (fmt == "json") {
                 // Use Dictionary::dump with indentation for readable JSON
                 out_file << data.dump(4, false) << std::endl;
-            } else if (fmt == "ron" || fmt == "--ron") {
+            } else if (fmt == "ron") {
                 out_file << ps::dump_ron(data);
-            } else if (fmt == "toml" || fmt == "--toml") {
+            } else if (fmt == "toml") {
                 out_file << ps::dump_toml(data);
             } else {
                 std::cerr << "error: unknown format '" << fmt
