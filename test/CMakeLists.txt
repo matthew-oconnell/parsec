@@ -21,6 +21,7 @@ add_executable(parsec_tests
   test_toml.cpp
   test_ini.cpp
   test_yaml.cpp
+    test_validate_unevaluated_properties.cpp
   test_cli_parser_selection.cpp
   test_cli_convert.cpp
   test_pretty_print.cpp

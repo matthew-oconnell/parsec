@@ -42,8 +42,35 @@ std::string ValidationResult::format() const {
         return "validation passed";
     }
 
+    // Deduplicate identical messages. This prevents the same underlying issue
+    // from being reported multiple times at different container paths.
+    // Prefer entries with a line number and more specific paths.
+    std::vector<ValidationError> unique_errors = errors;
+    std::sort(unique_errors.begin(),
+              unique_errors.end(),
+              [](const ValidationError& a, const ValidationError& b) {
+                  const bool a_has_line = a.line_number > 0;
+                  const bool b_has_line = b.line_number > 0;
+                  if (a_has_line != b_has_line) return a_has_line;  // prefer with line
+                  if (a_has_line && b_has_line && a.line_number != b.line_number)
+                      return a.line_number < b.line_number;  // earlier line first
+                  if (a.depth != b.depth) return a.depth > b.depth;  // deeper first
+                  if (a.path.size() != b.path.size()) return a.path.size() > b.path.size();
+                  return a.message.size() > b.message.size();
+              });
+
+    std::set<std::string> seen;
+    std::vector<ValidationError> deduped;
+    deduped.reserve(unique_errors.size());
+    for (const auto& err : unique_errors) {
+        std::string key = std::to_string(static_cast<int>(err.severity)) + "|" + err.message;
+        if (seen.insert(key).second) {
+            deduped.push_back(err);
+        }
+    }
+
     // Sort errors by line number (errors without line numbers go last)
-    std::vector<ValidationError> sorted_errors = errors;
+    std::vector<ValidationError> sorted_errors = deduped;
     std::sort(sorted_errors.begin(),
               sorted_errors.end(),
               [](const ValidationError& a, const ValidationError& b) {
@@ -60,13 +87,18 @@ std::string ValidationResult::format() const {
     std::stringstream ss;
 
     // Count errors by severity
-    int errs = error_count();
-    int warns = warning_count();
-    int depr = deprecation_count();
+    int errs = 0;
+    int warns = 0;
+    int depr = 0;
+    for (const auto& err : deduped) {
+        if (err.severity == ErrorSeverity::ERROR) errs++;
+        else if (err.severity == ErrorSeverity::WARNING) warns++;
+        else if (err.severity == ErrorSeverity::DEPRECATION) depr++;
+    }
 
     // Header
-    ss << "Validation failed with " << errors.size() << " issue";
-    if (errors.size() != 1) ss << "s";
+    ss << "Validation failed with " << deduped.size() << " issue";
+    if (deduped.size() != 1) ss << "s";
     ss << " (";
 
     std::vector<std::string> counts;
@@ -422,7 +454,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const Dictionary& schema_root,
                                                 const Dictionary& schema_node,
                                                 const std::string& path,
-                                                const std::string& raw_content = "");
+                                                const std::string& raw_content = "",
+                                                std::set<std::string>* evaluated_props_out = nullptr);
 
 // New error-collecting validator
 static void validate_node_collect(const Dictionary& data,
@@ -687,8 +720,10 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                 const Dictionary& schema_root,
                                                 const Dictionary& schema_node,
                                                 const std::string& path,
-                                                const std::string& raw_content) {
+                                                const std::string& raw_content,
+                                                std::set<std::string>* evaluated_props_out) {
     // Minimal validator: primarily checks declared "type", numeric constraints and enum.
+    std::set<std::string> evaluated_here;
     if (std::getenv("PS_VALIDATE_DEBUG")) {
         std::cerr << "validate_node enter: path='" << path << "' data=" << data.dump()
                   << " schema_keys={";
@@ -706,7 +741,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         const std::string ref = schema_node.at("$ref").asString();
         const Dictionary* target = resolve_local_ref(schema_root, ref);
         if (!target) return std::optional<std::string>("unresolved $ref '" + ref + "' at " + path);
-        return validate_node(data, schema_root, *target, path, raw_content);
+        return validate_node(data, schema_root, *target, path, raw_content, evaluated_props_out);
     }
 
     // enum check
@@ -728,8 +763,15 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            if (auto err = validate_node(data, schema_root, *subSchema, path, raw_content))
+            std::set<std::string> sub_evaluated;
+            if (auto err = validate_node(data,
+                                         schema_root,
+                                         *subSchema,
+                                         path,
+                                         raw_content,
+                                         &sub_evaluated))
                 return err;
+            evaluated_here.insert(sub_evaluated.begin(), sub_evaluated.end());
         }
     }
     // anyOf
@@ -738,14 +780,22 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         bool matched = false;
         const Dictionary* deprecated_matched_schema = nullptr;
         std::vector<std::string> failures;
+        std::set<std::string> any_evaluated;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            auto err = validate_node(data, schema_root, *subSchema, path, raw_content);
+            std::set<std::string> sub_evaluated;
+            auto err = validate_node(data,
+                                     schema_root,
+                                     *subSchema,
+                                     path,
+                                     raw_content,
+                                     &sub_evaluated);
             if (!err.has_value()) {
                 // This alternative matched
                 matched = true;
+                any_evaluated.insert(sub_evaluated.begin(), sub_evaluated.end());
 
                 // Check if this matched alternative is deprecated
                 const Dictionary* resolved = subSchema;
@@ -792,6 +842,10 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             }
             return std::optional<std::string>(msg);
         }
+
+        if (matched) {
+            evaluated_here.insert(any_evaluated.begin(), any_evaluated.end());
+        }
     }
 
     // oneOf
@@ -801,15 +855,23 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         std::vector<std::string> failures;
         std::vector<int> matched_indices;
         std::vector<const Dictionary*> matched_schemas;
+        std::vector<std::set<std::string>> matched_evaluated;
         for (int i = 0; i < arr.size(); ++i) {
             const Dictionary& sub = arr[i];
             const Dictionary* subSchema = schema_from_value(schema_root, sub);
             if (!subSchema) continue;
-            auto err = validate_node(data, schema_root, *subSchema, path, raw_content);
+            std::set<std::string> sub_evaluated;
+            auto err = validate_node(data,
+                                     schema_root,
+                                     *subSchema,
+                                     path,
+                                     raw_content,
+                                     &sub_evaluated);
             if (!err.has_value()) {
                 ++matches;
                 matched_indices.push_back(i);
                 matched_schemas.push_back(subSchema);
+                matched_evaluated.push_back(std::move(sub_evaluated));
             } else {
                 std::string schemaName = extract_schema_name(*subSchema, schema_root);
                 failures.push_back("Option: " + schemaName + "\n  Failed because: " + *err);
@@ -836,6 +898,11 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 }
                 return std::optional<std::string>(msg);
             }
+        }
+
+        // Exactly one schema matched; inherit its evaluated properties.
+        if (matched_evaluated.size() == 1) {
+            evaluated_here.insert(matched_evaluated[0].begin(), matched_evaluated[0].end());
         }
 
         // Check if any of the matched alternatives are deprecated
@@ -877,7 +944,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         }
     } else if (data.isMappedObject() &&
                (schema_node.has("properties") || schema_node.has("required") ||
-                schema_node.has("additionalProperties") || schema_node.has("patternProperties"))) {
+                schema_node.has("additionalProperties") || schema_node.has("patternProperties") ||
+                schema_node.has("unevaluatedProperties"))) {
         // Schema has object-specific fields but no type - infer it's meant for objects
         should_validate_as_object = true;
     }
@@ -1059,6 +1127,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                  raw_content))
                         return err;
 
+                    evaluated_here.insert(key);
+
                     // Check if property is deprecated
                     if (propSchema.has("deprecated") &&
                         propSchema.at("deprecated").type() == Dictionary::Boolean &&
@@ -1105,6 +1175,7 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                     return err;
                             }
                             handled = true;
+                            evaluated_here.insert(key);
                             break;
                         }
                     } catch (...) {
@@ -1148,6 +1219,9 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     }
                     return std::optional<std::string>(msg);
                 }
+
+                // additionalProperties: true => treat as evaluated for unevaluatedProperties.
+                evaluated_here.insert(key);
             } else {
                 const Dictionary* sub = schema_from_value(schema_root, ap);
                 if (sub) {
@@ -1158,7 +1232,48 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                                  raw_content))
                         return err;
                 }
+
+                evaluated_here.insert(key);
             }
+        }
+
+        // unevaluatedProperties (draft 2019-09+): apply after properties/patternProperties/
+        // additionalProperties and applicators (e.g., allOf) have evaluated properties.
+        if (schema_node.has("unevaluatedProperties")) {
+            const Dictionary& up = schema_node.at("unevaluatedProperties");
+            for (auto const& dprop : data.items()) {
+                const std::string& key = dprop.first;
+                if (evaluated_here.find(key) != evaluated_here.end()) continue;
+
+                if (up.type() == Dictionary::Boolean) {
+                    if (!up.asBool()) {
+                        std::string msg = "key '" + key + "' not valid";
+                        if (!path.empty()) {
+                            msg += " in '" + path + "'";
+                        }
+                        msg += ".";
+                        return std::optional<std::string>(msg);
+                    }
+
+                    evaluated_here.insert(key);
+                    continue;
+                }
+
+                const Dictionary* sub = schema_from_value(schema_root, up);
+                if (sub) {
+                    if (auto err = validate_node(data.at(key),
+                                                 schema_root,
+                                                 *sub,
+                                                 path.empty() ? key : path + "." + key,
+                                                 raw_content))
+                        return err;
+                }
+                evaluated_here.insert(key);
+            }
+        }
+
+        if (evaluated_props_out != nullptr) {
+            evaluated_props_out->insert(evaluated_here.begin(), evaluated_here.end());
         }
 
         return std::nullopt;
@@ -1229,12 +1344,11 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                                 } else {
                                     const Dictionary* sub = schema_from_value(schema_root, *itadd);
                                     if (sub) {
-                                        if (auto err = validate_node(
-                                                        data[i],
-                                                        schema_root,
-                                                        *sub,
-                                                        path + "[" + std::to_string(i) + "]",
-                                                        raw_content))
+                                            if (auto err = validate_node(data[i],
+                                                                         schema_root,
+                                                                         *sub,
+                                                                         path + "[" + std::to_string(i) + "]",
+                                                                         raw_content))
                                             return err;
                                     }
                                 }
@@ -1693,6 +1807,7 @@ ValidationResult validate_all(const Dictionary& data,
                                                "properties",
                                                "items",
                                                "additionalProperties",
+                                               "unevaluatedProperties",
                                                "patternProperties",
                                                "required",
                                                "enum",
