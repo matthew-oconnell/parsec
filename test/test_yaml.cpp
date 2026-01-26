@@ -183,3 +183,78 @@ TEST_CASE("parse empty yaml returns empty object") {
     auto v = ps::parse_yaml(s);
     REQUIRE(v.isMappedObject());
 }
+
+TEST_CASE("parse yaml anchors and aliases for scalars", "[yaml][anchors][unit]") {
+    std::string s = R"(
+a: &x 1
+b: *x
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.at("a").asInt() == 1);
+    REQUIRE(v.at("b").asInt() == 1);
+}
+
+TEST_CASE("parse yaml anchors and aliases for nested objects", "[yaml][anchors][unit]") {
+    std::string s = R"(
+base: &base
+  x: 1
+  y: 2
+copy: *base
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.at("base").isMappedObject());
+    REQUIRE(v.at("copy").isMappedObject());
+    REQUIRE(v.at("copy").at("x").asInt() == 1);
+    REQUIRE(v.at("copy").at("y").asInt() == 2);
+}
+
+TEST_CASE("parse yaml anchors and aliases inside arrays", "[yaml][anchors][unit]") {
+    std::string s = R"(
+- &a 1
+- *a
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.size() == 2);
+    REQUIRE(v.at(0).asInt() == 1);
+    REQUIRE(v.at(1).asInt() == 1);
+}
+
+TEST_CASE("parse yaml merge key using alias", "[yaml][anchors][merge][unit]") {
+    std::string s = R"(
+base: &base
+  a: 1
+  b: 2
+child:
+  <<: *base
+  b: 3
+  c: 4
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.at("child").at("a").asInt() == 1);
+    REQUIRE(v.at("child").at("b").asInt() == 3);
+    REQUIRE(v.at("child").at("c").asInt() == 4);
+}
+
+TEST_CASE("parse yaml merge key from list of aliases", "[yaml][anchors][merge][unit]") {
+    std::string s = R"(
+base1: &b1
+  a: 1
+base2: &b2
+  b: 2
+child:
+  <<: [*b1, *b2]
+  c: 3
+)";
+    auto v = ps::parse_yaml(s);
+    REQUIRE(v.at("child").at("a").asInt() == 1);
+    REQUIRE(v.at("child").at("b").asInt() == 2);
+    REQUIRE(v.at("child").at("c").asInt() == 3);
+}
+
+TEST_CASE("yaml alias to unknown anchor throws", "[yaml][anchors][unit][exception]") {
+    std::string s = R"(
+a: *nope
+)";
+
+    REQUIRE_THROWS_WITH(ps::parse_yaml(s), Catch::Matchers::ContainsSubstring("unknown anchor"));
+}

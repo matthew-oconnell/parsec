@@ -150,8 +150,10 @@ int main(int argc, char** argv) {
         auto default_output_path = [](const std::string& in_path, const std::string& fmt) {
             const std::string ext = (fmt == "yaml") ? ".yaml" : ("." + fmt);
             const size_t slash = in_path.find_last_of("/\\\\");
-            const std::string dir = (slash == std::string::npos) ? std::string() : in_path.substr(0, slash + 1);
-            const std::string base = (slash == std::string::npos) ? in_path : in_path.substr(slash + 1);
+            const std::string dir =
+                        (slash == std::string::npos) ? std::string() : in_path.substr(0, slash + 1);
+            const std::string base =
+                        (slash == std::string::npos) ? in_path : in_path.substr(slash + 1);
 
             const size_t dot = base.find_last_of('.');
             const std::string stem = (dot == std::string::npos) ? base : base.substr(0, dot);

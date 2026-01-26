@@ -31,7 +31,9 @@ TEST_CASE("CLI --convert defaults output path by extension", "[cli][convert][int
 #else
     const auto pid = 0LL;
 #endif
-    const fs::path tmp = fs::temp_directory_path() / ("parsec-convert-" + std::to_string(pid) + "-" + std::to_string(static_cast<long long>(now)));
+    const fs::path tmp =
+                fs::temp_directory_path() / ("parsec-convert-" + std::to_string(pid) + "-" +
+                                             std::to_string(static_cast<long long>(now)));
     fs::create_directories(tmp);
 
     const fs::path in_json = tmp / "input.json";
@@ -47,7 +49,7 @@ TEST_CASE("CLI --convert defaults output path by extension", "[cli][convert][int
     {
         std::ofstream out(schema);
         REQUIRE(out.good());
-                out << R"({
+        out << R"({
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -65,8 +67,7 @@ TEST_CASE("CLI --convert defaults output path by extension", "[cli][convert][int
 
     {
         std::ostringstream cmd;
-        cmd << '"' << exe << '"' << " --convert yaml "
-            << '"' << in_json.string() << '"';
+        cmd << '"' << exe << '"' << " --convert yaml " << '"' << in_json.string() << '"';
         const int rc = run_cmd(cmd.str());
         REQUIRE(rc == 0);
     }
@@ -75,9 +76,8 @@ TEST_CASE("CLI --convert defaults output path by extension", "[cli][convert][int
 
     {
         std::ostringstream cmd;
-        cmd << '"' << exe << '"' << " --validate "
-            << '"' << schema.string() << '"'
-            << ' ' << '"' << out_yaml.string() << '"';
+        cmd << '"' << exe << '"' << " --validate " << '"' << schema.string() << '"' << ' ' << '"'
+            << out_yaml.string() << '"';
         const int rc = run_cmd(cmd.str());
         REQUIRE(rc == 0);
     }

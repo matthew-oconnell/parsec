@@ -1,5 +1,6 @@
 #include <ps/yaml.h>
 #include <cctype>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 
@@ -18,6 +19,8 @@ namespace {
         size_t line = 1;
         size_t col = 1;
         int current_indent = 0;
+
+        std::map<std::string, Dictionary> anchors;
 
         YamlParser(const std::string& str) : s(str) {}
 
@@ -194,6 +197,26 @@ namespace {
 
             const std::string t = trim(str);
 
+            // Alias for an anchored node (used in scalars and flow arrays like [*a, *b])
+            if (t.size() >= 2 && t.front() == '*') {
+                std::string name = t.substr(1);
+                bool ok = !name.empty();
+                for (char c : name) {
+                    if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-')) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) {
+                    auto it = anchors.find(name);
+                    if (it == anchors.end()) {
+                        throw std::runtime_error("YAML parse error: unknown anchor '*" + name +
+                                                 "'");
+                    }
+                    return it->second;
+                }
+            }
+
             if (t.empty()) {
                 Dictionary d;
                 d = std::string("");
@@ -214,7 +237,8 @@ namespace {
             if (t.size() >= 2 && t.front() == '[' && t.back() == ']') {
                 const std::string inner = trim(t.substr(1, t.size() - 2));
                 std::vector<Dictionary> out_values;
-                bool allInt = true, allDouble = true, allString = true, allBool = true, allObject = true;
+                bool allInt = true, allDouble = true, allString = true, allBool = true,
+                     allObject = true;
 
                 if (!inner.empty()) {
                     std::vector<std::string> tokens;
@@ -238,7 +262,7 @@ namespace {
                         }
                         if (in_single) {
                             cur.push_back(c);
-                            if (c == '\'' ) {
+                            if (c == '\'') {
                                 in_single = false;
                             }
                             continue;
@@ -272,10 +296,14 @@ namespace {
                             char c = q[p];
                             if (c == '\\' && p + 1 < q.size() - 1) {
                                 char e = q[++p];
-                                if (e == 'n') out.push_back('\n');
-                                else if (e == 't') out.push_back('\t');
-                                else if (e == 'r') out.push_back('\r');
-                                else out.push_back(e);
+                                if (e == 'n')
+                                    out.push_back('\n');
+                                else if (e == 't')
+                                    out.push_back('\t');
+                                else if (e == 'r')
+                                    out.push_back('\r');
+                                else
+                                    out.push_back(e);
                             } else {
                                 out.push_back(c);
                             }
@@ -429,6 +457,47 @@ namespace {
             return d;
         }
 
+        bool is_anchor_name_char(char c) const {
+            return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-';
+        }
+
+        std::string parse_anchor_name(char prefix) {
+            // prefix is '&' or '*', and current input is positioned at that prefix
+            const size_t start_line = line;
+            const size_t start_col = col;
+            get();  // consume prefix
+
+            std::string name;
+            while (i < s.size() && is_anchor_name_char(peek())) {
+                name.push_back(get());
+            }
+
+            if (name.empty()) {
+                throw YamlParseError(format_error(std::string("YAML parse error: expected anchor "
+                                                              "name after '") +
+                                                              prefix + "'",
+                                                  start_line,
+                                                  start_col),
+                                     start_line,
+                                     start_col);
+            }
+
+            // YAML token boundary: require delimiter after the name.
+            const char next = peek();
+            if (next != '\0' && next != '\n' && next != '#' && next != ',' && next != ']' &&
+                next != '}' && !std::isspace(static_cast<unsigned char>(next))) {
+                throw YamlParseError(format_error(std::string("YAML parse error: invalid anchor "
+                                                              "reference '") +
+                                                              prefix + name + "'",
+                                                  start_line,
+                                                  start_col),
+                                     start_line,
+                                     start_col);
+            }
+
+            return name;
+        }
+
         Dictionary parse_array(int base_indent) {
             std::vector<Dictionary> out_values;
             bool allInt = true, allDouble = true, allString = true, allBool = true,
@@ -538,7 +607,28 @@ namespace {
         }
 
         Dictionary parse_object(int base_indent) {
-            Dictionary d;
+            Dictionary explicit_entries;
+            std::vector<Dictionary> merge_sources;
+
+            auto finalize = [&]() {
+                Dictionary out;
+
+                // Apply merge sources first (later sources override earlier ones)
+                for (const auto& src : merge_sources) {
+                    if (!src.isMappedObject()) {
+                        continue;
+                    }
+                    for (const auto& k : src.keys()) {
+                        out[k] = src.at(k);
+                    }
+                }
+
+                // Explicit keys always override merged keys
+                for (const auto& k : explicit_entries.keys()) {
+                    out[k] = explicit_entries.at(k);
+                }
+                return out;
+            };
 
             while (i < s.size()) {
                 // Skip inline whitespace if we're starting inline (after '-' or mid-line)
@@ -556,7 +646,7 @@ namespace {
                             continue;
                         }
                         if (indent < base_indent) {
-                            return d;
+                            return finalize();
                         }
                         if (s[i] == '#') {
                             skip_to_eol();
@@ -577,7 +667,7 @@ namespace {
                 // (we're in an array and this is the next array element)
                 if (peek() == '-' && i + 1 < s.size() &&
                     std::isspace(static_cast<unsigned char>(s[i + 1]))) {
-                    return d;
+                    return finalize();
                 }
 
                 // Parse key
@@ -598,7 +688,7 @@ namespace {
                 }
 
                 // Keys must start with an ASCII letter
-                if (!std::isalpha(static_cast<unsigned char>(key[0]))) {
+                if (key != "<<" && !std::isalpha(static_cast<unsigned char>(key[0]))) {
                     // Calculate the position of the start of the key
                     size_t key_pos = i - key.length();
                     size_t key_line = 1, key_col = 1;
@@ -629,7 +719,7 @@ namespace {
                 }
                 get();  // consume ':'
 
-                if (d.has(key)) {
+                if (key != "<<" && explicit_entries.has(key)) {
                     throw YamlParseError(
                                 format_error("YAML parse error: duplicate key '" + key + "'",
                                              line,
@@ -673,13 +763,36 @@ namespace {
                     }
                 }
 
-                d[key] = value;
+                if (key == "<<") {
+                    if (value.isMappedObject() || value.type() == Dictionary::ObjectArray) {
+                        for (const auto& obj : value.asObjects()) {
+                            if (!obj.isMappedObject()) {
+                                throw YamlParseError(format_error("YAML parse error: merge key "
+                                                                  "'<<' must reference a mapping",
+                                                                  line,
+                                                                  col),
+                                                     line,
+                                                     col);
+                            }
+                            merge_sources.push_back(obj);
+                        }
+                    } else {
+                        throw YamlParseError(format_error("YAML parse error: merge key '<<' must "
+                                                          "reference a mapping or list of mappings",
+                                                          line,
+                                                          col),
+                                             line,
+                                             col);
+                    }
+                } else {
+                    explicit_entries[key] = value;
+                }
             }
 
-            return d;
+            return finalize();
         }
 
-        Dictionary parse_value(int base_indent = 0) {
+        Dictionary parse_value_no_anchor(int base_indent = 0) {
             skip_ws_inline();
 
             // If we're at a newline, the value is on the next line(s)
@@ -729,6 +842,36 @@ namespace {
                 std::string str_val = parse_string_value();
                 return parse_scalar(str_val);
             }
+        }
+
+        Dictionary parse_value(int base_indent = 0) {
+            skip_ws_inline();
+
+            if (peek() == '&') {
+                const std::string name = parse_anchor_name('&');
+                skip_ws_inline();
+                Dictionary v = parse_value_no_anchor(base_indent);
+                anchors[name] = v;
+                return v;
+            }
+
+            if (peek() == '*') {
+                const size_t ref_line = line;
+                const size_t ref_col = col;
+                const std::string name = parse_anchor_name('*');
+                auto it = anchors.find(name);
+                if (it == anchors.end()) {
+                    throw YamlParseError(
+                                format_error("YAML parse error: unknown anchor '*" + name + "'",
+                                             ref_line,
+                                             ref_col),
+                                ref_line,
+                                ref_col);
+                }
+                return it->second;
+            }
+
+            return parse_value_no_anchor(base_indent);
         }
 
         Dictionary parse() {
