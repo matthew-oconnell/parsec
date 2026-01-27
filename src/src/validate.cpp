@@ -1556,6 +1556,17 @@ static void validate_node_collect(const Dictionary& data,
         }
     }
 
+    // Handle allOf: validate against all sub-schemas and collect all errors
+    if (effective_schema->has("allOf") && effective_schema->at("allOf").isArrayObject()) {
+        const Dictionary& allOf = effective_schema->at("allOf");
+        for (int i = 0; i < allOf.size(); ++i) {
+            const Dictionary& sub_schema = allOf[i];
+            // Recursively validate against each sub-schema in allOf
+            validate_node_collect(data, schema_root, sub_schema, path, depth, raw_content, errors);
+        }
+        return;  // allOf handling is complete
+    }
+
     // Check if this is an object validation
     bool is_object_validation = false;
     if (effective_schema->has("type") &&
