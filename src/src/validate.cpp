@@ -948,7 +948,8 @@ static std::optional<std::string> validate_node(const Dictionary& data,
             // If validation succeeded (no error), the 'not' constraint is violated
             if (!err.has_value()) {
                 // Try to provide a more specific error message by analyzing the 'not' schema
-                std::string msg = "value at '" + display_path(path) + "'";
+                std::string msg;
+                std::string error_path = path;
                 
                 // Check if 'not' contains anyOf with required fields - common pattern for forbidden properties
                 if (notSchema->has("anyOf") && notSchema->at("anyOf").isArrayObject() && data.isMappedObject()) {
@@ -972,19 +973,27 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                     }
                     
                     if (!forbidden_found.empty()) {
-                        msg += " contains forbidden propert";
-                        msg += (forbidden_found.size() == 1) ? "y: '" : "ies: '";
+                        // Point to the first forbidden property instead of the parent
+                        std::string forbidden_key = forbidden_found[0];
+                        error_path = path.empty() ? forbidden_key : path + "." + forbidden_key;
+                        
+                        msg = "propert";
+                        msg += (forbidden_found.size() == 1) ? "y '" : "ies '";
                         for (size_t i = 0; i < forbidden_found.size(); ++i) {
                             if (i > 0) msg += "', '";
                             msg += forbidden_found[i];
                         }
-                        msg += "'";
+                        msg += "' not allowed at '" + display_path(error_path) + "'";
+                        
+                        // Store the path to the forbidden property in a special format
+                        // that signals to line number lookup to use this path
+                        msg = "@@PATH:" + error_path + "@@" + msg;
                         return std::optional<std::string>(msg);
                     }
                 }
                 
                 // Fallback generic message
-                msg += " must not validate against the 'not' schema";
+                msg = "value at '" + display_path(path) + "' must not validate against the 'not' schema";
                 return std::optional<std::string>(msg);
             }
             // Otherwise, validation failed as expected for 'not', so continue
@@ -1676,20 +1685,32 @@ static void validate_node_collect(const Dictionary& data,
         if (object_error.has_value()) {
             // Only add if it's not a missing required or deprecated error (we already handled
             // those)
-            if (object_error->find("missing required") == std::string::npos &&
-                object_error->find("deprecated") == std::string::npos) {
-                int line = find_line_number(raw_content, path);
+            std::string error_msg = *object_error;
+            if (error_msg.find("missing required") == std::string::npos &&
+                error_msg.find("deprecated") == std::string::npos) {
+                std::string line_path = path;
+                
+                // Check for path marker from 'not' constraint
+                if (error_msg.find("@@PATH:") == 0) {
+                    size_t end_marker = error_msg.find("@@", 7);
+                    if (end_marker != std::string::npos) {
+                        line_path = error_msg.substr(7, end_marker - 7);
+                        error_msg = error_msg.substr(end_marker + 2);
+                    }
+                }
+                
+                int line = find_line_number(raw_content, line_path);
                 ErrorCategory cat = ErrorCategory::OTHER;
-                if (object_error->find("not valid") != std::string::npos ||
-                    object_error->find("not allowed") != std::string::npos) {
+                if (error_msg.find("not valid") != std::string::npos ||
+                    error_msg.find("not allowed") != std::string::npos) {
                     cat = ErrorCategory::ADDITIONAL_PROPERTY;
-                } else if (object_error->find("fewer properties") != std::string::npos ||
-                           object_error->find("more properties") != std::string::npos) {
+                } else if (error_msg.find("fewer properties") != std::string::npos ||
+                           error_msg.find("more properties") != std::string::npos) {
                     cat = ErrorCategory::OTHER;
                 }
 
                 errors.emplace_back(display_path(path),
-                                    *object_error,
+                                    error_msg,
                                     line,
                                     depth,
                                     ErrorSeverity::ERROR,
@@ -1701,7 +1722,42 @@ static void validate_node_collect(const Dictionary& data,
         std::string t = effective_schema->at("type").asString();
         if (t == "array" && data.isArrayObject()) {
             // For arrays, validate each item
-            if (effective_schema->has("items")) {
+            // Handle prefixItems (Draft 2020-12) first
+            if (effective_schema->has("prefixItems") && effective_schema->at("prefixItems").isArrayObject()) {
+                const Dictionary& prefixItems = effective_schema->at("prefixItems");
+                size_t nPrefix = prefixItems.size();
+                
+                for (size_t i = 0; i < nPrefix && i < static_cast<size_t>(data.size()); ++i) {
+                    const Dictionary* item_schema = schema_from_value(schema_root, prefixItems[static_cast<int>(i)]);
+                    if (item_schema) {
+                        std::string child_path = path + "[" + std::to_string(i) + "]";
+                        validate_node_collect(data[static_cast<int>(i)],
+                                              schema_root,
+                                              *item_schema,
+                                              child_path,
+                                              depth + 1,
+                                              raw_content,
+                                              errors);
+                    }
+                }
+                
+                // After prefixItems, validate remaining items with 'items' schema if present
+                if (effective_schema->has("items")) {
+                    const Dictionary* items_schema = schema_from_value(schema_root, effective_schema->at("items"));
+                    if (items_schema) {
+                        for (size_t i = nPrefix; i < static_cast<size_t>(data.size()); ++i) {
+                            std::string child_path = path + "[" + std::to_string(i) + "]";
+                            validate_node_collect(data[static_cast<int>(i)],
+                                                  schema_root,
+                                                  *items_schema,
+                                                  child_path,
+                                                  depth + 1,
+                                                  raw_content,
+                                                  errors);
+                        }
+                    }
+                }
+            } else if (effective_schema->has("items")) {
                 const Dictionary& items_schema = effective_schema->at("items");
                 const Dictionary* item_schema = schema_from_value(schema_root, items_schema);
 
@@ -1724,9 +1780,21 @@ static void validate_node_collect(const Dictionary& data,
                         validate_node(data, schema_root, *effective_schema, path, raw_content);
             if (array_error.has_value()) {
                 // Capture any array-level errors (constraints, tuple validation, etc.)
-                int line = find_line_number(raw_content, path);
+                std::string error_msg = *array_error;
+                std::string line_path = path;
+                
+                // Check for path marker from 'not' constraint
+                if (error_msg.find("@@PATH:") == 0) {
+                    size_t end_marker = error_msg.find("@@", 7);
+                    if (end_marker != std::string::npos) {
+                        line_path = error_msg.substr(7, end_marker - 7);
+                        error_msg = error_msg.substr(end_marker + 2);
+                    }
+                }
+                
+                int line = find_line_number(raw_content, line_path);
                 errors.emplace_back(display_path(path),
-                                    *array_error,
+                                    error_msg,
                                     line,
                                     depth,
                                     ErrorSeverity::ERROR,
@@ -1737,50 +1805,74 @@ static void validate_node_collect(const Dictionary& data,
             auto basic_error =
                         validate_node(data, schema_root, *effective_schema, path, raw_content);
             if (basic_error.has_value()) {
-                int line = find_line_number(raw_content, path);
+                std::string error_msg = *basic_error;
+                std::string line_path = path;
+                
+                // Check for path marker from 'not' constraint
+                if (error_msg.find("@@PATH:") == 0) {
+                    size_t end_marker = error_msg.find("@@", 7);
+                    if (end_marker != std::string::npos) {
+                        line_path = error_msg.substr(7, end_marker - 7);
+                        error_msg = error_msg.substr(end_marker + 2);
+                    }
+                }
+                
+                int line = find_line_number(raw_content, line_path);
                 ErrorCategory cat = ErrorCategory::OTHER;
                 ErrorSeverity sev = ErrorSeverity::ERROR;
 
                 // Categorize the error
-                if (basic_error->find("deprecated") != std::string::npos) {
+                if (error_msg.find("deprecated") != std::string::npos) {
                     cat = ErrorCategory::DEPRECATED_VALUE;
                     sev = ErrorSeverity::DEPRECATION;
-                } else if (basic_error->find("expected type") != std::string::npos) {
+                } else if (error_msg.find("expected type") != std::string::npos) {
                     cat = ErrorCategory::TYPE_MISMATCH;
-                } else if (basic_error->find("enum") != std::string::npos ||
-                           basic_error->find("did not match") != std::string::npos) {
+                } else if (error_msg.find("enum") != std::string::npos ||
+                           error_msg.find("did not match") != std::string::npos) {
                     cat = ErrorCategory::INVALID_ENUM;
-                } else if (basic_error->find("minimum") != std::string::npos ||
-                           basic_error->find("maximum") != std::string::npos ||
-                           basic_error->find("above") != std::string::npos ||
-                           basic_error->find("below") != std::string::npos) {
+                } else if (error_msg.find("minimum") != std::string::npos ||
+                           error_msg.find("maximum") != std::string::npos ||
+                           error_msg.find("above") != std::string::npos ||
+                           error_msg.find("below") != std::string::npos) {
                     cat = ErrorCategory::OUT_OF_RANGE;
-                } else if (basic_error->find("oneOf") != std::string::npos) {
+                } else if (error_msg.find("oneOf") != std::string::npos) {
                     cat = ErrorCategory::ONE_OF_MISMATCH;
-                } else if (basic_error->find("anyOf") != std::string::npos) {
+                } else if (error_msg.find("anyOf") != std::string::npos) {
                     cat = ErrorCategory::ANY_OF_MISMATCH;
-                } else if (basic_error->find("allOf") != std::string::npos) {
+                } else if (error_msg.find("allOf") != std::string::npos) {
                     cat = ErrorCategory::ALL_OF_FAILURE;
                 }
 
-                errors.emplace_back(display_path(path), *basic_error, line, depth, sev, cat);
+                errors.emplace_back(display_path(path), error_msg, line, depth, sev, cat);
             }
         }
     } else {
         // For other complex schemas (anyOf, oneOf, allOf, etc.), use validate_node
         auto basic_error = validate_node(data, schema_root, *effective_schema, path, raw_content);
         if (basic_error.has_value()) {
-            int line = find_line_number(raw_content, path);
+            std::string error_msg = *basic_error;
+            std::string line_path = path;
+            
+            // Check for path marker from 'not' constraint
+            if (error_msg.find("@@PATH:") == 0) {
+                size_t end_marker = error_msg.find("@@", 7);
+                if (end_marker != std::string::npos) {
+                    line_path = error_msg.substr(7, end_marker - 7);
+                    error_msg = error_msg.substr(end_marker + 2);
+                }
+            }
+            
+            int line = find_line_number(raw_content, line_path);
             ErrorCategory cat = ErrorCategory::OTHER;
             ErrorSeverity sev = ErrorSeverity::ERROR;
 
             // Check if it's a deprecation
-            if (basic_error->find("deprecated") != std::string::npos) {
+            if (error_msg.find("deprecated") != std::string::npos) {
                 cat = ErrorCategory::DEPRECATED_VALUE;
                 sev = ErrorSeverity::DEPRECATION;
             }
 
-            errors.emplace_back(display_path(path), *basic_error, line, depth, sev, cat);
+            errors.emplace_back(display_path(path), error_msg, line, depth, sev, cat);
         }
     }
 }
@@ -1846,6 +1938,12 @@ static int find_line_number(const std::string& raw_content, const std::string& p
                 colon_pos++;
             }
             if (colon_pos < raw_content.size() && raw_content[colon_pos] == ':') {
+                // For paths with array indices like sequence[0].key, prefer first match
+                // For simple paths, take the last match (backwards compatibility)
+                if (path.find('[') != std::string::npos) {
+                    // Has array index - return first match
+                    return line;
+                }
                 best_line = line;
             }
         }
