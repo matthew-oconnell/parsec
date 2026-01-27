@@ -214,3 +214,150 @@ TEST_CASE("validate_all collects array item errors", "[validate][multi-error][ar
     REQUIRE(found_item_0);
     REQUIRE(found_item_2);
 }
+
+TEST_CASE("validate_all collects errors from all allOf sub-schemas", "[validate][multi-error][allOf]") {
+    // Schema using allOf to combine multiple required properties
+    Dictionary schema = parse_json(R"({
+        "allOf": [
+            {
+                "type": "object",
+                "required": ["name", "email"],
+                "properties": {
+                    "name": {"type": "string"},
+                    "email": {"type": "string"}
+                }
+            },
+            {
+                "type": "object",
+                "required": ["age", "city"],
+                "properties": {
+                    "age": {"type": "integer"},
+                    "city": {"type": "string"}
+                }
+            }
+        ]
+    })");
+
+    // Empty data - should report all 4 missing required keys
+    Dictionary data = parse_json(R"({})");
+
+    auto result = validate_all(data, schema);
+
+    REQUIRE_FALSE(result.is_valid());
+    REQUIRE(result.error_count() == 4);
+
+    // Check that all missing keys are reported
+    bool found_name = false;
+    bool found_email = false;
+    bool found_age = false;
+    bool found_city = false;
+    for (const auto& err : result.errors) {
+        if (err.message.find("missing required key 'name'") != std::string::npos) {
+            found_name = true;
+        }
+        if (err.message.find("missing required key 'email'") != std::string::npos) {
+            found_email = true;
+        }
+        if (err.message.find("missing required key 'age'") != std::string::npos) {
+            found_age = true;
+        }
+        if (err.message.find("missing required key 'city'") != std::string::npos) {
+            found_city = true;
+        }
+    }
+    REQUIRE(found_name);
+    REQUIRE(found_email);
+    REQUIRE(found_age);
+    REQUIRE(found_city);
+}
+
+TEST_CASE("validate_all collects partial errors from allOf with $ref", "[validate][multi-error][allOf][ref]") {
+    // Schema using allOf with $ref - similar to real-world schema structure
+    Dictionary schema = parse_json(R"({
+        "allOf": [
+            {
+                "$ref": "#/definitions/CommonSettings"
+            },
+            {
+                "type": "object",
+                "required": ["mesh filename", "boundary conditions"],
+                "properties": {
+                    "mesh filename": {"type": "string"},
+                    "boundary conditions": {"type": "array"}
+                }
+            }
+        ],
+        "definitions": {
+            "CommonSettings": {
+                "type": "object",
+                "required": ["steps"],
+                "properties": {
+                    "steps": {"type": "integer"},
+                    "verbose": {"type": "boolean"}
+                }
+            }
+        }
+    })");
+
+    // Data missing required keys from both schemas
+    Dictionary data = parse_json(R"({
+        "verbose": true
+    })");
+
+    auto result = validate_all(data, schema);
+
+    REQUIRE_FALSE(result.is_valid());
+    REQUIRE(result.error_count() == 3);
+
+    // Check that all missing keys are reported
+    bool found_steps = false;
+    bool found_mesh = false;
+    bool found_bc = false;
+    for (const auto& err : result.errors) {
+        if (err.message.find("missing required key 'steps'") != std::string::npos) {
+            found_steps = true;
+        }
+        if (err.message.find("missing required key 'mesh filename'") != std::string::npos) {
+            found_mesh = true;
+        }
+        if (err.message.find("missing required key 'boundary conditions'") != std::string::npos) {
+            found_bc = true;
+        }
+    }
+    REQUIRE(found_steps);
+    REQUIRE(found_mesh);
+    REQUIRE(found_bc);
+}
+
+TEST_CASE("validate_all with allOf reports no errors when all requirements met", "[validate][multi-error][allOf]") {
+    // Schema using allOf
+    Dictionary schema = parse_json(R"({
+        "allOf": [
+            {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {"type": "string"}
+                }
+            },
+            {
+                "type": "object",
+                "required": ["age"],
+                "properties": {
+                    "age": {"type": "integer"}
+                }
+            }
+        ]
+    })");
+
+    // Data satisfying all requirements
+    Dictionary data = parse_json(R"({
+        "name": "Alice",
+        "age": 30
+    })");
+
+    auto result = validate_all(data, schema);
+
+    REQUIRE(result.is_valid());
+    REQUIRE(result.error_count() == 0);
+}
