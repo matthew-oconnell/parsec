@@ -164,3 +164,60 @@ TEST_CASE("setDefaults: allOf with nested $ref applies defaults correctly", "[de
     REQUIRE(disc.has("lock limiter"));
     REQUIRE(disc.at("lock limiter").asInt() == -1);
 }
+
+TEST_CASE("setDefaults: schema with root-level $ref", "[defaults]") {
+    // Create a schema with definitions
+    Dictionary definitions;
+    
+    Dictionary mainSchema;
+    mainSchema["type"] = "object";
+    Dictionary props;
+    props["port"] = Dictionary{{"type", "integer"}, {"default", int64_t(8080)}};
+    props["host"] = Dictionary{{"type", "string"}, {"default", "localhost"}};
+    mainSchema["properties"] = props;
+    
+    definitions["MainSettings"] = mainSchema;
+    
+    // Root schema has only $ref
+    Dictionary rootSchema;
+    rootSchema["$ref"] = "#/definitions/MainSettings";
+    rootSchema["definitions"] = definitions;
+    
+    // Test with empty input
+    Dictionary input;
+    auto out = setDefaults(input, rootSchema);
+    
+    REQUIRE(out.has("port"));
+    REQUIRE(out.at("port").asInt() == 8080);
+    REQUIRE(out.has("host"));
+    REQUIRE(out.at("host").asString() == "localhost");
+}
+
+TEST_CASE("setDefaults: schema with root-level $ref preserves user values", "[defaults]") {
+    // Create a schema with definitions
+    Dictionary definitions;
+    
+    Dictionary mainSchema;
+    mainSchema["type"] = "object";
+    Dictionary props;
+    props["port"] = Dictionary{{"type", "integer"}, {"default", int64_t(8080)}};
+    props["host"] = Dictionary{{"type", "string"}, {"default", "localhost"}};
+    mainSchema["properties"] = props;
+    
+    definitions["MainSettings"] = mainSchema;
+    
+    // Root schema has only $ref
+    Dictionary rootSchema;
+    rootSchema["$ref"] = "#/definitions/MainSettings";
+    rootSchema["definitions"] = definitions;
+    
+    // Test with partial user input
+    Dictionary input;
+    input["port"] = int64_t(3000);  // User provided value
+    auto out = setDefaults(input, rootSchema);
+    
+    REQUIRE(out.has("port"));
+    REQUIRE(out.at("port").asInt() == 3000);  // User value preserved
+    REQUIRE(out.has("host"));
+    REQUIRE(out.at("host").asString() == "localhost");  // Default applied
+}

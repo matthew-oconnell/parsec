@@ -284,19 +284,28 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
 Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
     // Use schema as root for $ref resolution in future work; for now pass schema through
 
+    // Resolve root-level $ref if present
+    const Dictionary* effectiveSchema = &schema;
+    if (schema.has("$ref") && schema.at("$ref").type() == Dictionary::String) {
+        const Dictionary* resolved = resolve_local_ref(schema, schema.at("$ref").asString());
+        if (resolved) {
+            effectiveSchema = resolved;
+        }
+    }
+
     // Top-level: if schema declares type object, apply object defaults; otherwise if default
     // exists, use it
-    if (schema.has("type") && schema.at("type").type() == Dictionary::String &&
-        schema.at("type").asString() == "object") {
+    if (effectiveSchema->has("type") && effectiveSchema->at("type").type() == Dictionary::String &&
+        effectiveSchema->at("type").asString() == "object") {
         Dictionary inObj;
         if (data.isMappedObject()) inObj = data;
-        Dictionary outObj = apply_defaults_to_object(inObj, schema, schema);
+        Dictionary outObj = apply_defaults_to_object(inObj, schema, *effectiveSchema);
         return outObj;
     }
 
     // If schema has a top-level default and data is not object/array, return default
-    if ((!data.isMappedObject() && !data.isArrayObject()) && schema.has("default")) {
-        return clone_value(schema.at("default"));
+    if ((!data.isMappedObject() && !data.isArrayObject()) && effectiveSchema->has("default")) {
+        return clone_value(effectiveSchema->at("default"));
     }
 
     // Otherwise return the input dictionary unchanged
