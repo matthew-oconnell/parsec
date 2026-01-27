@@ -934,6 +934,63 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         }
     }
 
+    // not: data must NOT validate against the given schema
+    if (schema_node.has("not")) {
+        const Dictionary* notSchema = schema_from_value(schema_root, schema_node.at("not"));
+        if (notSchema) {
+            std::set<std::string> not_evaluated;
+            auto err = validate_node(data,
+                                     schema_root,
+                                     *notSchema,
+                                     path,
+                                     raw_content,
+                                     &not_evaluated);
+            // If validation succeeded (no error), the 'not' constraint is violated
+            if (!err.has_value()) {
+                // Try to provide a more specific error message by analyzing the 'not' schema
+                std::string msg = "value at '" + display_path(path) + "'";
+                
+                // Check if 'not' contains anyOf with required fields - common pattern for forbidden properties
+                if (notSchema->has("anyOf") && notSchema->at("anyOf").isArrayObject() && data.isMappedObject()) {
+                    const Dictionary& anyOfArray = notSchema->at("anyOf");
+                    std::vector<std::string> forbidden_found;
+                    
+                    // Check each anyOf alternative for required fields that exist in data
+                    for (int i = 0; i < anyOfArray.size(); ++i) {
+                        const Dictionary* alt = schema_from_value(schema_root, anyOfArray[i]);
+                        if (alt && alt->has("required") && alt->at("required").isArrayObject()) {
+                            const Dictionary& req = alt->at("required");
+                            for (int j = 0; j < req.size(); ++j) {
+                                if (req[j].type() == Dictionary::String) {
+                                    std::string reqKey = req[j].asString();
+                                    if (data.has(reqKey)) {
+                                        forbidden_found.push_back(reqKey);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!forbidden_found.empty()) {
+                        msg += " contains forbidden propert";
+                        msg += (forbidden_found.size() == 1) ? "y: '" : "ies: '";
+                        for (size_t i = 0; i < forbidden_found.size(); ++i) {
+                            if (i > 0) msg += "', '";
+                            msg += forbidden_found[i];
+                        }
+                        msg += "'";
+                        return std::optional<std::string>(msg);
+                    }
+                }
+                
+                // Fallback generic message
+                msg += " must not validate against the 'not' schema";
+                return std::optional<std::string>(msg);
+            }
+            // Otherwise, validation failed as expected for 'not', so continue
+        }
+    }
+
     // type check
     // Infer object type if schema has "properties" even without explicit "type": "object"
     bool should_validate_as_object = false;
@@ -1314,8 +1371,38 @@ static std::optional<std::string> validate_node(const Dictionary& data,
                 }
             }
 
-            // items: schema or tuple
-            if (schema_node.has("items")) {
+            // prefixItems (Draft 2020-12): array of schemas for positional validation
+            if (schema_node.has("prefixItems") && schema_node.at("prefixItems").isArrayObject()) {
+                const Dictionary& prefixItems = schema_node.at("prefixItems");
+                size_t nPrefix = prefixItems.size();
+                for (size_t i = 0; i < nPrefix && i < static_cast<size_t>(data.size()); ++i) {
+                    const Dictionary* sub = schema_from_value(schema_root, prefixItems[static_cast<int>(i)]);
+                    if (sub) {
+                        if (auto err = validate_node(data[static_cast<int>(i)],
+                                                     schema_root,
+                                                     *sub,
+                                                     path + "[" + std::to_string(i) + "]",
+                                                     raw_content))
+                            return err;
+                    }
+                }
+
+                // After prefixItems, validate remaining items with 'items' schema if present
+                if (schema_node.has("items")) {
+                    const Dictionary* itemsSchema = schema_from_value(schema_root, schema_node.at("items"));
+                    if (itemsSchema) {
+                        for (size_t i = nPrefix; i < static_cast<size_t>(data.size()); ++i) {
+                            if (auto err = validate_node(data[static_cast<int>(i)],
+                                                         schema_root,
+                                                         *itemsSchema,
+                                                         path + "[" + std::to_string(i) + "]",
+                                                         raw_content))
+                                return err;
+                        }
+                    }
+                }
+            } else if (schema_node.has("items")) {
+                // items: schema or tuple (older draft support)
                 const Dictionary& itemsVal = schema_node.at("items");
                 if (itemsVal.isArrayObject()) {
                     // tuple validation
