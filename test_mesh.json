@@ -1,0 +1,10 @@
+{
+  "mesh adaptation": {
+    "starting mesh complexity": 7,
+    "max refinement levels": 3
+  },
+  "server": {
+    "port": 8080,
+    "host": "localhost"
+  }
+}

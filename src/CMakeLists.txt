@@ -81,6 +81,15 @@ if (PARSEC_BUILD_TESTING)
   target_compile_options(pq_test_parser PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Build the pq tool
+option(PARSEC_BUILD_PQ "Build pq command-line tool" ON)
+if (PARSEC_BUILD_PQ)
+  add_executable(pq src/pq/pq_main.cpp)
+  target_link_libraries(pq PRIVATE parsec_lib)
+  target_compile_features(pq PUBLIC cxx_std_17)
+  target_compile_options(pq PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 # -------------------------------
 # Install & export parsec targets
 # -------------------------------
