@@ -69,8 +69,13 @@ if (PARSEC_BUILD_CLI)
   target_compile_options(parsec PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-if (PARSEC_BUILD_TESTS)
+if (PARSEC_BUILD_TESTING)
   # tests are handled at top-level in test/
+  # Build test utility for bash integration tests
+  add_executable(pq_test_parser src/pq/test_parser_main.cpp)
+  target_link_libraries(pq_test_parser PRIVATE parsec_lib)
+  target_compile_features(pq_test_parser PUBLIC cxx_std_17)
+  target_compile_options(pq_test_parser PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # -------------------------------
