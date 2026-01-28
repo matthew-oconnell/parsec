@@ -28,6 +28,7 @@ target_sources(parsec_lib
     src/yaml_printer.cpp
     src/ron_printer.cpp
     src/validate.cpp
+    src/pq/path_parser.cpp
 )
 
 ## Compiler warning flags
