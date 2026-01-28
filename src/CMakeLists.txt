@@ -31,6 +31,7 @@ target_sources(parsec_lib
     src/pq/path_parser.cpp
     src/pq/navigator.cpp
     src/pq/cli_args.cpp
+    src/pq/output_formatter.cpp
 )
 
 ## Compiler warning flags
