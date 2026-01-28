@@ -293,10 +293,19 @@ Dictionary setDefaults(const Dictionary& data, const Dictionary& schema) {
         }
     }
 
-    // Top-level: if schema declares type object, apply object defaults; otherwise if default
-    // exists, use it
+    // Top-level: if schema declares type object OR has properties (implying object type),
+    // apply object defaults; otherwise if default exists, use it
+    bool isObjectSchema = false;
     if (effectiveSchema->has("type") && effectiveSchema->at("type").type() == Dictionary::String &&
         effectiveSchema->at("type").asString() == "object") {
+        isObjectSchema = true;
+    }
+    // Also treat schemas with "properties" as object schemas even without explicit type
+    if (effectiveSchema->has("properties")) {
+        isObjectSchema = true;
+    }
+    
+    if (isObjectSchema) {
         Dictionary inObj;
         if (data.isMappedObject()) inObj = data;
         Dictionary outObj = apply_defaults_to_object(inObj, schema, *effectiveSchema);

@@ -221,3 +221,22 @@ TEST_CASE("setDefaults: schema with root-level $ref preserves user values", "[de
     REQUIRE(out.has("host"));
     REQUIRE(out.at("host").asString() == "localhost");  // Default applied
 }
+
+TEST_CASE("setDefaults: schema without explicit type but with properties infers object", "[defaults]") {
+    // Schema has "properties" but no "type": "object" declaration
+    // Should still apply defaults because properties implies object type
+    Dictionary schema;
+    // Deliberately NO "type" field here
+    Dictionary props;
+    props["port"] = Dictionary{{"type", "integer"}, {"default", int64_t(8080)}};
+    props["host"] = Dictionary{{"type", "string"}, {"default", "localhost"}};
+    schema["properties"] = props;
+
+    Dictionary input;  // empty
+    auto out = setDefaults(input, schema);
+    
+    REQUIRE(out.has("port"));
+    REQUIRE(out.at("port").asInt() == 8080);
+    REQUIRE(out.has("host"));
+    REQUIRE(out.at("host").asString() == "localhost");
+}
