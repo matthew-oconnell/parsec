@@ -165,3 +165,44 @@ TEST_CASE("Parse standalone wildcard", "[pq][path_parser][unit]") {
     REQUIRE(tokens.size() == 1);
     REQUIRE(tokens[0].isWildcard());
 }
+
+// Dot notation support
+TEST_CASE("Parse dot notation path", "[pq][path_parser][unit]") {
+    ps::pq::PathParser parser;
+    auto tokens = parser.parse("server.port");
+    
+    REQUIRE(tokens.size() == 2);
+    REQUIRE(tokens[0].asKey() == "server");
+    REQUIRE(tokens[1].asKey() == "port");
+}
+
+TEST_CASE("Parse dot notation with array index", "[pq][path_parser][unit]") {
+    ps::pq::PathParser parser;
+    auto tokens = parser.parse("users.0.name");
+    
+    REQUIRE(tokens.size() == 3);
+    REQUIRE(tokens[0].asKey() == "users");
+    REQUIRE(tokens[1].isIndex());
+    REQUIRE(tokens[1].asIndex() == 0);
+    REQUIRE(tokens[2].asKey() == "name");
+}
+
+TEST_CASE("Parse dot notation with wildcard", "[pq][path_parser][unit]") {
+    ps::pq::PathParser parser;
+    auto tokens = parser.parse("users.*.email");
+    
+    REQUIRE(tokens.size() == 3);
+    REQUIRE(tokens[0].asKey() == "users");
+    REQUIRE(tokens[1].isWildcard());
+    REQUIRE(tokens[2].asKey() == "email");
+}
+
+TEST_CASE("Slash takes precedence over dot", "[pq][path_parser][unit]") {
+    ps::pq::PathParser parser;
+    // If path has slashes, dots are part of key names
+    auto tokens = parser.parse("server.config/port.number");
+    
+    REQUIRE(tokens.size() == 2);
+    REQUIRE(tokens[0].asKey() == "server.config");
+    REQUIRE(tokens[1].asKey() == "port.number");
+}

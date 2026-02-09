@@ -108,6 +108,12 @@ if (PARSEC_BUILD_CLI)
   )
 endif()
 
+if (PARSEC_BUILD_PQ)
+  install(TARGETS pq
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
+endif()
+
 install(DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )

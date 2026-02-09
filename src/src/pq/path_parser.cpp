@@ -42,19 +42,29 @@ std::vector<PathToken> PathParser::parse(const std::string& path) {
         throw std::invalid_argument("Path cannot be empty");
     }
     
-    if (path[0] == '/') {
-        throw std::invalid_argument("Path cannot start with /");
+    // Auto-detect separator: prefer slash, fall back to dot
+    char separator = '/';
+    if (path.find('/') == std::string::npos && path.find('.') != std::string::npos) {
+        separator = '.';
     }
     
-    if (path[path.length() - 1] == '/') {
-        throw std::invalid_argument("Path cannot end with /");
+    if (path[0] == separator) {
+        std::string msg = "Path cannot start with ";
+        msg += separator;
+        throw std::invalid_argument(msg);
+    }
+    
+    if (path[path.length() - 1] == separator) {
+        std::string msg = "Path cannot end with ";
+        msg += separator;
+        throw std::invalid_argument(msg);
     }
     
     std::vector<PathToken> tokens;
     std::stringstream ss(path);
     std::string segment;
     
-    while (std::getline(ss, segment, '/')) {
+    while (std::getline(ss, segment, separator)) {
         if (segment.empty()) {
             throw std::invalid_argument("Path cannot contain empty segments (double slashes)");
         }

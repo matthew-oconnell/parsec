@@ -25,6 +25,7 @@ add_executable(parsec_tests
   test_validate_hs_schema_examples.cpp
   test_cli_parser_selection.cpp
   test_cli_convert.cpp
+  test_cli_help.cpp
   test_pretty_print.cpp
   test_setdefaults.cpp
   test_initializer.cpp

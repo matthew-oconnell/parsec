@@ -13,12 +13,78 @@
 // The real `ps::validate` implementation is provided in `validate.cpp`.
 // Do not provide a local stub here so the CLI calls the library implementation.
 
+void print_help() {
+    std::cout << "parsec - Human-friendly dictionary parser for multiple configuration formats\n\n";
+    std::cout << "USAGE:\n";
+    std::cout << "  parsec [options] <file>\n";
+    std::cout << "  parsec --validate [--no-defaults] <schema.json> <file>\n";
+    std::cout << "  parsec --fill-defaults <schema.json> <input> <output>\n";
+    std::cout << "  parsec --convert <yaml|json|ron|toml> <input> [output]\n\n";
+    
+    std::cout << "OPTIONS:\n";
+    std::cout << "  -h, --help              Show this help message and exit\n";
+    std::cout << "  --auto                  Auto-detect format (default)\n";
+    std::cout << "  --json                  Parse as JSON\n";
+    std::cout << "  --ron                   Parse as RON (Rusty Object Notation)\n";
+    std::cout << "  --toml                  Parse as TOML\n";
+    std::cout << "  --ini                   Parse as INI\n";
+    std::cout << "  --yaml                  Parse as YAML\n\n";
+    
+    std::cout << "MODES:\n";
+    std::cout << "  Parse Mode (default):\n";
+    std::cout << "    Validates syntax and shows a preview of the parsed data.\n";
+    std::cout << "    Example: parsec config.ron\n";
+    std::cout << "    Example: parsec --json data.json\n\n";
+    
+    std::cout << "  Validate Mode:\n";
+    std::cout << "    Validates data against a JSON schema.\n";
+    std::cout << "    Example: parsec --validate schema.json data.ron\n";
+    std::cout << "    --no-defaults         Skip applying defaults from schema\n\n";
+    
+    std::cout << "  Fill Defaults Mode:\n";
+    std::cout << "    Applies schema defaults to input and writes to output file.\n";
+    std::cout << "    Example: parsec --fill-defaults schema.json input.json output.json\n\n";
+    
+    std::cout << "  Convert Mode:\n";
+    std::cout << "    Converts between configuration formats.\n";
+    std::cout << "    Example: parsec --convert yaml input.json output.yaml\n";
+    std::cout << "    Example: parsec --convert toml input.ron\n\n";
+    
+    std::cout << "SUPPORTED FORMATS:\n";
+    std::cout << "  JSON  - Strict, machine-friendly format\n";
+    std::cout << "  RON   - Rusty Object Notation (human-friendly with relaxed syntax)\n";
+    std::cout << "  TOML  - Tom's Obvious Minimal Language\n";
+    std::cout << "  INI   - Simple configuration format\n";
+    std::cout << "  YAML  - YAML Ain't Markup Language\n\n";
+    
+    std::cout << "FORMAT HINTS:\n";
+    std::cout << "  Files can include format hints in the first line:\n";
+    std::cout << "    # vim: set filetype=toml:\n";
+    std::cout << "    # -*- mode: yaml -*-\n";
+    std::cout << "    # format: json\n\n";
+    
+    std::cout << "EXIT STATUS:\n";
+    std::cout << "  0  Success (valid syntax/schema)\n";
+    std::cout << "  1  Parse error or validation failure\n";
+    std::cout << "  2  Usage error (missing arguments)\n";
+}
+
 int main(int argc, char** argv) {
+    // Check for help flag
+    if (argc >= 2) {
+        std::string arg1 = argv[1];
+        if (arg1 == "-h" || arg1 == "--help") {
+            print_help();
+            return 0;
+        }
+    }
+
     if (argc < 2) {
         std::cerr << "usage:\n  parsec [--auto|--json|--ron|--toml|--ini] <file>\n  parsec "
                      "--validate [--no-defaults] <schema.json> <file>\n  parsec --fill-defaults "
                      "<schema.json> <input> <output>\n  parsec --convert "
                      "<yaml|json|ron|toml> <input> [output]\n";
+        std::cerr << "\nUse 'parsec --help' for more information.\n";
         return 2;
     }
 
