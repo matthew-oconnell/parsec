@@ -480,6 +480,69 @@ static const Dictionary* schema_from_value(const Dictionary& schema_root, const 
     return nullptr;
 }
 
+// Helper: Extract enum values for a specific property from a schema
+// Returns empty set if the property doesn't have an enum constraint
+static std::set<std::string> get_property_enum_values(const Dictionary& schema,
+                                                      const Dictionary& schema_root,
+                                                      const std::string& prop_name) {
+    std::set<std::string> values;
+    
+    // Resolve $ref if present
+    const Dictionary* resolved = &schema;
+    if (schema.has("$ref") && schema.at("$ref").type() == Dictionary::String) {
+        resolved = resolve_local_ref(schema_root, schema.at("$ref").asString());
+        if (!resolved) resolved = &schema;
+    }
+    
+    // Check if this schema has properties with the given name
+    if (!resolved->has("properties") || !resolved->at("properties").isMappedObject()) {
+        return values;
+    }
+    
+    const Dictionary& props = resolved->at("properties");
+    if (!props.has(prop_name) || !props.at(prop_name).isMappedObject()) {
+        return values;
+    }
+    
+    const Dictionary& prop_schema = props.at(prop_name);
+    
+    // Check for enum constraint
+    if (prop_schema.has("enum") && prop_schema.at("enum").isArrayObject()) {
+        const Dictionary& enum_arr = prop_schema.at("enum");
+        for (int i = 0; i < enum_arr.size(); ++i) {
+            if (enum_arr[i].type() == Dictionary::String) {
+                values.insert(enum_arr[i].asString());
+            }
+        }
+    }
+    
+    // Check for const constraint (single allowed value)
+    if (prop_schema.has("const") && prop_schema.at("const").type() == Dictionary::String) {
+        values.insert(prop_schema.at("const").asString());
+    }
+    
+    return values;
+}
+
+// Helper: Check if a schema would accept a specific discriminator value
+// Returns true if the schema either:
+// 1. Has an enum/const for that property containing the value
+// 2. Doesn't constrain that property at all (could accept any value)
+static bool schema_accepts_discriminator(const Dictionary& schema,
+                                          const Dictionary& schema_root,
+                                          const std::string& discriminator_name,
+                                          const std::string& discriminator_value) {
+    auto enum_values = get_property_enum_values(schema, schema_root, discriminator_name);
+    
+    // If no enum constraint, the schema doesn't filter by this discriminator
+    if (enum_values.empty()) {
+        return true;
+    }
+    
+    // If there is an enum constraint, check if our value is in it
+    return enum_values.find(discriminator_value) != enum_values.end();
+}
+
 // Not needed: Dictionary represents objects directly.
 
 // Validate a primitive numeric value against minimum/maximum/exclusive bounds in schema_node
@@ -588,6 +651,7 @@ static int find_enum_in_schema(const std::string& schema_content, const std::str
 static std::string g_schema_filename;
 static std::string g_schema_content;
 static std::string g_data_filename;
+static const Dictionary* g_original_data = nullptr;
 
 // Check enum keyword: schema_node.data["enum"] should be an array of literal values
 static std::optional<std::string> check_enum(const Dictionary& data,
@@ -819,12 +883,150 @@ static std::optional<std::string> validate_node(const Dictionary& data,
         }
         if (!matched) {
             std::string msg = "anyOf did not match any schema at '" + display_path(path) + "'";
+            
+            // Try to get the original value (before defaults) for display
+            const Dictionary* display_data = &data;
+            if (g_original_data != nullptr) {
+                // Navigate to the same path in the original data
+                const Dictionary* orig = g_original_data;
+                bool found = true;
+                
+                // Parse the path and navigate through it
+                if (!path.empty()) {
+                    std::string temp_path = path;
+                    size_t pos = 0;
+                    while (pos < temp_path.size() && found) {
+                        // Find next separator (. or [)
+                        size_t dot_pos = temp_path.find('.', pos);
+                        size_t bracket_pos = temp_path.find('[', pos);
+                        
+                        if (dot_pos == std::string::npos && bracket_pos == std::string::npos) {
+                            // Last component
+                            std::string key = temp_path.substr(pos);
+                            if (orig->has(key)) {
+                                orig = &orig->at(key);
+                            } else {
+                                found = false;
+                            }
+                            break;
+                        }
+                        
+                        size_t next_sep = (dot_pos != std::string::npos && bracket_pos != std::string::npos) 
+                            ? std::min(dot_pos, bracket_pos)
+                            : (dot_pos != std::string::npos ? dot_pos : bracket_pos);
+                        
+                        if (temp_path[next_sep] == '.') {
+                            // Navigate by key
+                            std::string key = temp_path.substr(pos, next_sep - pos);
+                            if (!key.empty() && orig->has(key)) {
+                                orig = &orig->at(key);
+                                pos = next_sep + 1;
+                            } else {
+                                found = false;
+                            }
+                        } else {
+                            // Navigate by key then index
+                            std::string key = temp_path.substr(pos, next_sep - pos);
+                            if (!key.empty() && orig->has(key)) {
+                                orig = &orig->at(key);
+                            } else if (key.empty() && next_sep == pos) {
+                                // Already at the right place, just need to handle index
+                            } else {
+                                found = false;
+                                break;
+                            }
+                            
+                            // Now handle the [N] part
+                            size_t close_bracket = temp_path.find(']', next_sep);
+                            if (close_bracket != std::string::npos) {
+                                std::string index_str = temp_path.substr(next_sep + 1, close_bracket - next_sep - 1);
+                                int index = std::atoi(index_str.c_str());
+                                if (orig->isArrayObject() && index >= 0 && index < orig->size()) {
+                                    orig = &(*orig)[index];
+                                    pos = close_bracket + 1;
+                                    if (pos < temp_path.size() && temp_path[pos] == '.') {
+                                        pos++; // skip the dot
+                                    }
+                                } else {
+                                    found = false;
+                                }
+                            } else {
+                                found = false;
+                            }
+                        }
+                    }
+                }
+                
+                if (found) {
+                    display_data = orig;
+                }
+            }
+            
             // format with ron parser
-            msg += std::string("\n Your value: ") + ps::dump_ron(data);
+            msg += std::string("\n Your value: ") + ps::dump_ron(*display_data);
+            
             if (!failures.empty()) {
+                // Try to reduce the number of alternatives shown by using discriminator filtering
+                std::vector<std::string> filtered_failures = failures;
+                
+                // Common discriminator field names to check
+                std::vector<std::string> discriminator_candidates = {"type", "kind", "variant"};
+                
+                // Only apply filtering if we have an object with potential discriminators
+                if (data.isMappedObject()) {
+                    for (const auto& disc_name : discriminator_candidates) {
+                        if (data.has(disc_name) && data.at(disc_name).type() == Dictionary::String) {
+                            std::string disc_value = data.at(disc_name).asString();
+                            
+                            // Check how many schemas actually constrain this discriminator
+                            int schemas_with_constraint = 0;
+                            for (int i = 0; i < arr.size(); ++i) {
+                                const Dictionary* subSchema = schema_from_value(schema_root, arr[i]);
+                                if (!subSchema) continue;
+                                auto enum_values = get_property_enum_values(*subSchema, schema_root, disc_name);
+                                if (!enum_values.empty()) {
+                                    schemas_with_constraint++;
+                                }
+                            }
+                            
+                            // Only filter if at least half the schemas use this discriminator
+                            if (schemas_with_constraint >= arr.size() / 2) {
+                                std::vector<std::string> temp_failures;
+                                for (int i = 0; i < arr.size(); ++i) {
+                                    const Dictionary& sub = arr[i];
+                                    const Dictionary* subSchema = schema_from_value(schema_root, sub);
+                                    if (!subSchema) continue;
+                                    
+                                    if (schema_accepts_discriminator(*subSchema, schema_root, disc_name, disc_value)) {
+                                        // Find the corresponding failure message
+                                        std::string schemaName = extract_schema_name(*subSchema, schema_root);
+                                        for (const auto& f : failures) {
+                                            if (f.find("Option: " + schemaName) == 0) {
+                                                temp_failures.push_back(f);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Use filtered list if it's not empty and significantly shorter
+                                if (!temp_failures.empty() && temp_failures.size() < failures.size() * 0.7) {
+                                    filtered_failures = temp_failures;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Limit the number of alternatives shown to keep errors concise
+                const size_t max_alternatives = 5;
                 msg += "\n\nAlternatives:";
-                for (const auto& f : failures) {
-                    msg += "\n" + f + "\n";
+                for (size_t i = 0; i < filtered_failures.size() && i < max_alternatives; ++i) {
+                    msg += "\n" + filtered_failures[i] + "\n";
+                }
+                if (filtered_failures.size() > max_alternatives) {
+                    msg += "\n... and " + std::to_string(filtered_failures.size() - max_alternatives) + " more alternatives";
                 }
             }
             return std::optional<std::string>(msg);
@@ -1991,6 +2193,9 @@ void set_schema_context(const std::string& filename, const std::string& content)
 
 // Function to set data filename for error messages
 void set_data_filename(const std::string& filename) { g_data_filename = filename; }
+
+// Function to set original data (before defaults) for error messages
+void set_original_data(const Dictionary* data) { g_original_data = data; }
 
 // New API: validate and collect all errors
 ValidationResult validate_all(const Dictionary& data,

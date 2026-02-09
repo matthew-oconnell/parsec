@@ -35,6 +35,7 @@ add_executable(parsec_tests
   test_validate_medium_schema_fail.cpp
   test_validate_multi_errors.cpp
   test_anyof_defaults.cpp
+  test_anyof_error_reporting.cpp
   test_deprecated.cpp
   test_pq_path_parser.cpp
   test_pq_navigator.cpp

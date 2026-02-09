@@ -95,11 +95,15 @@ int main(int argc, char** argv) {
             ps::set_data_filename(data_path);
 
             ps::Dictionary data = ps::parse(content);
+            ps::Dictionary original_data = data;  // Keep a copy before applying defaults
 
             // Apply defaults from schema if requested
             if (apply_defaults) {
                 data = ps::setDefaults(data, schema);
             }
+
+            // Set original data for better error messages (shows user input, not defaults)
+            ps::set_original_data(&original_data);
 
             auto result = ps::validate_all(data, schema, content);
             if (!result.is_valid()) {
@@ -107,6 +111,10 @@ int main(int argc, char** argv) {
                 return 1;
             }
             std::cout << "OK: validation passed\n";
+            
+            // Clear the original data pointer (it's going out of scope)
+            ps::set_original_data(nullptr);
+            
             return 0;
         } catch (const std::exception& e) {
             std::cerr << "schema parse error: " << e.what() << "\n";
