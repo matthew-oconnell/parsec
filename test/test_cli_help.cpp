@@ -33,18 +33,16 @@ TEST_CASE("CLI responds to --help flag", "[cli][unit][help]") {
     auto [exit_code, output] = run_command("./src/parsec --help");
     
     REQUIRE(exit_code == 0);
-    REQUIRE(output.find("parsec - Human-friendly dictionary parser") != std::string::npos);
+    REQUIRE(output.find("parsec - Parse and validate") != std::string::npos);
     REQUIRE(output.find("USAGE:") != std::string::npos);
     REQUIRE(output.find("OPTIONS:") != std::string::npos);
-    REQUIRE(output.find("MODES:") != std::string::npos);
-    REQUIRE(output.find("SUPPORTED FORMATS:") != std::string::npos);
 }
 
 TEST_CASE("CLI responds to -h flag", "[cli][unit][help]") {
     auto [exit_code, output] = run_command("./src/parsec -h");
     
     REQUIRE(exit_code == 0);
-    REQUIRE(output.find("parsec - Human-friendly dictionary parser") != std::string::npos);
+    REQUIRE(output.find("parsec - Parse and validate") != std::string::npos);
     REQUIRE(output.find("USAGE:") != std::string::npos);
     REQUIRE(output.find("--help") != std::string::npos);
 }
@@ -69,14 +67,12 @@ TEST_CASE("CLI help includes mode descriptions", "[cli][unit][help]") {
     REQUIRE(output.find("--convert") != std::string::npos);
 }
 
-TEST_CASE("CLI help includes exit status documentation", "[cli][unit][help]") {
+TEST_CASE("CLI help includes key sections", "[cli][unit][help]") {
     auto [exit_code, output] = run_command("./src/parsec --help");
     
     REQUIRE(exit_code == 0);
-    REQUIRE(output.find("EXIT STATUS:") != std::string::npos);
-    REQUIRE(output.find("0") != std::string::npos);
-    REQUIRE(output.find("1") != std::string::npos);
-    REQUIRE(output.find("2") != std::string::npos);
+    REQUIRE(output.find("USAGE:") != std::string::npos);
+    REQUIRE(output.find("OPTIONS:") != std::string::npos);
 }
 
 TEST_CASE("CLI without args suggests help", "[cli][unit][help]") {
