@@ -168,8 +168,17 @@ static Dictionary apply_defaults_to_value(const Dictionary& dataVal,
     }
 
     // If schema type is object, recurse
+    // Also treat schemas with "properties" as object schemas even without explicit type
+    bool isObjectSchema = false;
     if (actual_schema->has("type") && actual_schema->at("type").type() == Dictionary::String &&
         actual_schema->at("type").asString() == "object") {
+        isObjectSchema = true;
+    }
+    if (actual_schema->has("properties")) {
+        isObjectSchema = true;
+    }
+    
+    if (isObjectSchema) {
         Dictionary inObj;
         if (dataVal.isMappedObject()) inObj = dataVal;
         Dictionary outObj = apply_defaults_to_object(inObj, schema_root, *actual_schema);

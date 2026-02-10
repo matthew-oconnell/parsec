@@ -240,3 +240,88 @@ TEST_CASE("setDefaults: schema without explicit type but with properties infers 
     REQUIRE(out.has("host"));
     REQUIRE(out.at("host").asString() == "localhost");
 }
+
+TEST_CASE("setDefaults: anyOf with implicit object schemas in array items", "[defaults]") {
+    // This tests the case where:
+    // - An array contains items using anyOf
+    // - The anyOf alternatives have "properties" but NO explicit "type": "object"
+    // - Properties within those alternatives have defaults
+    // This was broken before the fix: defaults weren't applied because the code
+    // didn't recognize schemas with just "properties" as object schemas.
+    
+    // Define two alternative schemas (like Sphere and Box metric augmentations)
+    Dictionary sphereSchema;
+    // Deliberately NO "type": "object" here - only properties
+    Dictionary sphereProps;
+    sphereProps["type"] = Dictionary{{"enum", std::vector<Dictionary>{Dictionary("sphere")}}};
+    sphereProps["radius"] = Dictionary{{"type", "number"}};
+    sphereProps["min spacing"] = Dictionary{{"type", "number"}, {"default", -1.0}};
+    sphereProps["max spacing"] = Dictionary{{"type", "number"}, {"default", -1.0}};
+    sphereProps["gradation"] = Dictionary{{"type", "number"}, {"default", 1.5}};
+    sphereSchema["properties"] = sphereProps;
+    sphereSchema["required"] = std::vector<Dictionary>{Dictionary("type"), Dictionary("radius")};
+    
+    Dictionary boxSchema;
+    // Deliberately NO "type": "object" here - only properties
+    Dictionary boxProps;
+    boxProps["type"] = Dictionary{{"enum", std::vector<Dictionary>{Dictionary("box")}}};
+    boxProps["size"] = Dictionary{{"type", "number"}};
+    boxProps["min spacing"] = Dictionary{{"type", "number"}, {"default", -2.0}};
+    boxSchema["properties"] = boxProps;
+    boxSchema["required"] = std::vector<Dictionary>{Dictionary("type"), Dictionary("size")};
+    
+    // Store in definitions
+    Dictionary definitions;
+    definitions["Sphere"] = sphereSchema;
+    definitions["Box"] = boxSchema;
+    
+    // Create anyOf referencing these definitions
+    Dictionary anyOfSchema;
+    anyOfSchema["anyOf"] = std::vector<Dictionary>{
+        Dictionary{{"$ref", "#/definitions/Sphere"}},
+        Dictionary{{"$ref", "#/definitions/Box"}}
+    };
+    
+    // Create array schema with anyOf items
+    Dictionary schema;
+    schema["type"] = "object";
+    Dictionary props;
+    props["augmentations"] = Dictionary{
+        {"type", "array"},
+        {"items", anyOfSchema}
+    };
+    schema["properties"] = props;
+    schema["definitions"] = definitions;
+    
+    // Input: array with one sphere item that's missing the default properties
+    Dictionary input;
+    std::vector<Dictionary> augmentations;
+    Dictionary sphereItem;
+    sphereItem["type"] = "sphere";
+    sphereItem["radius"] = 1.0;
+    // NOT providing min spacing, max spacing, or gradation
+    augmentations.push_back(sphereItem);
+    input["augmentations"] = augmentations;
+    
+    // Apply defaults
+    auto out = setDefaults(input, schema);
+    
+    // Verify defaults were applied
+    REQUIRE(out.has("augmentations"));
+    REQUIRE(out.at("augmentations").isArrayObject());
+    REQUIRE(out.at("augmentations").size() == 1);
+    
+    auto& item = out.at("augmentations")[0];
+    REQUIRE(item.has("type"));
+    REQUIRE(item.at("type").asString() == "sphere");
+    REQUIRE(item.has("radius"));
+    REQUIRE(item.at("radius").asDouble() == 1.0);
+    
+    // These are the critical assertions - defaults should be filled
+    REQUIRE(item.has("min spacing"));
+    REQUIRE(item.at("min spacing").asDouble() == -1.0);
+    REQUIRE(item.has("max spacing"));
+    REQUIRE(item.at("max spacing").asDouble() == -1.0);
+    REQUIRE(item.has("gradation"));
+    REQUIRE(item.at("gradation").asDouble() == 1.5);
+}
