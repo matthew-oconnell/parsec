@@ -1,4 +1,5 @@
 #include <ps/pq/cli_args.h>
+#include <ps/cli_utils.h>
 #include <stdexcept>
 #include <string>
 
@@ -19,6 +20,15 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
         action_ = Action::PRINT;
         return;
     }
+    
+    // Valid options for error suggestions
+    static const std::vector<std::string> valid_options = {
+        "--get", "-g",
+        "--count",
+        "--has",
+        "--default", "-d",
+        "--as-json"
+    };
     
     // Parse flags
     for (int i = 2; i < argc; ++i) {
@@ -55,7 +65,8 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
             asJson_ = true;
         }
         else {
-            throw std::invalid_argument("Unknown argument: " + arg);
+            std::string error_msg = cli_utils::create_unknown_arg_error(arg, valid_options);
+            throw std::invalid_argument(error_msg);
         }
     }
 }

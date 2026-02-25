@@ -149,3 +149,74 @@ TEST_CASE("Missing default value throws", "[pq][cli_args][unit][exception]") {
     
     REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
 }
+
+// Phase 3.4 - Test improved error messages with suggestions
+
+TEST_CASE("Unknown argument provides helpful error", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--unknown"};
+    int argc = 3;
+    
+    try {
+        ps::pq::CliArgs args(argc, argv);
+        FAIL("Expected exception for unknown argument");
+    } catch (const std::invalid_argument& e) {
+        std::string error_msg = e.what();
+        REQUIRE(error_msg.find("Unknown argument: --unknown") != std::string::npos);
+    }
+}
+
+TEST_CASE("Typo --get_ suggests --get", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--get_", "path"};
+    int argc = 4;
+    
+    try {
+        ps::pq::CliArgs args(argc, argv);
+        FAIL("Expected exception for typo");
+    } catch (const std::invalid_argument& e) {
+        std::string error_msg = e.what();
+        REQUIRE(error_msg.find("Unknown argument: --get_") != std::string::npos);
+        REQUIRE(error_msg.find("Did you mean '--get'?") != std::string::npos);
+    }
+}
+
+TEST_CASE("Typo --as_json suggests --as-json", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--get", "path", "--as_json"};
+    int argc = 5;
+    
+    try {
+        ps::pq::CliArgs args(argc, argv);
+        FAIL("Expected exception for typo");
+    } catch (const std::invalid_argument& e) {
+        std::string error_msg = e.what();
+        REQUIRE(error_msg.find("Unknown argument: --as_json") != std::string::npos);
+        REQUIRE(error_msg.find("Did you mean '--as-json'?") != std::string::npos);
+    }
+}
+
+TEST_CASE("Typo --defualt suggests --default", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--get", "path", "--defualt", "value"};
+    int argc = 6;
+    
+    try {
+        ps::pq::CliArgs args(argc, argv);
+        FAIL("Expected exception for typo");
+    } catch (const std::invalid_argument& e) {
+        std::string error_msg = e.what();
+        REQUIRE(error_msg.find("Unknown argument: --defualt") != std::string::npos);
+        REQUIRE(error_msg.find("Did you mean '--default'?") != std::string::npos);
+    }
+}
+
+TEST_CASE("Typo --counts suggests --count", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--counts", "users"};
+    int argc = 4;
+    
+    try {
+        ps::pq::CliArgs args(argc, argv);
+        FAIL("Expected exception for typo");
+    } catch (const std::invalid_argument& e) {
+        std::string error_msg = e.what();
+        REQUIRE(error_msg.find("Unknown argument: --counts") != std::string::npos);
+        REQUIRE(error_msg.find("Did you mean '--count'?") != std::string::npos);
+    }
+}

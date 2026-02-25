@@ -8,10 +8,36 @@
 #include <ps/yaml.h>
 #include <ps/parse.h>
 #include <ps/validate.h>
+#include <ps/cli_utils.h>
 #include <algorithm>
 
 // The real `ps::validate` implementation is provided in `validate.cpp`.
 // Do not provide a local stub here so the CLI calls the library implementation.
+
+// Helper function to check if an argument looks like an option (starts with -)
+bool isOption(const std::string& arg) {
+    return !arg.empty() && arg[0] == '-';
+}
+
+// Helper function to validate a mode/format argument
+bool isValidModeOrFormat(const std::string& arg) {
+    static const std::vector<std::string> valid_args = {
+        "--json", "--ron", "--toml", "--ini", "--yaml",
+        "json", "ron", "toml", "ini", "yaml",
+        "--auto",
+        "--validate", "--no-defaults",
+        "--fill-defaults",
+        "--convert",
+        "-h", "--help"
+    };
+    
+    for (const auto& valid : valid_args) {
+        if (arg == valid) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void print_help() {
     std::cout << "parsec - Parse and validate JSON/RON/TOML/INI/YAML configuration files\n\n";
@@ -49,6 +75,24 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    // Valid options for error suggestions (used throughout)
+    static const std::vector<std::string> valid_options = {
+        "--json", "--ron", "--toml", "--ini", "--yaml",
+        "--auto",
+        "--validate", "--no-defaults",
+        "--fill-defaults",
+        "--convert",
+        "-h", "--help"
+    };
+
+    // Validate first argument if it looks like an option
+    if (argc >= 2 && isOption(argv[1]) && !isValidModeOrFormat(argv[1])) {
+        std::string error_msg = ps::cli_utils::create_unknown_arg_error(argv[1], valid_options);
+        std::cerr << error_msg << "\n";
+        std::cerr << "\nUse 'parsec --help' for more information.\n";
+        return 2;
+    }
+
     // Special validate mode: parse schema (JSON) and validate the given file against it
     if (std::string(argv[1]) == "--validate") {
         bool apply_defaults = true;
@@ -62,6 +106,14 @@ int main(int argc, char** argv) {
             schema_idx = 3;
             data_idx = 4;
             expected_argc = 5;
+        }
+        // Check for typos in the second argument if it looks like an option
+        else if (argc >= 3 && isOption(argv[2])) {
+            static const std::vector<std::string> validate_options = {"--no-defaults"};
+            std::string error_msg = ps::cli_utils::create_unknown_arg_error(argv[2], validate_options);
+            std::cerr << error_msg << "\n";
+            std::cerr << "usage: parsec --validate [--no-defaults] <schema.json> <file>\n";
+            return 2;
         }
 
         if (argc != expected_argc) {
