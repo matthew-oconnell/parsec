@@ -27,6 +27,7 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
         "--count",
         "--has",
         "--prepend",
+        "--append",
         "--output", "-o",
         "--default", "-d",
         "--as-json"
@@ -74,6 +75,17 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
             }
             value_ = argv[++i];
         }
+        else if (arg == "--append") {
+            action_ = Action::APPEND;
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--append requires a path and a value argument");
+            }
+            path_ = argv[++i];
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--append requires a value argument after the path");
+            }
+            value_ = argv[++i];
+        }
         else if (arg == "--output" || arg == "-o") {
             if (i + 1 >= argc) {
                 throw std::invalid_argument("--output requires a file path argument");
@@ -92,6 +104,9 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
     // Validate that mutation actions have an output path
     if (action_ == Action::PREPEND && outputPath_.empty()) {
         throw std::invalid_argument("--prepend requires --output <file> to specify the output file");
+    }
+    if (action_ == Action::APPEND && outputPath_.empty()) {
+        throw std::invalid_argument("--append requires --output <file> to specify the output file");
     }
 }
 

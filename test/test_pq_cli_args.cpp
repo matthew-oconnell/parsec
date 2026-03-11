@@ -275,3 +275,51 @@ TEST_CASE("Missing file after --output throws", "[pq][cli_args][unit][exception]
 
     REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
 }
+
+// --append action tests
+
+TEST_CASE("Parse append action", "[pq][cli_args][unit]") {
+    const char* argv[] = {"pq", "file.json", "--append", "users", R"({"name":"Bob"})", "--output", "out.json"};
+    int argc = 7;
+
+    ps::pq::CliArgs args(argc, argv);
+
+    REQUIRE(args.getAction() == ps::pq::CliArgs::Action::APPEND);
+    REQUIRE(args.getPath() == "users");
+    REQUIRE(args.getValue() == R"({"name":"Bob"})");
+    REQUIRE(args.getOutputPath() == "out.json");
+}
+
+TEST_CASE("Append with short form -o for output", "[pq][cli_args][unit]") {
+    const char* argv[] = {"pq", "data.toml", "--append", "items", "99", "-o", "result.json"};
+    int argc = 7;
+
+    ps::pq::CliArgs args(argc, argv);
+
+    REQUIRE(args.getAction() == ps::pq::CliArgs::Action::APPEND);
+    REQUIRE(args.getFilePath() == "data.toml");
+    REQUIRE(args.getPath() == "items");
+    REQUIRE(args.getValue() == "99");
+    REQUIRE(args.getOutputPath() == "result.json");
+}
+
+TEST_CASE("Missing value after --append throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--append", "users"};
+    int argc = 4;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
+
+TEST_CASE("Missing path after --append throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--append"};
+    int argc = 3;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
+
+TEST_CASE("Append without --output throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--append", "users", R"({"name":"Bob"})"};
+    int argc = 5;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}

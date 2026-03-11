@@ -15,7 +15,8 @@ public:
         GET,       // Get a value at path
         COUNT,     // Count array elements at path
         HAS,       // Check if path exists
-        PREPEND    // Prepend a value to an array at path
+        PREPEND,   // Prepend a value to an array at path
+        APPEND     // Append a value to an array at path
     };
     
     CliArgs(int argc, const char* argv[]);
