@@ -26,6 +26,8 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
         "--get", "-g",
         "--count",
         "--has",
+        "--prepend",
+        "--output", "-o",
         "--default", "-d",
         "--as-json"
     };
@@ -61,6 +63,23 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
             }
             defaultValue_ = argv[++i];
         }
+        else if (arg == "--prepend") {
+            action_ = Action::PREPEND;
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--prepend requires a path and a value argument");
+            }
+            path_ = argv[++i];
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--prepend requires a value argument after the path");
+            }
+            value_ = argv[++i];
+        }
+        else if (arg == "--output" || arg == "-o") {
+            if (i + 1 >= argc) {
+                throw std::invalid_argument("--output requires a file path argument");
+            }
+            outputPath_ = argv[++i];
+        }
         else if (arg == "--as-json") {
             asJson_ = true;
         }
@@ -68,6 +87,11 @@ CliArgs::CliArgs(int argc, const char* argv[]) {
             std::string error_msg = cli_utils::create_unknown_arg_error(arg, valid_options);
             throw std::invalid_argument(error_msg);
         }
+    }
+
+    // Validate that mutation actions have an output path
+    if (action_ == Action::PREPEND && outputPath_.empty()) {
+        throw std::invalid_argument("--prepend requires --output <file> to specify the output file");
     }
 }
 

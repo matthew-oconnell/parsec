@@ -14,7 +14,8 @@ public:
         PRINT,     // Pretty-print the file (default)
         GET,       // Get a value at path
         COUNT,     // Count array elements at path
-        HAS        // Check if path exists
+        HAS,       // Check if path exists
+        PREPEND    // Prepend a value to an array at path
     };
     
     CliArgs(int argc, const char* argv[]);
@@ -26,6 +27,8 @@ public:
     bool hasDefault() const { return defaultValue_.has_value(); }
     const std::string& getDefault() const { return *defaultValue_; }
     bool outputAsJson() const { return asJson_; }
+    const std::string& getValue() const { return value_; }
+    const std::string& getOutputPath() const { return outputPath_; }
     
 private:
     Action action_ = Action::HELP;
@@ -33,6 +36,8 @@ private:
     std::string path_;
     std::optional<std::string> defaultValue_;
     bool asJson_ = false;
+    std::string value_;
+    std::string outputPath_;
 };
 
 } // namespace pq

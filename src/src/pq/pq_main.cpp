@@ -33,9 +33,11 @@ void showHelp() {
     std::cout << "  --get, -g <path>     Extract value at path\n";
     std::cout << "  --count <path>       Count array elements at path\n";
     std::cout << "  --has <path>         Check if path exists (exit 0/1)\n";
+    std::cout << "  --prepend <path> <v> Prepend value to array at path\n";
     std::cout << "  (default)            Pretty-print entire file\n\n";
     std::cout << "Options:\n";
     std::cout << "  --default, -d <val>  Default value if path not found\n";
+    std::cout << "  --output, -o <file>  Output file (required for --prepend)\n";
     std::cout << "  --as-json            Output as JSON instead of raw\n\n";
     std::cout << "Path syntax:\n";
     std::cout << "  Keys separated by /: server/port\n";
@@ -48,6 +50,7 @@ void showHelp() {
     std::cout << "  pq data.toml --count users\n";
     std::cout << "  pq settings.ron --has debug/enabled\n";
     std::cout << "  pq config.json --get \"mesh adaptation/starting mesh complexity\"\n";
+    std::cout << "  pq users.json --prepend users '{\"name\":\"Alice\"}' --output updated.json\n";
 }
 
 int main(int argc, const char* argv[]) {
@@ -140,6 +143,34 @@ int main(int argc, const char* argv[]) {
                 }
             }
             
+            case ps::pq::CliArgs::Action::PREPEND: {
+                // Prepend a value to an array at path
+                auto tokens = pathParser.parse(args.getPath());
+                auto& target = navigator.navigateMutable(data, tokens);
+
+                if (target.size() == 0 && !target.has("__dummy__")) {
+                    // Could be empty object or empty array — treat as array
+                }
+
+                int n = target.size();
+                // Shift existing elements up by one
+                for (int i = n; i > 0; --i) {
+                    target[i] = target[i - 1];
+                }
+
+                // Parse the value and insert at index 0
+                ps::Dictionary newValue = ps::parse(args.getValue());
+                target[0] = newValue;
+
+                // Write to output file
+                std::ofstream out(args.getOutputPath());
+                if (!out.is_open()) {
+                    throw std::runtime_error("Failed to open output file: " + args.getOutputPath());
+                }
+                out << data.dump(4, false) << "\n";
+                return 0;
+            }
+
             case ps::pq::CliArgs::Action::HELP:
                 // Already handled above
                 return 0;

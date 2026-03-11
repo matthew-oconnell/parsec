@@ -49,6 +49,45 @@ Dictionary Navigator::navigate(const Dictionary& dict, const std::vector<PathTok
     return current;
 }
 
+Dictionary& Navigator::navigateMutable(Dictionary& dict, const std::vector<PathToken>& tokens) {
+    if (tokens.empty()) {
+        return dict;
+    }
+
+    Dictionary* current = &dict;
+
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+
+        if (token.isWildcard()) {
+            throw std::invalid_argument("Wildcards are not supported for mutable navigation");
+        }
+
+        if (token.isKey()) {
+            const std::string& key = token.asKey();
+            if (!current->has(key)) {
+                std::ostringstream oss;
+                oss << "Key '" << key << "' not found";
+                throw std::out_of_range(oss.str());
+            }
+            current = &((*current)[key]);
+        } else if (token.isIndex()) {
+            int index = token.asIndex();
+            if (current->size() == 0) {
+                throw std::out_of_range("Cannot index into empty value");
+            }
+            if (index < 0 || index >= static_cast<int>(current->size())) {
+                std::ostringstream oss;
+                oss << "Index " << index << " out of range (size: " << current->size() << ")";
+                throw std::out_of_range(oss.str());
+            }
+            current = &((*current)[index]);
+        }
+    }
+
+    return *current;
+}
+
 std::vector<Dictionary> Navigator::navigateWildcard(const Dictionary& dict, const std::vector<PathToken>& tokens) {
     std::vector<Dictionary> results;
     

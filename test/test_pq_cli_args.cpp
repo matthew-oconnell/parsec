@@ -220,3 +220,58 @@ TEST_CASE("Typo --counts suggests --count", "[pq][cli_args][unit][exception]") {
         REQUIRE(error_msg.find("Did you mean '--count'?") != std::string::npos);
     }
 }
+
+// --prepend action tests
+
+TEST_CASE("Parse prepend action", "[pq][cli_args][unit]") {
+    const char* argv[] = {"pq", "file.json", "--prepend", "users", R"({"name":"Alice"})", "--output", "out.json"};
+    int argc = 7;
+
+    ps::pq::CliArgs args(argc, argv);
+
+    REQUIRE(args.getAction() == ps::pq::CliArgs::Action::PREPEND);
+    REQUIRE(args.getPath() == "users");
+    REQUIRE(args.getValue() == R"({"name":"Alice"})");
+    REQUIRE(args.getOutputPath() == "out.json");
+}
+
+TEST_CASE("Prepend with short form -o for output", "[pq][cli_args][unit]") {
+    const char* argv[] = {"pq", "data.toml", "--prepend", "items", "42", "-o", "result.json"};
+    int argc = 7;
+
+    ps::pq::CliArgs args(argc, argv);
+
+    REQUIRE(args.getAction() == ps::pq::CliArgs::Action::PREPEND);
+    REQUIRE(args.getFilePath() == "data.toml");
+    REQUIRE(args.getPath() == "items");
+    REQUIRE(args.getValue() == "42");
+    REQUIRE(args.getOutputPath() == "result.json");
+}
+
+TEST_CASE("Missing value after --prepend throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--prepend", "users"};
+    int argc = 4;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
+
+TEST_CASE("Missing path after --prepend throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--prepend"};
+    int argc = 3;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
+
+TEST_CASE("Prepend without --output throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--prepend", "users", R"({"name":"Alice"})"};
+    int argc = 5;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
+
+TEST_CASE("Missing file after --output throws", "[pq][cli_args][unit][exception]") {
+    const char* argv[] = {"pq", "file.json", "--prepend", "users", R"({"a":1})", "--output"};
+    int argc = 6;
+
+    REQUIRE_THROWS_AS(ps::pq::CliArgs(argc, argv), std::invalid_argument);
+}
