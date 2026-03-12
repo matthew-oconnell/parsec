@@ -6,6 +6,7 @@
 #include <ps/pq/navigator.h>
 #include <ps/pq/cli_args.h>
 #include <ps/pq/output_formatter.h>
+#include <ps/pq/text_editor.h>
 
 #include <iostream>
 #include <fstream>
@@ -146,48 +147,44 @@ int main(int argc, const char* argv[]) {
             }
             
             case ps::pq::CliArgs::Action::PREPEND: {
-                // Prepend a value to an array at path
+                // Prepend a value to an array at path, preserving comments
                 auto tokens = pathParser.parse(args.getPath());
-                auto& target = navigator.navigateMutable(data, tokens);
 
-                if (target.size() == 0 && !target.has("__dummy__")) {
-                    // Could be empty object or empty array — treat as array
-                }
-
-                int n = target.size();
-                // Shift existing elements up by one
-                for (int i = n; i > 0; --i) {
-                    target[i] = target[i - 1];
-                }
-
-                // Parse the value and insert at index 0
+                // Parse the value to validate it, then serialize compact
                 ps::Dictionary newValue = ps::parse(args.getValue());
-                target[0] = newValue;
+                std::string compactValue = newValue.dump(0, true);
+
+                // Splice into raw text (preserves comments and formatting)
+                std::string result = ps::pq::TextEditor::prependToArray(
+                    content, tokens, compactValue);
 
                 // Write to output file
                 std::ofstream out(args.getOutputPath());
                 if (!out.is_open()) {
                     throw std::runtime_error("Failed to open output file: " + args.getOutputPath());
                 }
-                out << data.dump(4, false) << "\n";
+                out << result;
                 return 0;
             }
 
             case ps::pq::CliArgs::Action::APPEND: {
-                // Append a value to an array at path
+                // Append a value to an array at path, preserving comments
                 auto tokens = pathParser.parse(args.getPath());
-                auto& target = navigator.navigateMutable(data, tokens);
 
-                int n = target.size();
+                // Parse the value to validate it, then serialize compact
                 ps::Dictionary newValue = ps::parse(args.getValue());
-                target[n] = newValue;
+                std::string compactValue = newValue.dump(0, true);
+
+                // Splice into raw text (preserves comments and formatting)
+                std::string result = ps::pq::TextEditor::appendToArray(
+                    content, tokens, compactValue);
 
                 // Write to output file
                 std::ofstream out(args.getOutputPath());
                 if (!out.is_open()) {
                     throw std::runtime_error("Failed to open output file: " + args.getOutputPath());
                 }
-                out << data.dump(4, false) << "\n";
+                out << result;
                 return 0;
             }
 

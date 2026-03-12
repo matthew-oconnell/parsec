@@ -32,6 +32,7 @@ target_sources(parsec_lib
     src/pq/navigator.cpp
     src/pq/cli_args.cpp
     src/pq/output_formatter.cpp
+    src/pq/text_editor.cpp
 )
 
 ## Compiler warning flags

@@ -1,0 +1,106 @@
+{
+    "mesh filename": "wedge-w-straps.meshb",
+
+    "steps": 250,
+    "checkpoint frequency": 25,
+    "sequence solve": true,
+
+    "mesh adaptation": {
+      "use first mesh": true,
+      "starting mesh complexity": 125000,
+    //"restart from iteration": 1,
+      "complexity increase factor": 1.2599210499,
+      "iterations at fixed complexity": 1,
+      "sweeps": 30,
+      "scalar to adapt": "enthalpy-adaptation-sensor",
+      "buffer": true,
+      "max mesh complexity": 8000000,
+      "norm order":  6,
+      "aspect ratio limiting": { "distance threshold": 0.025, "maximum aspect ratio": 50.0 }
+    },
+
+    "visualization": [
+      { "type": "volume", "fields": [ "density", "u", "v", "w", "temperature", "nu-tilda" ],
+        "filename": [ "volume.plt", "volume.vtk" ] },
+      { "type": "boundary", "mesh boundary tags": "*vehicle",
+        "filename": [ "surfaces.plt", "surfaces.vtk" ] },
+      { "type": "plane", "normal": [0, 1, 0],
+        "filename": [ "yplane.plt", "yplane.vtk" ] }
+    ],
+
+    "states": {
+      "freestream": {
+        // 999 Seconds,
+        "density": 2.0531e-4,
+        "speed": 627,
+        "temperature": 219.4,
+        "angle of attack": 0.0,
+//      "mass fractions": [ 0.77, 0.23, 1e-9, 1e-9, 1e-9 ]
+        "mass fractions": 1.0
+      }
+    },
+
+    "initialization regions": [ { "type": "planetary entry" } ],
+
+    "thermodynamics": {
+//    "chemistry model": "finite-rate",
+//    "chemistry model": "frozen",
+//    "species": [ "N2", "O2", "N", "O", "NO" ]
+      "species": [ "N2" ]
+    },
+
+    "turbulence model": {
+//    "type": "laminar"
+      "type": "sa-catriscons"
+    },
+
+    "discretization": {
+        "slope limiter": "first order",
+        "viscous flux slope limiter": "pressure",
+        "eigenvalue limiting coefficient":  1.1,
+        "eigenvalue limiting coefficient floor": 0.5,
+        "smooth limiter": 3,
+        "skip transport jacobian": true,
+        "average viscous transport coefficients": true,
+        "lhs settings": { "use approximate rusanov flux jacobian": true },
+        "gradient method": "IEBG",
+        "IEBG": { "solver": "experimental", "persist across solves": true }
+    },
+
+    "nonlinear solver": {
+      "solver": "Kokkos",
+      "use B2 scheme": true,
+      "cfl increase factor": 1.3,
+      "frechet derivative type": "none",
+      "enable linesearch": false,
+      "residual stopping tolerance": 1e-10
+    },
+
+    "linear solver": {
+      "max sweeps": 200,
+      "max krylov search directions": 1
+    },
+
+    "boundary conditions": [
+        {
+            "mesh boundary tags": "*outflow",
+            "type": "supersonic outflow", "vacuum ratio": 0.1
+        },
+        {
+            "mesh boundary tags": "*farfield",
+            "type": "riemann", "state": "freestream"
+        },
+        {
+            "mesh boundary tags": "*symmetry*",
+            "type": "symmetry"
+        },
+        {
+            "mesh boundary tags": "*inflow",
+            "type": "fixed inflow", "state": "freestream"
+        },
+        {
+            "mesh boundary tags": "*vehicle",
+            "type": "no slip wall", "wall temperature": 500.0
+        }
+    ]
+}
